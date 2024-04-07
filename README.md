@@ -14,7 +14,7 @@ Download the repository and run command from the main folder.
 python main.py --help
 ```
 
-To extract the data
+To extract the data:
 
 - Get either ``mhfdat.bin``, ``mhfpac.bin`` or ``mhfinf.bin`` from Monster 
 Hunter Frontier source code
@@ -34,14 +34,22 @@ python main.py --xpath=dat/armors/legs
 
 It will create a file ``output/dat-armors-legs.csv``.
 
-
-### Convert translation CSV to ReFrontier
+You can also convert any translation CSV to ReFrontier
 
 ```bash
 python main.py --refrontier-to-csv
 ```
 
+Currently, you can extract all names and descriptions for: weapons, armors, items as well as skills.
+
+## Credits
+
+This software was realized with the support of [@ezemania2](https://github.com/ezemania2) from the 
+[MezeLounge](https://discord.com/invite/monster-hunter-frontier-eu-973963573619486740) Discord community
+as well as the [Mogapédia](https://mogapedia.fandom.com/fr/wiki/Monster_Hunter_Wiki), the French Monster
+Hunter wiki.
+
 ## See also
 
 - [var-username/Monster-Hunter-Frontier-Patterns](https://github.com/var-username/Monster-Hunter-Frontier-Patterns):
-incredible source reference for this project.
+incredible reference for this project.
