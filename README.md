@@ -16,10 +16,9 @@ python main.py --help
 
 To extract the data:
 
-- Get either ``mhfdat.bin``, ``mhfpac.bin`` or ``mhfinf.bin`` from Monster 
-Hunter Frontier source code
-- Decrypt, decompile with [ReFrontier](https://github.com/mhvuze/ReFrontier). Place the output in ``data/``.
-- Run ``main.py``.
+1. Decrypt, decompile MHFrontier source code with [ReFrontier](https://github.com/mhvuze/ReFrontier).
+2. Place the binary files ``mhfdat.bin``, ``mhfpac.bin`` or ``mhfinf.bin`` in a ``data/`` folder.
+3. Run ``main.py``.
 
 Output data will be in ``output/*.csv``. The file ``output/refrontier.csv`` is compatible with ReFrontier.
 
