@@ -10,6 +10,7 @@ import argparse
 import json
 from zlib import crc32
 import csv
+import warnings
 
 from binary_file import BinaryFile
 
@@ -17,8 +18,8 @@ from binary_file import BinaryFile
 # Console arguments
 parser = argparse.ArgumentParser(
     prog="FrontierTextConverter",
-    description="Converts strings from Monster Hunter Frontier " +
-                "between ReFrontier and other formats.",
+    description="Converts strings from Monster Hunter Frontier "
+    + "between ReFrontier and other formats.",
 )
 parser.add_argument(
     "input_file", type=str, default="data/mhfdat.bin", nargs="?", help="Input file."
@@ -35,8 +36,8 @@ parser.add_argument(
     type=str,
     default="dat/armors/head",
     required=False,
-    help="Which data to get, as an xpath. " +
-         "For instance 'dat/armors/head' to read from mhfDAT.bin ARMORS HELMETS",
+    help="Which data to get, as an xpath. "
+    + "For instance 'dat/armors/head' to read from mhfDAT.bin ARMORS HELMETS",
 )
 parser.add_argument(
     "--refrontier-to-csv",
@@ -108,6 +109,11 @@ def read_from_pointers(file_path, pointers_data):
     crop_end = pointers_data[2]
 
     with BinaryFile(file_path) as bfile:
+        if bfile.read(3) == b"ecd":
+            warnings.warn(
+                f"'{file_path}' starts with an ECD header, meaning it's encrypted. "
+                + "Make sure to decrypt the file using ReFrontier before trying to use it."
+            )
         # Move the file pointer to the desired start position
         bfile.seek(start_pointer)
         start_position = bfile.read_int()
@@ -128,6 +134,7 @@ def export_as_csv(data, output_file, source=""):
     :param str source: Eventual file source
     :return:
     """
+    lines = 0
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["location", "source", "target"])
@@ -135,7 +142,8 @@ def export_as_csv(data, output_file, source=""):
             writer.writerow(
                 [str(string_elem[0]) + "@" + source, string_elem[1], string_elem[1]]
             )
-    print("Wrote translation CSV as " + output_file)
+            lines += 1
+    print(f"Wrote {lines} lines of translation CSV as {output_file}")
 
 
 def export_for_refrontier(data, output_file):
@@ -146,6 +154,7 @@ def export_for_refrontier(data, output_file):
     :param str output_file: File path for output.
     :return:
     """
+    lines = 0
     with codecs.open(output_file, "w", encoding="shift_jisx0213") as csvfile:
         writer = csv.writer(csvfile, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
         writer.writerow(["Offset", "Hash", "jString"])
@@ -158,7 +167,8 @@ def export_for_refrontier(data, output_file):
             writer.writerow(
                 [string_elem[0], crc32(codecs.encode(string, "shift_jisx0213")), string]
             )
-    print("Wrote ReFrontier compatible file as " + output_file)
+            lines += 1
+    print(f"Wrote {lines} lines of ReFrontier compatible file as {output_file}")
 
 
 def import_from_refrontier(input_file):
@@ -185,24 +195,40 @@ def refrontier_to_csv(input_file, output_file):
     export_as_csv(data, output_file, os.path.basename(input_file))
 
 
+def extract_from_file(input_file, xpath, output_file):
+    """Extract data from a single file."""
+    # Read data
+    pointers_data = read_json_data(xpath)
+    file_section = read_from_pointers(input_file, pointers_data)
+
+    if not file_section:
+        raise ValueError(
+            f"Cannot find any readable data in '{input_file}' with xpath '{xpath}'. "
+            + "Double-check the file format, name and xpath provided."
+        )
+    # Output
+    folder_name = "output"
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+        print(f"Created new folder '{folder_name}'.")
+    export_name = output_file
+    if xpath:
+        export_name = "output/" + xpath.replace("/", "-") + ".csv"
+    export_as_csv(file_section, export_name, os.path.basename(input_file))
+    export_for_refrontier(file_section, "output/refrontier.csv")
+
+
 def main(args):
     """Main function to read everything."""
+    if not os.path.exists(args.input_file):
+        raise FileNotFoundError(
+            f"'{args.input_file}' does not exist. You need to import it first."
+        )
+
     if args.refrontier_to_csv:
         refrontier_to_csv(args.input_file, args.output_file)
     else:
-        # Read data
-        pointers_data = read_json_data(args.xpath)
-        file_section = read_from_pointers(args.input_file, pointers_data)
-
-        # Output
-        folder_name = "output"
-        if not os.path.exists(folder_name):
-            os.makedirs(folder_name)
-        export_name = args.output_file
-        if args.xpath:
-            export_name = "output/" + args.xpath.replace("/", "-") + ".csv"
-        export_as_csv(file_section, export_name, os.path.basename(args.input_file))
-        export_for_refrontier(file_section, "output/refrontier.csv")
+        extract_from_file(args.input_file, args.xpath, args.output_file)
 
 
 if __name__ == "__main__":
