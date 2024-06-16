@@ -15,35 +15,42 @@ import warnings
 from binary_file import BinaryFile
 
 
-# Console arguments
-parser = argparse.ArgumentParser(
-    prog="FrontierTextConverter",
-    description="Converts strings from Monster Hunter Frontier "
-    + "between ReFrontier and other formats.",
-)
-parser.add_argument(
-    "input_file", type=str, default="data/mhfdat.bin", nargs="?", help="Input file."
-)
-parser.add_argument(
-    "output_file",
-    type=str,
-    default="output/minimal.csv",
-    nargs="?",
-    help="Output file name.",
-)
-parser.add_argument(
-    "--xpath",
-    type=str,
-    default="dat/armors/head",
-    required=False,
-    help="Which data to get, as an xpath. "
-    + "For instance 'dat/armors/head' to read from mhfDAT.bin ARMORS HELMETS",
-)
-parser.add_argument(
-    "--refrontier-to-csv",
-    action="store_true",
-    help="Convert from ReFrontier format (TSV, SHift-JIS) to CSV format.",
-)
+def parse_inputs():
+    """Parse console arguments."""
+    parser = argparse.ArgumentParser(
+        prog="FrontierTextConverter",
+        description="Converts strings from Monster Hunter Frontier "
+        + "between ReFrontier and other formats.",
+    )
+    parser.add_argument(
+        "input_file", type=str, default="data/mhfdat.bin", nargs="?", help="Input file."
+    )
+    parser.add_argument(
+        "output_file",
+        type=str,
+        default="output/minimal.csv",
+        nargs="?",
+        help="Output file name.",
+    )
+    parser.add_argument(
+        "--xpath",
+        type=str,
+        default="dat/armors/head",
+        required=False,
+        help="Which data to get, as an xpath. "
+        + "For instance 'dat/armors/head' to read from mhfDAT.bin ARMORS HELMETS",
+    )
+    parser.add_argument(
+        "--refrontier-to-csv",
+        action="store_true",
+        help="Convert from ReFrontier format (TSV, Shift-JIS) to CSV format.",
+    )
+    parser.add_argument(
+        "--csv-to-bin",
+        action="store_true",
+        help="Convert from a CSV file (UTF-8) to your binary file.",
+    )
+    return parser
 
 
 def read_json_data(xpath="dat/armor/head"):
@@ -73,7 +80,7 @@ def read_until_null(bfile):
     """Read data until we meet null terminator or end of file."""
     stream = b""
     byte = bfile.read(1)
-    while byte != b"\x00":
+    while byte != b"\x00" and byte != b"":
         stream += byte
         byte = bfile.read(1)
     return stream
@@ -92,12 +99,11 @@ def read_next_string(bfile):
 def read_file_section(bfile, start_position, length):
     """Read a part of a file and return strings found."""
     strings = []
-    offset = 0
-    bfile.seek(start_position)
-    while start_position + offset < length:
+    offset = start_position
+    while offset < length:
         # Move the file pointer to the desired start position
-        bfile.seek(start_position + offset)
-        strings.append((start_position + offset, read_next_string(bfile)))
+        bfile.seek(offset)
+        strings.append((offset, read_next_string(bfile)))
         offset += 4
     return strings
 
@@ -109,10 +115,17 @@ def read_from_pointers(file_path, pointers_data):
     crop_end = pointers_data[2]
 
     with BinaryFile(file_path) as bfile:
-        if bfile.read(3) == b"ecd":
+        # Check for proper header first
+        header = bfile.read(3)
+        if header == b"ecd":
             warnings.warn(
                 f"'{file_path}' starts with an ECD header, meaning it's encrypted. "
-                + "Make sure to decrypt the file using ReFrontier before trying to use it."
+                + "Make sure to decrypt the file using ReFrontier before using it."
+            )
+        elif header == b"jpk":
+            warnings.warn(
+                f"'{file_path}' starts with a JPK header, meaning it's compressed. "
+                + "Make sure to decompress the file using ReFrontier before using it."
             )
         # Move the file pointer to the desired start position
         bfile.seek(start_pointer)
@@ -195,6 +208,59 @@ def refrontier_to_csv(input_file, output_file):
     export_as_csv(data, output_file, os.path.basename(input_file))
 
 
+def import_from_csv(input_file, output_file):
+    """Use the CSV file to edit the binary file."""
+    new_strings = []
+    # First save the strings to insert
+    with open(input_file, "r", newline="", encoding="utf-8") as csvfile:
+        reader = csv.reader(csvfile)
+        # Header should be ["location", "source", "target"]
+        try:
+            next(reader)
+        except StopIteration as _exc:
+            raise InterruptedError(f"{input_file} has less than one line!") from _exc
+        for line in reader:
+            index = int(line[0][:line[0].index("@")])
+            new_strings.append([index, line[1]])
+    print(f"Found {len(new_strings)} translations to write")
+    # Check for new pointers value
+    pointers_change = []
+    current_offset = 0
+    with BinaryFile(output_file) as bfile:
+        for candidate in new_strings:
+            # Go to pointer referencing this string
+            bfile.seek(candidate[0])
+            # Save the final pointer
+            candidate.append(bfile.read_int())
+            bfile.seek(candidate[0])
+            # Get the string referenced
+            current = read_next_string(bfile)
+            old_length = len(codecs.encode(current, "shift_jisx0213"))
+            new_length = len(codecs.encode(candidate[1], "shift_jisx0213"))
+            if current_offset != 0:
+                pointers_change.append((candidate[0], current_offset))
+            if old_length != new_length:
+                print(f"Old: {current}, new: {candidate[1]}, reference {hex(candidate[0])}")
+                current_offset += new_length - old_length
+    # Update the new reference positions
+    print(pointers_change)
+
+    raise NotImplementedError("The binary file cannot be edited yet!")
+
+    # return pointers_change
+    with open(output_file, "wb") as bfile:
+        # Change the strings first (lower in file)
+        for new_value in new_strings[::-1]:
+            bfile.seek(new_value[2])
+            bfile.write(codecs.encode(new_value[1], "shift_jisx0213"))
+        # Change the pointer locations
+        for p_change in pointers_change:
+            bfile.seek(p_change[0])
+            print(f"old {p_change[0]} new {p_change[0] + p_change[1]}")
+            bfile.write(int.to_bytes(p_change[0] + p_change[1], 4, "little"))
+    print(f"{output_file} successfully rewrote. ")
+
+
 def extract_from_file(input_file, xpath, output_file):
     """Extract data from a single file."""
     # Read data
@@ -227,9 +293,12 @@ def main(args):
 
     if args.refrontier_to_csv:
         refrontier_to_csv(args.input_file, args.output_file)
+    elif args.csv_to_bin:
+        import_from_csv(args.input_file, args.output_file)
     else:
+        # Default: read and save as CSV
         extract_from_file(args.input_file, args.xpath, args.output_file)
 
 
 if __name__ == "__main__":
-    main(parser.parse_args())
+    main(parse_inputs().parse_args())
