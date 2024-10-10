@@ -4,13 +4,14 @@ Binary file exporter/importer for Monster Hunter Frontier.
 Files need to be decrypted and decompressed with a tool like ReFrontier.
 """
 
+import argparse
 import os
 import codecs
-import argparse
 import json
 from zlib import crc32
 import csv
 import warnings
+import shutil
 
 from binary_file import BinaryFile
 
@@ -59,6 +60,7 @@ def read_json_data(xpath="dat/armor/head"):
 
     :param str xpath: Data path as an XPATH.
     For instance, "dat/armor/head" to get 'headers.json'["dat"]["armors"]["head"].
+    :return tuple[int, int, int]: Begin pointer, end pointer and crop before end
     """
     path = xpath.split("/")
     with open("headers.json", encoding="utf-8") as f:
@@ -77,7 +79,12 @@ def read_json_data(xpath="dat/armor/head"):
 
 
 def read_until_null(bfile):
-    """Read data until we meet null terminator or end of file."""
+    """
+    Read data until we meet null terminator or end of file.
+
+    :param binary_file.BinaryFile bfile: File to read from
+    :return bytes: Data read as a binary stream
+    """
     stream = b""
     byte = bfile.read(1)
     while byte != b"\x00" and byte != b"":
@@ -97,7 +104,13 @@ def read_next_string(bfile):
 
 
 def read_file_section(bfile, start_position, length):
-    """Read a part of a file and return strings found."""
+    """
+    Read a part of a file and return strings found.
+
+    :param bfile: Binary file to read from
+    :param int start_position: Initial position to read from
+    :param int length: Number of bytes to read.
+    :return list[tuple[int, str]]: Read a full section."""
     strings = []
     offset = start_position
     while offset < length:
@@ -109,7 +122,13 @@ def read_file_section(bfile, start_position, length):
 
 
 def read_from_pointers(file_path, pointers_data):
-    """Read data using pointer headers."""
+    """
+    Read data using pointer headers.
+
+    :param str file_path: Input file path
+    :param tuple[int, int, int] pointers_data: Pointers indicated where to read.
+    :return list[str]: Found strings with offsets
+    """
     start_pointer = pointers_data[0]
     next_field_pointer = pointers_data[1]
     crop_end = pointers_data[2]
@@ -141,11 +160,9 @@ def export_as_csv(data, output_file, source=""):
     """
     Export data in a CSV file with standard compatibility format.
 
-
     :param typing.Iterable data: Extracted strings, format is usually (offset, string)
     :param str output_file: Output file path
     :param str source: Eventual file source
-    :return:
     """
     lines = 0
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
@@ -208,7 +225,34 @@ def refrontier_to_csv(input_file, output_file):
     export_as_csv(data, output_file, os.path.basename(input_file))
 
 
-def import_from_csv(input_file, output_file):
+def rewrite_binary_in_place(new_strings, pointers_change, bfile):
+    raise NotImplementedError("The binary file cannot be edited in place yet!")
+    # Change the strings first (lower in file)
+    for new_value in new_strings[::-1]:
+        bfile.seek(new_value[2])
+        bfile.write(codecs.encode(new_value[1], "shift_jisx0213"))
+    # Change the pointer locations
+    for p_change in pointers_change:
+        bfile.seek(p_change[0])
+        print(f"old {p_change[0]} new {p_change[0] + p_change[1]}")
+        bfile.write(int.to_bytes(p_change[0] + p_change[1], 4, "little"))
+
+
+def append_to_binary(new_strings, pointers_change, bfile):
+    """Edit data in a binary file by appending to the end."""
+    # Change the strings first (lower in file)
+    for i, new_value in enumerate(new_strings):
+        bfile.seek(0, os.SEEK_END)
+        bfile.write(codecs.encode(new_value[1], "shift_jisx0213") + b"\x00")
+        pointers_change[i] = pointers_change[i][0], bfile.tell()
+    # Change the pointer locations
+    for p_change in pointers_change:
+        bfile.seek(p_change[0])
+        print(f"old {p_change[0]} new {p_change[1]}")
+        bfile.write(int.to_bytes(p_change[1], 4, "little"))
+
+
+def import_from_csv(input_file, output_file, rewrite_in_place=False):
     """Use the CSV file to edit the binary file."""
     new_strings = []
     # First save the strings to insert
@@ -226,39 +270,38 @@ def import_from_csv(input_file, output_file):
     # Check for new pointers value
     pointers_change = []
     current_offset = 0
+
     with BinaryFile(output_file) as bfile:
         for candidate in new_strings:
             # Go to pointer referencing this string
             bfile.seek(candidate[0])
             # Save the final pointer
             candidate.append(bfile.read_int())
-            bfile.seek(candidate[0])
             # Get the string referenced
-            current = read_next_string(bfile)
-            old_length = len(codecs.encode(current, "shift_jisx0213"))
-            new_length = len(codecs.encode(candidate[1], "shift_jisx0213"))
-            if current_offset != 0:
+            if rewrite_in_place:
+                if current_offset != 0:
+                    pointers_change.append((candidate[0], current_offset))
+                bfile.seek(candidate[0])
+                current = read_next_string(bfile)
+                old_length = len(codecs.encode(current, "shift_jisx0213"))
+                new_length = len(codecs.encode(candidate[1], "shift_jisx0213"))
+                if old_length != new_length:
+                    print(f"Old: {current}, new: {candidate[1]}, reference {hex(candidate[0])}")
+                    current_offset += new_length - old_length
+            else:
+                # Always change pointers when adding content to file's end
                 pointers_change.append((candidate[0], current_offset))
-            if old_length != new_length:
-                print(f"Old: {current}, new: {candidate[1]}, reference {hex(candidate[0])}")
-                current_offset += new_length - old_length
     # Update the new reference positions
     print(pointers_change)
 
-    raise NotImplementedError("The binary file cannot be edited yet!")
-
-    # return pointers_change
-    with open(output_file, "wb") as bfile:
-        # Change the strings first (lower in file)
-        for new_value in new_strings[::-1]:
-            bfile.seek(new_value[2])
-            bfile.write(codecs.encode(new_value[1], "shift_jisx0213"))
-        # Change the pointer locations
-        for p_change in pointers_change:
-            bfile.seek(p_change[0])
-            print(f"old {p_change[0]} new {p_change[0] + p_change[1]}")
-            bfile.write(int.to_bytes(p_change[0] + p_change[1], 4, "little"))
-    print(f"{output_file} successfully rewrote. ")
+    new_output = "output/mhfdat-modified.bin"
+    shutil.copyfile(output_file, new_output)
+    with open(new_output, "r+b") as bfile:
+        if rewrite_in_place:
+            rewrite_binary_in_place(new_strings, pointers_change, bfile)
+        else:
+            append_to_binary(new_strings, pointers_change, bfile)
+    print(f"{new_output} successfully rewrote. ")
 
 
 def extract_from_file(input_file, xpath, output_file):

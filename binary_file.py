@@ -22,10 +22,18 @@ class BinaryFile:
         """Read num_bytes bytes."""
         return self.file.read(num_bytes)
 
+    def read_byte(self):
+        """Read next 4 bytes as a byte."""
+        return self.file.read(4)
+
     def read_int(self):
         """Read next 4 bytes as an integer."""
-        return int.from_bytes(self.file.read(4), byteorder="little")
+        return int.from_bytes(self.read_byte(), byteorder="little")
 
     def seek(self, offset, seek_type=0):
         """Go to seek point."""
         self.file.seek(offset, seek_type)
+
+    def tell(self):
+        """Tell current pointer position."""
+        return self.file.tell()
