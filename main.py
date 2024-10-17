@@ -226,7 +226,19 @@ def refrontier_to_csv(input_file, output_file):
 
 
 def rewrite_binary_in_place(new_strings, pointers_change, bfile):
-    raise NotImplementedError("The binary file cannot be edited in place yet!")
+    """
+    Rewrite the binary file by changing the strings in place.
+
+    :param new_strings: New strings to insert
+    :param pointers_change: List of changes, initial pointer value, new pointer value
+    :type pointers_change: list[tuple[int, int]]
+    :param bfile: Binary file to edit
+    """
+    warnings.warn(
+        "Function not finished! "
+        "It will break your file if the replacement strings have a number of characters "
+        "different from the initial strings."
+    )
     # Change the strings first (lower in file)
     for new_value in new_strings[::-1]:
         bfile.seek(new_value[2])
@@ -239,17 +251,24 @@ def rewrite_binary_in_place(new_strings, pointers_change, bfile):
 
 
 def append_to_binary(new_strings, pointers_change, bfile):
-    """Edit data in a binary file by appending to the end."""
-    # Change the strings first (lower in file)
-    for i, new_value in enumerate(new_strings):
+    """
+    Edit data in a binary file by appending to the end.
+
+    :param new_strings: New strings to append
+    :param tuple[int] pointers_change: List of changes, initial pointer value, ignored part
+    :param bfile: Binary file to edit
+    :return:
+    """
+    for new_value, pointer in zip(new_strings, pointers_change):
+        # Append new string
         bfile.seek(0, os.SEEK_END)
         bfile.write(codecs.encode(new_value[1], "shift_jisx0213") + b"\x00")
-        pointers_change[i] = pointers_change[i][0], bfile.tell()
-    # Change the pointer locations
-    for p_change in pointers_change:
-        bfile.seek(p_change[0])
-        print(f"old {p_change[0]} new {p_change[1]}")
-        bfile.write(int.to_bytes(p_change[1], 4, "little"))
+
+        # Edit the pointer to the new position
+        p_change = bfile.tell()
+        bfile.seek(pointer[0])
+        print(f"old {pointer[0]} new {p_change}")
+        bfile.write(int.to_bytes(p_change, 4, "little"))
 
 
 def import_from_csv(input_file, output_file, rewrite_in_place=False):
@@ -300,7 +319,7 @@ def import_from_csv(input_file, output_file, rewrite_in_place=False):
         if rewrite_in_place:
             rewrite_binary_in_place(new_strings, pointers_change, bfile)
         else:
-            append_to_binary(new_strings, pointers_change, bfile)
+            append_to_binary(new_strings, tuple(p[0] for p in pointers_change), bfile)
     print(f"{new_output} successfully rewrote. ")
 
 
