@@ -1,11 +1,16 @@
 # FrontierTextHandler
 
 A utility to read text from Monster Hunter Frontier, edit and reinsert.
-It is roughly a Python rewrite of mhvuze work with FrontierTextTool and FrontierDataTool, in Python.
+It is roughly a Python rewrite of FrontierTextTool 
+(from [ReFrontier](https://github.com/Houmgaor/ReFrontier), by mhvuze) in Python.
 
 ## Install
 
 Download the repository and run command from the main folder.
+```commandline
+git clone https://github.com/Houmgaor/FrontierTextHandler.git
+cd FrontierTextHandler
+```
 
 ## Usage
 
@@ -16,7 +21,7 @@ python main.py --help
 
 To extract the data:
 
-1. Decrypt, decompile MHFrontier source code with [ReFrontier](https://github.com/mhvuze/ReFrontier).
+1. Decrypt, decompile MHFrontier source code with [ReFrontier](https://github.com/Houmgaor/ReFrontier).
 2. Place the binary files ``mhfdat.bin``, ``mhfpac.bin`` or ``mhfinf.bin`` in a ``data/`` folder.
 3. Run ``main.py``.
 
@@ -32,6 +37,25 @@ python main.py --xpath=dat/armors/legs
 ```
 
 It will create a file ``output/dat-armors-legs.csv``.
+
+### Change the game files
+
+Using a CSV file, you can insert new strings (such as translations) in the original MHFrontier game.
+
+The CSV file should follow this convention:
+
+1. The first column of the file should be the original datum location (with format [offset]@[original file name]).
+2. The second column is the original string value.
+3. The third column is the new string value.
+
+To update the file, use `--csv-to-bin [input CSV] [output BIN file]`.
+For instance:
+
+```commandline
+python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin
+```
+
+### Compatibility with ReFrontier
 
 You can also convert any translation CSV to ReFrontier
 
@@ -51,4 +75,4 @@ Hunter wiki.
 ## See also
 
 - [var-username/Monster-Hunter-Frontier-Patterns](https://github.com/var-username/Monster-Hunter-Frontier-Patterns):
-incredible reference for this project.
+great reference for this project.

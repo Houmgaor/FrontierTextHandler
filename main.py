@@ -225,54 +225,13 @@ def refrontier_to_csv(input_file, output_file):
     export_as_csv(data, output_file, os.path.basename(input_file))
 
 
-def rewrite_binary_in_place(new_strings, pointers_change, bfile):
+def get_new_strings(input_file):
     """
-    Rewrite the binary file by changing the strings in place.
+    Get the new strings define in a CSV file.
 
-    :param new_strings: New strings to insert
-    :param pointers_change: List of changes, initial pointer value, new pointer value
-    :type pointers_change: list[tuple[int, int]]
-    :param bfile: Binary file to edit
+    :param str input_file: Input CSV file path.
+    :return list: New strings defined in the file
     """
-    warnings.warn(
-        "Function not finished! "
-        "It will break your file if the replacement strings have a number of characters "
-        "different from the initial strings."
-    )
-    # Change the strings first (lower in file)
-    for new_value in new_strings[::-1]:
-        bfile.seek(new_value[2])
-        bfile.write(codecs.encode(new_value[1], "shift_jisx0213"))
-    # Change the pointer locations
-    for p_change in pointers_change:
-        bfile.seek(p_change[0])
-        print(f"old {p_change[0]} new {p_change[0] + p_change[1]}")
-        bfile.write(int.to_bytes(p_change[0] + p_change[1], 4, "little"))
-
-
-def append_to_binary(new_strings, pointers_change, bfile):
-    """
-    Edit data in a binary file by appending to the end.
-
-    :param new_strings: New strings to append
-    :param tuple[int] pointers_change: List of changes, initial pointer value, ignored part
-    :param bfile: Binary file to edit
-    :return:
-    """
-    for new_value, pointer in zip(new_strings, pointers_change):
-        # Append new string
-        bfile.seek(0, os.SEEK_END)
-        bfile.write(codecs.encode(new_value[1], "shift_jisx0213") + b"\x00")
-
-        # Edit the pointer to the new position
-        p_change = bfile.tell()
-        bfile.seek(pointer[0])
-        print(f"old {pointer[0]} new {p_change}")
-        bfile.write(int.to_bytes(p_change, 4, "little"))
-
-
-def import_from_csv(input_file, output_file, rewrite_in_place=False):
-    """Use the CSV file to edit the binary file."""
     new_strings = []
     # First save the strings to insert
     with open(input_file, "r", newline="", encoding="utf-8") as csvfile:
@@ -283,8 +242,64 @@ def import_from_csv(input_file, output_file, rewrite_in_place=False):
         except StopIteration as _exc:
             raise InterruptedError(f"{input_file} has less than one line!") from _exc
         for line in reader:
+            if not line:
+                continue
             index = int(line[0][:line[0].index("@")])
             new_strings.append([index, line[1]])
+    return new_strings
+
+
+def rewrite_binary_in_place(new_strings, pointers_change, output_file):
+    """
+    Rewrite the binary file by changing the strings in place.
+
+    :param new_strings: New strings to insert
+    :param pointers_change: List of changes, initial pointer value, new pointer value
+    :type pointers_change: list[tuple[int, int]]
+    :param str output_file: Binary file to edit
+    """
+    warnings.warn(
+        "Function not finished! "
+        "It will break your file if the replacement strings have a number of characters "
+        "different from the initial strings."
+    )
+    with open(output_file, "r+b") as bfile:
+        # Change the strings first (lower in file)
+        for new_value in new_strings[::-1]:
+            bfile.seek(new_value[2])
+            bfile.write(codecs.encode(new_value[1], "shift_jisx0213"))
+        # Change the pointer locations
+        for p_change in pointers_change:
+            bfile.seek(p_change[0])
+            print(f"old {p_change[0]} new {p_change[0] + p_change[1]}")
+            bfile.write(int.to_bytes(p_change[0] + p_change[1], 4, "little"))
+
+
+def append_to_binary(new_strings, pointers_change, output_file):
+    """
+    Edit data in a binary file by appending to the end.
+
+    :param new_strings: New strings to append
+    :param tuple[int] pointers_change: Tuple of pointer to change
+    :param str output_file: Binary file to edit
+    :return:
+    """
+    with open(output_file, "r+b") as bfile:
+        for new_value, pointer_offset in zip(new_strings, pointers_change):
+            # Append new string
+            bfile.seek(0, os.SEEK_END)
+            # Edit the pointer to the new position
+            new_pointer = bfile.tell()
+            bfile.write(codecs.encode(new_value[1], "shift_jisx0213") + b"\x00")
+
+            bfile.seek(pointer_offset)
+            print(f"Assign value {new_pointer} at offset {pointer_offset}")
+            bfile.write(int.to_bytes(new_pointer, 4, "little"))
+
+
+def import_from_csv(input_file, output_file, rewrite_in_place=False):
+    """Use the CSV file to edit the binary file."""
+    new_strings = get_new_strings(input_file)
     print(f"Found {len(new_strings)} translations to write")
     # Check for new pointers value
     pointers_change = []
@@ -309,18 +324,15 @@ def import_from_csv(input_file, output_file, rewrite_in_place=False):
                     current_offset += new_length - old_length
             else:
                 # Always change pointers when adding content to file's end
-                pointers_change.append((candidate[0], current_offset))
+                pointers_change.append((candidate[0], None))
     # Update the new reference positions
-    print(pointers_change)
-
     new_output = "output/mhfdat-modified.bin"
     shutil.copyfile(output_file, new_output)
-    with open(new_output, "r+b") as bfile:
-        if rewrite_in_place:
-            rewrite_binary_in_place(new_strings, pointers_change, bfile)
-        else:
-            append_to_binary(new_strings, tuple(p[0] for p in pointers_change), bfile)
-    print(f"{new_output} successfully rewrote. ")
+    if rewrite_in_place:
+        rewrite_binary_in_place(new_strings, pointers_change, new_output)
+    else:
+        append_to_binary(new_strings, tuple(p[0] for p in pointers_change), new_output)
+    print(f"Wrote output to {new_output}. ")
 
 
 def extract_from_file(input_file, xpath, output_file):
