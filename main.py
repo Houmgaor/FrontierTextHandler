@@ -12,6 +12,7 @@ from zlib import crc32
 import csv
 import warnings
 import shutil
+import struct
 
 from binary_file import BinaryFile
 
@@ -99,7 +100,6 @@ def read_next_string(bfile):
     bfile.seek(pointer)
     data_stream = read_until_null(bfile)
     string = codecs.decode(data_stream, "shift_jisx0213")
-    string.replace("\n", "<NL>")
     return string
 
 
@@ -111,14 +111,25 @@ def read_file_section(bfile, start_position, length):
     :param int start_position: Initial position to read from
     :param int length: Number of bytes to read.
     :return list[tuple[int, str]]: Read a full section."""
-    strings = []
-    offset = start_position
-    while offset < length:
-        # Move the file pointer to the desired start position
-        bfile.seek(offset)
-        strings.append((offset, read_next_string(bfile)))
-        offset += 4
-    return strings
+    bfile.seek(start_position)
+    pointers_stream = bfile.read(length)
+    # Get the list of continuous pointers
+    pointers = struct.unpack(f"<{length // 4}I", pointers_stream)
+    strings = [''] * (length // 4)
+    for i, pointer in enumerate(pointers):
+        # Move to string pointer
+        bfile.seek(pointer)
+        data_stream = read_until_null(bfile)
+        strings[i] = codecs.decode(data_stream, "shift_jisx0213")
+
+    # Group output
+    return [
+        (offset, string)
+        for offset, string in zip(
+            range(start_position, start_position + length, 4),
+            strings
+        )
+    ]
 
 
 def read_from_pointers(file_path, pointers_data):
@@ -150,8 +161,8 @@ def read_from_pointers(file_path, pointers_data):
         bfile.seek(start_pointer)
         start_position = bfile.read_int()
         bfile.seek(next_field_pointer)
-        end_position = bfile.read_int() - crop_end
-        strings = read_file_section(bfile, start_position, end_position)
+        read_length = bfile.read_int() - start_position - crop_end
+        strings = read_file_section(bfile, start_position, read_length)
 
     return strings
 
@@ -263,7 +274,7 @@ def rewrite_binary_in_place(new_strings, pointers_change, output_file):
         "It will break your file if the replacement strings have a number of characters "
         "different from the initial strings."
     )
-    with open(output_file, "r+b") as bfile:
+    with BinaryFile(output_file, "r+b") as bfile:
         # Change the strings first (lower in file)
         for new_value in new_strings[::-1]:
             bfile.seek(new_value[2])
@@ -272,7 +283,7 @@ def rewrite_binary_in_place(new_strings, pointers_change, output_file):
         for p_change in pointers_change:
             bfile.seek(p_change[0])
             print(f"old {p_change[0]} new {p_change[0] + p_change[1]}")
-            bfile.write(int.to_bytes(p_change[0] + p_change[1], 4, "little"))
+            bfile.write_int(p_change[0] + p_change[1])
 
 
 def append_to_binary(new_strings, pointers_change, output_file):
@@ -284,7 +295,7 @@ def append_to_binary(new_strings, pointers_change, output_file):
     :param str output_file: Binary file to edit
     :return:
     """
-    with open(output_file, "r+b") as bfile:
+    with BinaryFile(output_file, "r+b") as bfile:
         for new_value, pointer_offset in zip(new_strings, pointers_change):
             # Append new string
             bfile.seek(0, os.SEEK_END)
@@ -294,7 +305,7 @@ def append_to_binary(new_strings, pointers_change, output_file):
 
             bfile.seek(pointer_offset)
             print(f"Assign value {new_pointer} at offset {pointer_offset}")
-            bfile.write(int.to_bytes(new_pointer, 4, "little"))
+            bfile.write_int(new_pointer)
 
 
 def import_from_csv(input_file, output_file, rewrite_in_place=False):
