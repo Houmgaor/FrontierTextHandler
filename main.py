@@ -9,6 +9,7 @@ import os
 
 import src
 
+
 def parse_inputs():
     """Parse console arguments."""
     parser = argparse.ArgumentParser(

@@ -28,10 +28,11 @@ def get_new_strings(input_file):
         except StopIteration as _exc:
             raise InterruptedError(f"{input_file} has less than one line!") from _exc
         for line in reader:
-            if not line:
+            # Check is line is not empty and that the translation is different from source
+            if not line or line[1] == line[2]:
                 continue
             index = int(line[0][:line[0].index("@")])
-            new_strings.append([index, line[1]])
+            new_strings.append([index, line[2]])
     return new_strings
 
 

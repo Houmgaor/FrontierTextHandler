@@ -44,11 +44,12 @@ Using a CSV file, you can insert new strings (such as translations) in the origi
 
 The CSV file should follow this convention:
 
-1. The first column of the file should be the original datum location (with format [offset]@[original file name]).
-2. The second column is the original string value.
-3. The third column is the new string value.
+1. The first column (location) of the file should be the original datum location (with format [offset]@[original file name]).
+2. The second column (source) is the original string value.
+3. The third column (target) is the new string value.
 
 To update the file, use `--csv-to-bin [input CSV] [output BIN file]`.
+It will only add strings if "target" is different from "source".
 For instance:
 
 ```commandline
