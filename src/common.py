@@ -23,6 +23,11 @@ def read_json_data(xpath="dat/armor/head"):
         pointers = data
         for part in path:
             pointers = pointers[part]
+        if "begin_pointer" not in pointers or "next_field_pointer" not in pointers:
+            raise ValueError(
+                "Please specify more precise path. Options are: '" +
+                ",".join(pointers.keys()) + "'."
+            )
         crop_end = 0
         if "crop_end" in pointers:
             crop_end = pointers["crop_end"]

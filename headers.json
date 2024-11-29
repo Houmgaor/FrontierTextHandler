@@ -2,10 +2,16 @@
   "dat": {
     "weapons": {
       "melee": {
-        "begin_pointer": "0x88",
-        "next_field_pointer": "0x174",
-        "crop_end": 0
-
+        "name": {
+          "begin_pointer": "0x88",
+          "next_field_pointer": "0x174",
+          "crop_end": 0
+        },
+        "description": {
+          "begin_pointer": "0x8C",
+          "next_field_pointer": "0x40",
+          "crop_end": 0
+        }
       },
       "ranged": {
         "begin_pointer": "0x84",

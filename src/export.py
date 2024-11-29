@@ -54,8 +54,34 @@ def export_for_refrontier(data, output_file):
     print(f"Wrote {lines} lines of ReFrontier compatible file as {output_file}")
 
 
+def __find_next_pointer(input_file, start_pointer):
+    """
+    Find the valid string ending pointers values.
+
+    :param str input_file: Input file path
+    :param int start_pointer: Initial strings' pointer.
+    :return list[int]: List of valid file pointers
+    """
+    valid_pointers = []
+    for i in range(0, 1000, 4):
+        try:
+            common.read_from_pointers(input_file, (start_pointer, i, 0))
+        except ValueError:
+            pass
+        else:
+            print("valid ending:" + hex(i).upper())
+            valid_pointers.append(i)
+    return valid_pointers
+
+
 def extract_from_file(input_file, xpath, output_file):
-    """Extract data from a single file."""
+    """
+    Extract data from a single file.
+
+    :param str input_file: Input file path
+    :param str xpath: String selection xpath
+    :param str output_file: Output file path
+    """
     # Read data
     pointers_data = common.read_json_data(xpath)
     file_section = common.read_from_pointers(input_file, pointers_data)
