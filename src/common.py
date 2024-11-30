@@ -74,12 +74,19 @@ def read_file_section(bfile, start_position, length):
     pointers_stream = bfile.read(length)
     # Get the list of continuous pointers
     pointers = struct.unpack(f"<{length // 4}I", pointers_stream)
-    strings = [''] * (length // 4)
+    strings = []
     for i, pointer in enumerate(pointers):
+        # Frontier separates some multiline strings (e.g. weapon descriptions)
+        # with multiple \x00 paddings
+        if pointer == 0:
+            continue
         # Move to string pointer
         bfile.seek(pointer)
         data_stream = read_until_null(bfile)
-        strings[i] = codecs.decode(data_stream, "shift_jisx0213")
+        # Do not insert empty strings
+        if data_stream == b'':
+            continue
+        strings.append(codecs.decode(data_stream, "shift_jisx0213"))
 
     # Group output
     return [
