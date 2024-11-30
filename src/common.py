@@ -75,27 +75,41 @@ def read_file_section(bfile, start_position, length):
     # Get the list of continuous pointers
     pointers = struct.unpack(f"<{length // 4}I", pointers_stream)
     strings = []
-    for i, pointer in enumerate(pointers):
+    ids = []
+    current_id = 0
+    join_lines = 0 in pointers
+    for pointer in pointers:
         # Frontier separates some multiline strings (e.g. weapon descriptions)
         # with multiple \x00 paddings
-        if pointer == 0:
-            continue
+        if join_lines:
+            if pointer == 0:
+                current_id += 1
+                continue
+        else:
+            current_id += 1
         # Move to string pointer
         bfile.seek(pointer)
         data_stream = read_until_null(bfile)
         # Do not insert empty strings
-        if data_stream == b'':
+        if data_stream == b'' or data_stream == b'0':
             continue
         strings.append(codecs.decode(data_stream, "shift_jisx0213"))
+        ids.append(current_id)
 
-    # Group output
-    return [
-        (offset, string)
-        for offset, string in zip(
-            range(start_position, start_position + length, 4),
-            strings
-        )
-    ]
+    # Group output by id
+    output = []
+    last_id = -1
+    for offset, string, current_id in zip(
+        range(start_position, start_position + length, 4),
+        strings,
+        ids
+    ):
+        if current_id == last_id:
+            output[-1]["text"] += f'<join at="{offset}">{string}'
+        else:
+            output.append({"offset": offset, "text": string})
+            last_id = current_id
+    return output
 
 
 def read_from_pointers(file_path, pointers_data):
@@ -104,7 +118,7 @@ def read_from_pointers(file_path, pointers_data):
 
     :param str file_path: Input file path
     :param tuple[int, int, int] pointers_data: Pointers indicated where to read.
-    :return list[str]: Found strings with offsets
+    :return dict: Dictionary of "offset", "text" and "id" elements
     """
     start_pointer = pointers_data[0]
     next_field_pointer = pointers_data[1]
@@ -128,6 +142,6 @@ def read_from_pointers(file_path, pointers_data):
         start_position = bfile.read_int()
         bfile.seek(next_field_pointer)
         read_length = bfile.read_int() - start_position - crop_end
-        strings = read_file_section(bfile, start_position, read_length)
+        reads = read_file_section(bfile, start_position, read_length)
 
-    return strings
+    return reads

@@ -9,21 +9,21 @@ import os
 from . import common
 
 
-def export_as_csv(data, output_file, source=""):
+def export_as_csv(data, output_file, location_name=""):
     """
     Export data in a CSV file with standard compatibility format.
 
-    :param typing.Iterable data: Extracted strings, format is usually (offset, string)
+    :param typing.Iterable data: Extracted strings, format is usually {"offset": offset, "text": string}
     :param str output_file: Output file path
-    :param str source: Eventual file source
+    :param str location_name: File in which to find the source
     """
     lines = 0
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["location", "source", "target"])
-        for string_elem in data:
+        for datum in data:
             writer.writerow(
-                [str(string_elem[0]) + "@" + source, string_elem[1], string_elem[1]]
+                [location_name, datum["offset"], datum["text"]]
             )
             lines += 1
     print(f"Wrote {lines} lines of translation CSV as {output_file}")
@@ -40,15 +40,15 @@ def export_for_refrontier(data, output_file):
     lines = 0
     with codecs.open(output_file, "w", encoding="shift_jisx0213") as csvfile:
         writer = csv.writer(csvfile, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(["Offset", "Hash", "jString"])
-        for string_elem in data:
+        writer.writerow(["Offset", "Hash", "JString"])
+        for datum in data:
             # Necessary replacement for ReFrontier
             replacements = ("\t", "<TAB>"), ("\r\n", "<CLINE>"), ("\n", "<NLINE>")
-            string = string_elem[1]
+            string = datum["text"]
             for rep in replacements:
                 string = string.replace(rep[0], rep[1])
             writer.writerow(
-                [string_elem[0], zlib.crc32(codecs.encode(string, "shift_jisx0213")), string]
+                [datum["offset"], zlib.crc32(codecs.encode(string, "shift_jisx0213")), string]
             )
             lines += 1
     print(f"Wrote {lines} lines of ReFrontier compatible file as {output_file}")
@@ -69,7 +69,7 @@ def __find_next_pointer(input_file, start_pointer):
         except ValueError:
             pass
         else:
-            print("valid ending:" + hex(i).upper())
+            print("valid ending:" + hex(i))
             valid_pointers.append(i)
     return valid_pointers
 
