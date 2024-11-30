@@ -90,9 +90,6 @@ def read_file_section(bfile, start_position, length):
         # Move to string pointer
         bfile.seek(pointer)
         data_stream = read_until_null(bfile)
-        # Do not insert empty strings
-        if data_stream == b'' or data_stream == b'0':
-            continue
         strings.append(codecs.decode(data_stream, "shift_jisx0213"))
         ids.append(current_id)
 
