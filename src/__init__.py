@@ -14,3 +14,15 @@ from .common import (
 from .binary_file import InvalidPointerError
 from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError
 from .jkr_compress import compress_jkr, compress_jkr_hfi, compress_jkr_raw
+from .crypto import (
+    CryptoError,
+    is_ecd_file,
+    is_exf_file,
+    is_encrypted_file,
+    decode_ecd,
+    encode_ecd,
+    decode_exf,
+    encode_exf,
+    decrypt,
+    encrypt,
+)

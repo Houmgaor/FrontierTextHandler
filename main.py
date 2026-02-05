@@ -1,7 +1,7 @@
 """
 Binary file exporter/importer for Monster Hunter Frontier.
 
-Files need to be decrypted and decompressed with a tool like ReFrontier.
+Supports automatic decryption (ECD/EXF) and decompression (JPK/JKR).
 """
 
 import argparse
@@ -75,12 +75,64 @@ def parse_inputs() -> argparse.ArgumentParser:
         action="store_true",
         help="Compress output file using JKR HFI compression (use with --csv-to-bin).",
     )
+    parser.add_argument(
+        "--encrypt",
+        action="store_true",
+        help="Encrypt output file using ECD encryption (use with --csv-to-bin).",
+    )
+    parser.add_argument(
+        "--key-index",
+        type=int,
+        default=4,
+        choices=range(6),
+        metavar="0-5",
+        help="ECD key index to use for encryption (default: 4). All MHF files use key 4.",
+    )
+    parser.add_argument(
+        "--decrypt",
+        type=str,
+        metavar="FILE",
+        help="Decrypt an ECD/EXF file and write to output. Use with output_file argument.",
+    )
+    parser.add_argument(
+        "--save-meta",
+        action="store_true",
+        help="Save .meta file when decrypting (preserves header for re-encryption).",
+    )
     return parser
 
 
 def main(args: argparse.Namespace) -> None:
     """Main function to read everything."""
     setup_logging(args.verbose)
+
+    if args.decrypt:
+        # Decrypt mode
+        if not os.path.exists(args.decrypt):
+            raise FileNotFoundError(f"'{args.decrypt}' does not exist.")
+
+        with open(args.decrypt, "rb") as f:
+            encrypted_data = f.read()
+
+        if not src.is_encrypted_file(encrypted_data):
+            raise ValueError(f"'{args.decrypt}' is not an ECD or EXF encrypted file.")
+
+        decrypted_data, header = src.decrypt(encrypted_data)
+
+        # Determine output path
+        output_path = args.output_file if args.output_file != "output/minimal.csv" else args.decrypt + ".decd"
+
+        with open(output_path, "wb") as f:
+            f.write(decrypted_data)
+        print(f"Decrypted {args.decrypt} -> {output_path}")
+
+        if args.save_meta:
+            meta_path = output_path + ".meta"
+            with open(meta_path, "wb") as f:
+                f.write(header)
+            print(f"Saved header to {meta_path}")
+
+        return
 
     if args.extract_all:
         # Batch extraction mode - extract all sections from headers.json
@@ -99,7 +151,13 @@ def main(args: argparse.Namespace) -> None:
     if args.refrontier_to_csv:
         src.refrontier_to_csv(args.input_file, args.output_file)
     elif args.csv_to_bin:
-        src.import_from_csv(args.input_file, args.output_file, compress=args.compress)
+        src.import_from_csv(
+            args.input_file,
+            args.output_file,
+            compress=args.compress,
+            encrypt=args.encrypt,
+            key_index=args.key_index
+        )
     else:
         # Default: read and save as CSV
         src.extract_from_file(

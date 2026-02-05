@@ -11,6 +11,7 @@ from .binary_file import BinaryFile
 from . import common
 from .common import encode_game_string, EncodingError
 from .jkr_compress import compress_jkr_hfi
+from .crypto import encode_ecd, DEFAULT_KEY_INDEX
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,9 @@ def import_from_csv(
     input_file: str,
     output_file: str,
     output_path: Optional[str] = None,
-    compress: bool = False
+    compress: bool = False,
+    encrypt: bool = False,
+    key_index: int = DEFAULT_KEY_INDEX
 ) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
@@ -124,6 +127,8 @@ def import_from_csv(
     :param output_path: Path for the modified binary file. If None, uses
         '{output_dir}/{basename}-modified.bin' where basename is derived from output_file.
     :param compress: If True, compress the output using JKR HFI compression
+    :param encrypt: If True, encrypt the output using ECD encryption
+    :param key_index: ECD key index to use (0-5). Default is 4.
     :return: Path to the modified binary file, or None if no changes
     """
     new_strings = get_new_strings(input_file)
@@ -166,6 +171,18 @@ def import_from_csv(
             "Compressed output: %d bytes -> %d bytes (%.1f%% reduction)",
             len(data), len(compressed),
             (1 - len(compressed) / len(data)) * 100 if data else 0
+        )
+
+    if encrypt:
+        # Read the (potentially compressed) file and encrypt it
+        with open(output_path, "rb") as f:
+            data = f.read()
+        encrypted_data = encode_ecd(data, key_index=key_index)
+        with open(output_path, "wb") as f:
+            f.write(encrypted_data)
+        logger.info(
+            "Encrypted output with ECD (key index %d): %d bytes -> %d bytes",
+            key_index, len(data), len(encrypted_data)
         )
 
     return output_path

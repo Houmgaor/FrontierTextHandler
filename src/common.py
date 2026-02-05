@@ -10,6 +10,7 @@ from typing import Iterator, Optional
 
 from .binary_file import BinaryFile, InvalidPointerError
 from .jkr_decompress import is_jkr_file, decompress_jkr, JKRError
+from .crypto import is_encrypted_file, decrypt, CryptoError
 
 logger = logging.getLogger(__name__)
 
@@ -272,12 +273,12 @@ def read_from_pointers(
     with open(file_path, "rb") as f:
         file_data = f.read()
 
-    # Check for encrypted file (must be handled externally)
-    if file_data[:3] == b"ecd":
-        warnings.warn(
-            f"'{file_path}' starts with an ECD header, meaning it's encrypted. "
-            + "Make sure to decrypt the file using ReFrontier before using it."
-        )
+    # Auto-decrypt ECD/EXF files
+    if is_encrypted_file(file_data):
+        try:
+            file_data, _ = decrypt(file_data)
+        except CryptoError as exc:
+            raise CryptoError(f"Failed to decrypt '{file_path}': {exc}") from exc
 
     # Auto-decompress JPK files
     if is_jkr_file(file_data):
