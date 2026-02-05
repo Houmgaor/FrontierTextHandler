@@ -35,13 +35,13 @@ class BinaryFile:
         """Read num_bytes bytes."""
         return self.file.read(num_bytes)
 
-    def read_byte(self):
-        """Read next 4 bytes as a byte."""
+    def _read_4bytes(self):
+        """Read the next 4 bytes as raw bytes (internal helper)."""
         return self.file.read(4)
 
     def read_int(self):
-        """Read next 4 bytes as an integer."""
-        return struct.unpack("<I", self.read_byte())[0]
+        """Read next 4 bytes as a little-endian unsigned integer."""
+        return struct.unpack("<I", self._read_4bytes())[0]
 
     def seek(self, offset, seek_type=0):
         """Go to seek point."""

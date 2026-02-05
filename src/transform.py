@@ -9,7 +9,7 @@ from . import export
 
 def import_from_refrontier(input_file):
     """Import data with a ReFrontier format."""
-    with open(input_file, "r", newline="\n", encoding="shift_jis") as refrontier_csv:
+    with open(input_file, "r", newline="\n", encoding="shift_jisx0213") as refrontier_csv:
         reader = csv.reader(refrontier_csv, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
         # reader header : ['Offset', 'Hash', 'jString']
         try:
@@ -22,7 +22,7 @@ def import_from_refrontier(input_file):
             string = line[2]
             for rep in replacements:
                 string = string.replace(rep[1], rep[0])
-            yield line[0], string
+            yield {"offset": int(line[0]), "text": string}
 
 
 def refrontier_to_csv(input_file, output_file):

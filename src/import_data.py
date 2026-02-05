@@ -31,7 +31,7 @@ def get_new_strings(input_file):
             # Check is line is not empty and that the translation is different from source
             if not line or line[1] == line[2]:
                 continue
-            index = int(line[0][:line[0].index("@")])
+            index = int(line[0][:line[0].index("@")], 16)
             new_strings.append([index, line[2]])
     return new_strings
 

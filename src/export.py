@@ -23,7 +23,7 @@ def export_as_csv(data, output_file, location_name=""):
         writer.writerow(["location", "source", "target"])
         for datum in data:
             writer.writerow(
-                [location_name, datum["offset"], datum["text"]]
+                [f"0x{datum['offset']:x}@{location_name}", datum["text"], datum["text"]]
             )
             lines += 1
     print(f"Wrote {lines} lines of translation CSV as {output_file}")
