@@ -94,6 +94,40 @@ def skip_csv_header(reader: Iterator[list[str]], input_file: str) -> None:
 DEFAULT_HEADERS_PATH = "headers.json"
 
 
+def get_all_xpaths(headers_path: str = DEFAULT_HEADERS_PATH) -> list[str]:
+    """
+    Get all valid xpaths from the headers configuration.
+
+    Recursively traverses the headers.json structure to find all
+    leaf nodes that have 'begin_pointer' and 'next_field_pointer'.
+
+    :param headers_path: Path to the headers.json configuration file.
+    :return: List of xpath strings (e.g., ["dat/armors/head", "dat/weapons/melee/name"])
+    """
+    with open(headers_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    xpaths = []
+
+    def traverse(obj: dict, path: list[str]) -> None:
+        """Recursively traverse to find leaf nodes with pointer data."""
+        for key, value in obj.items():
+            # Skip comment fields
+            if key.startswith("_"):
+                continue
+            if not isinstance(value, dict):
+                continue
+            # Check if this is a leaf node with pointer data
+            if "begin_pointer" in value and "next_field_pointer" in value:
+                xpaths.append("/".join(path + [key]))
+            else:
+                # Recurse into nested structure
+                traverse(value, path + [key])
+
+    traverse(data, [])
+    return sorted(xpaths)
+
+
 def read_json_data(
     xpath: str = "dat/armor/head",
     headers_path: str = DEFAULT_HEADERS_PATH

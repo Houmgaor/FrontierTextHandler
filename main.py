@@ -64,12 +64,32 @@ def parse_inputs() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable verbose (debug) output.",
     )
+    parser.add_argument(
+        "--extract-all",
+        action="store_true",
+        help="Extract all sections defined in headers.json. "
+        "Looks for mhfdat.bin, mhfpac.bin, mhfinf.bin in data/ directory.",
+    )
+    parser.add_argument(
+        "--compress",
+        action="store_true",
+        help="Compress output file using JKR HFI compression (use with --csv-to-bin).",
+    )
     return parser
 
 
 def main(args: argparse.Namespace) -> None:
     """Main function to read everything."""
     setup_logging(args.verbose)
+
+    if args.extract_all:
+        # Batch extraction mode - extract all sections from headers.json
+        files = src.extract_all()
+        if files:
+            print(f"Extracted {len(files)} files to output/")
+        else:
+            print("No files extracted. Check that data files exist in data/ directory.")
+        return
 
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(
@@ -79,7 +99,7 @@ def main(args: argparse.Namespace) -> None:
     if args.refrontier_to_csv:
         src.refrontier_to_csv(args.input_file, args.output_file)
     elif args.csv_to_bin:
-        src.import_from_csv(args.input_file, args.output_file)
+        src.import_from_csv(args.input_file, args.output_file, compress=args.compress)
     else:
         # Default: read and save as CSV
         src.extract_from_file(

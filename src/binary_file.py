@@ -5,6 +5,7 @@ import os
 import struct
 import warnings
 from io import BytesIO
+from typing import Optional, Union, IO
 
 
 class InvalidPointerError(ValueError):
@@ -15,33 +16,50 @@ class InvalidPointerError(ValueError):
 class BinaryFile:
     """Format for easily manipulation of binary files with pointers."""
 
-    def __init__(self, file_path, mode="rb"):
+    def __init__(
+        self,
+        file_path: Optional[str] = None,
+        mode: str = "rb",
+        *,
+        _file: Optional[IO[bytes]] = None,
+        _size: Optional[int] = None
+    ):
         """
         Set properties for the binary file.
 
-        :param str file_path: File path
-        :param str mode: File opening mode (e.g.: "rb", "r+b")
+        :param file_path: File path (None for in-memory mode)
+        :param mode: File opening mode (e.g.: "rb", "r+b")
+        :param _file: Internal: pre-opened file object (for from_bytes)
+        :param _size: Internal: pre-calculated size (for from_bytes)
         """
         self.file_path = file_path
-        self.file = None
-        self._size = None
-        if mode not in ("rb", "r+b", "wb"):
-            warnings.warn(f"Mode '{mode}' is not advised")
         self.mode = mode
+        self._size = _size
+
+        # Handle in-memory mode (from from_bytes)
+        if _file is not None:
+            self.file = _file
+        else:
+            self.file = None
+            if mode not in ("rb", "r+b", "wb"):
+                warnings.warn(f"Mode '{mode}' is not advised")
 
     def __enter__(self):
-        """Open the binary file context with context."""
-        self.file = open(self.file_path, self.mode)
-        # Cache file size for bounds checking
-        current_pos = self.file.tell()
-        self.file.seek(0, os.SEEK_END)
-        self._size = self.file.tell()
-        self.file.seek(current_pos)
+        """Open the binary file context."""
+        if self.file is None:
+            self.file = open(self.file_path, self.mode)
+            # Cache file size for bounds checking
+            current_pos = self.file.tell()
+            self.file.seek(0, os.SEEK_END)
+            self._size = self.file.tell()
+            self.file.seek(current_pos)
         return self
 
     def __exit__(self, *args):
         """Close file on exit."""
-        self.file.close()
+        if self.file_path is not None:
+            # Only close file-based instances, not BytesIO
+            self.file.close()
 
     @property
     def size(self) -> int:
@@ -101,9 +119,9 @@ class BinaryFile:
         :param data: Binary data to wrap.
         :return: BinaryFile instance backed by BytesIO.
         """
-        instance = cls.__new__(cls)
-        instance.file_path = None
-        instance.file = BytesIO(data)
-        instance.mode = "rb"
-        instance._size = len(data)
-        return instance
+        return cls(
+            file_path=None,
+            mode="rb",
+            _file=BytesIO(data),
+            _size=len(data)
+        )

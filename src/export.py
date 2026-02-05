@@ -70,6 +70,13 @@ def export_for_refrontier(
 
 DEFAULT_OUTPUT_DIR = "output"
 
+# Mapping of file type prefixes to their default input files
+FILE_TYPE_DEFAULTS = {
+    "dat": "data/mhfdat.bin",
+    "pac": "data/mhfpac.bin",
+    "inf": "data/mhfinf.bin",
+}
+
 
 def extract_from_file(
     input_file: str,
@@ -114,3 +121,62 @@ def extract_from_file(
     export_for_refrontier(file_section, refrontier_path)
 
     return export_name, refrontier_path
+
+
+def extract_all(
+    input_files: dict[str, str] = None,
+    output_dir: str = DEFAULT_OUTPUT_DIR,
+    headers_path: str = common.DEFAULT_HEADERS_PATH
+) -> list[str]:
+    """
+    Extract all sections defined in headers.json.
+
+    :param input_files: Dict mapping file type prefixes to input file paths.
+        If None, uses FILE_TYPE_DEFAULTS.
+    :param output_dir: Directory for output files
+    :param headers_path: Path to headers.json configuration file
+    :return: List of generated CSV file paths
+    """
+    if input_files is None:
+        input_files = FILE_TYPE_DEFAULTS.copy()
+
+    xpaths = common.get_all_xpaths(headers_path)
+    generated_files = []
+    skipped_count = 0
+
+    for xpath in xpaths:
+        # Determine which input file to use based on xpath prefix
+        file_type = xpath.split("/")[0]
+        input_file = input_files.get(file_type)
+
+        if input_file is None:
+            logger.warning(
+                "No input file configured for type '%s', skipping xpath '%s'",
+                file_type, xpath
+            )
+            skipped_count += 1
+            continue
+
+        if not os.path.exists(input_file):
+            logger.warning(
+                "Input file '%s' not found, skipping xpath '%s'",
+                input_file, xpath
+            )
+            skipped_count += 1
+            continue
+
+        try:
+            csv_path, _ = extract_from_file(
+                input_file, xpath, "", output_dir, headers_path
+            )
+            generated_files.append(csv_path)
+            logger.info("Extracted '%s' to '%s'", xpath, csv_path)
+        except (ValueError, FileNotFoundError) as exc:
+            logger.warning("Failed to extract '%s': %s", xpath, exc)
+            skipped_count += 1
+
+    logger.info(
+        "Batch extraction complete: %d files generated, %d skipped",
+        len(generated_files), skipped_count
+    )
+    return generated_files

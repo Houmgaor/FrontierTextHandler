@@ -10,6 +10,7 @@ from typing import Optional
 from .binary_file import BinaryFile
 from . import common
 from .common import encode_game_string, EncodingError
+from .jkr_compress import compress_jkr_hfi
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,8 @@ DEFAULT_OUTPUT_DIR = "output"
 def import_from_csv(
     input_file: str,
     output_file: str,
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
+    compress: bool = False
 ) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
@@ -121,6 +123,7 @@ def import_from_csv(
     :param output_file: Path to source binary file
     :param output_path: Path for the modified binary file. If None, uses
         '{output_dir}/{basename}-modified.bin' where basename is derived from output_file.
+    :param compress: If True, compress the output using JKR HFI compression
     :return: Path to the modified binary file, or None if no changes
     """
     new_strings = get_new_strings(input_file)
@@ -140,7 +143,8 @@ def import_from_csv(
     if output_path is None:
         # Generate default output path
         basename = os.path.splitext(os.path.basename(output_file))[0]
-        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}-modified.bin")
+        suffix = "-modified.jkr" if compress else "-modified.bin"
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}{suffix}")
 
     # Ensure output directory exists
     output_dir = os.path.dirname(output_path)
@@ -151,4 +155,18 @@ def import_from_csv(
     shutil.copyfile(output_file, output_path)
     append_to_binary(new_strings, tuple(pointers_to_update), output_path)
     logger.info("Wrote output to %s", output_path)
+
+    if compress:
+        # Read the modified file and compress it
+        with open(output_path, "rb") as f:
+            data = f.read()
+        compressed = compress_jkr_hfi(data)
+        with open(output_path, "wb") as f:
+            f.write(compressed)
+        logger.info(
+            "Compressed output: %d bytes -> %d bytes (%.1f%% reduction)",
+            len(data), len(compressed),
+            (1 - len(compressed) / len(data)) * 100 if data else 0
+        )
+
     return output_path

@@ -22,6 +22,7 @@ from src.common import (
     read_json_data,
     read_until_null,
     read_file_section,
+    get_all_xpaths,
     REFRONTIER_REPLACEMENTS,
     DEFAULT_HEADERS_PATH,
 )
@@ -673,6 +674,114 @@ class TestIntegrationWorkflow(unittest.TestCase):
             self.assertEqual(bf.size, len(test_data))
             content = bf.read(len(test_data))
             self.assertEqual(content, test_data)
+
+
+class TestGetAllXpaths(unittest.TestCase):
+    """Tests for get_all_xpaths function."""
+
+    def setUp(self):
+        """Create a temporary headers.json file."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.headers_path = os.path.join(self.temp_dir, "headers.json")
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        if os.path.exists(self.headers_path):
+            os.unlink(self.headers_path)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
+
+    def test_get_xpaths_simple(self):
+        """Test getting xpaths from simple structure."""
+        headers_data = {
+            "dat": {
+                "armors": {
+                    "head": {
+                        "begin_pointer": "0x64",
+                        "next_field_pointer": "0x60"
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers_data, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertEqual(result, ["dat/armors/head"])
+
+    def test_get_xpaths_nested(self):
+        """Test getting xpaths from nested structure."""
+        headers_data = {
+            "dat": {
+                "weapons": {
+                    "melee": {
+                        "name": {
+                            "begin_pointer": "0x88",
+                            "next_field_pointer": "0x174"
+                        },
+                        "description": {
+                            "begin_pointer": "0x8C",
+                            "next_field_pointer": "0x40"
+                        }
+                    }
+                },
+                "armors": {
+                    "head": {
+                        "begin_pointer": "0x64",
+                        "next_field_pointer": "0x60"
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers_data, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertEqual(len(result), 3)
+        self.assertIn("dat/armors/head", result)
+        self.assertIn("dat/weapons/melee/name", result)
+        self.assertIn("dat/weapons/melee/description", result)
+
+    def test_get_xpaths_skips_comments(self):
+        """Test that comment fields are skipped."""
+        headers_data = {
+            "dat": {
+                "_comment": "This is a comment",
+                "items": {
+                    "name": {
+                        "begin_pointer": "0x100",
+                        "next_field_pointer": "0xFC"
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers_data, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertEqual(result, ["dat/items/name"])
+
+    def test_get_xpaths_empty_section(self):
+        """Test handling of empty sections."""
+        headers_data = {
+            "inf": {
+                "_comment": "Quest data - empty"
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers_data, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertEqual(result, [])
+
+    def test_get_xpaths_real_headers(self):
+        """Test with the real headers.json file."""
+        result = get_all_xpaths(DEFAULT_HEADERS_PATH)
+        # Should have multiple xpaths from the real file
+        self.assertGreater(len(result), 5)
+        # Check some expected xpaths exist
+        self.assertIn("dat/armors/head", result)
+        self.assertIn("dat/weapons/melee/name", result)
 
 
 if __name__ == "__main__":
