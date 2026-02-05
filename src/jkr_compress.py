@@ -17,16 +17,27 @@ from dataclasses import dataclass
 from io import BytesIO
 from typing import List, Optional, Tuple
 
-from .jkr_decompress import CompressionType, JKR_MAGIC
+from .jkr_decompress import (
+    CompressionType,
+    JKR_MAGIC,
+    JKR_HEADER_SIZE,
+    JKR_DEFAULT_VERSION,
+    HUFFMAN_LEAF_THRESHOLD,
+    HUFFMAN_TABLE_BASE,
+    LZ_LENGTH_SHIFT,
+    LZ_OFFSET_HI_MASK,
+    LZ_BASE_LENGTH_LONG,
+    LZ_LITERAL_RUN_MARKER,
+)
 
 
 @dataclass
 class JKRHeaderBuilder:
     """Builder for JKR file header."""
 
-    version: int = 0x108
+    version: int = JKR_DEFAULT_VERSION
     compression_type: int = CompressionType.HFI
-    data_offset: int = 16
+    data_offset: int = JKR_HEADER_SIZE
     decompressed_size: int = 0
 
     def to_bytes(self) -> bytes:
@@ -265,7 +276,7 @@ class LZEncoder:
             self._writer.write_bit(True)  # 1
             # 2-byte encoding: hi byte = (length-2)<<5 | (offset>>8), lo byte = offset&0xFF
             length_enc = length - 2
-            hi = (length_enc << 5) | ((offset_enc >> 8) & 0x1F)
+            hi = (length_enc << LZ_LENGTH_SHIFT) | ((offset_enc >> 8) & LZ_OFFSET_HI_MASK)
             lo = offset_enc & 0xFF
             self._writer.write_data_byte(hi)
             self._writer.write_data_byte(lo)
@@ -279,7 +290,7 @@ class LZEncoder:
             self._writer.write_bit(True)   # 1 - backref
             self._writer.write_bit(True)   # 1 - not case 0
             # hi has length_field=0 to trigger Case 2/3 branch
-            hi = (offset_enc >> 8) & 0x1F
+            hi = (offset_enc >> 8) & LZ_OFFSET_HI_MASK
             lo = offset_enc & 0xFF
             self._writer.write_data_byte(hi)
             self._writer.write_data_byte(lo)
@@ -295,22 +306,22 @@ class LZEncoder:
 
         # Case 3: length 26-280, offset <= 8191
         # Format: bits 1,1 + hi,lo (with length_field=0) + bit 1 + length byte
-        # Note: length_enc = 0xFF (255) triggers literal run mode in decoder, so cap at 254
-        # This gives max length of 0x1A + 254 = 280
-        if length >= 26 and offset_enc <= 8191:
-            # Cap length to avoid 0xFF which triggers literal run
-            actual_length = min(length, 0x1A + 254)  # Max 280
+        # Note: length_enc = 0xFF triggers literal run mode in decoder, so cap at 254
+        # This gives max length of LZ_BASE_LENGTH_LONG + 254 = 280
+        if length >= LZ_BASE_LENGTH_LONG and offset_enc <= 8191:
+            # Cap length to avoid LZ_LITERAL_RUN_MARKER which triggers literal run
+            actual_length = min(length, LZ_BASE_LENGTH_LONG + LZ_LITERAL_RUN_MARKER - 1)
 
             self._writer.write_bit(True)  # 1
             self._writer.write_bit(True)  # 1
             # hi = (0<<5) | (offset>>8), meaning length field is 0
-            hi = (offset_enc >> 8) & 0x1F
+            hi = (offset_enc >> 8) & LZ_OFFSET_HI_MASK
             lo = offset_enc & 0xFF
             self._writer.write_data_byte(hi)
             self._writer.write_data_byte(lo)
             # Then 1-bit followed by length byte
             self._writer.write_bit(True)
-            length_enc = actual_length - 0x1A
+            length_enc = actual_length - LZ_BASE_LENGTH_LONG
             self._writer.write_data_byte(length_enc)
             self._writer.end_operation()
             return
@@ -321,7 +332,7 @@ class LZEncoder:
             self._writer.write_bit(True)
             self._writer.write_bit(True)
             length_enc = length - 2
-            hi = (length_enc << 5) | ((offset_enc >> 8) & 0x1F)
+            hi = (length_enc << LZ_LENGTH_SHIFT) | ((offset_enc >> 8) & LZ_OFFSET_HI_MASK)
             lo = offset_enc & 0xFF
             self._writer.write_data_byte(hi)
             self._writer.write_data_byte(lo)
@@ -381,7 +392,7 @@ class HuffmanEncoder:
         The table format matches the decoder's expectations:
         - Table length at the start
         - Node entries: left child, right child for internal nodes
-        - Leaf nodes contain byte values (< 0x100)
+        - Leaf nodes contain byte values (< HUFFMAN_LEAF_THRESHOLD)
 
         :param data: Input data to analyze.
         :return: Huffman table as list of int16 values.
@@ -396,13 +407,13 @@ class HuffmanEncoder:
         if non_zero_count == 0:
             # Empty data - create minimal tree
             self._codes = {0: (0, 1)}  # 0 -> bit 0, length 1
-            return [0x100, 0, 0]  # Minimal tree pointing to byte 0
+            return [HUFFMAN_LEAF_THRESHOLD, 0, 0]  # Minimal tree pointing to byte 0
 
         if non_zero_count == 1:
             # Single byte value - create minimal tree
             byte_val = next(i for i, f in enumerate(freq) if f > 0)
             self._codes = {byte_val: (0, 1)}
-            return [0x100, byte_val, byte_val]
+            return [HUFFMAN_LEAF_THRESHOLD, byte_val, byte_val]
 
         # Build priority queue (min-heap simulation with sorted list)
         # Each entry is (frequency, node_id, left, right)
@@ -426,8 +437,8 @@ class HuffmanEncoder:
             freq2, id2, left2, right2 = nodes.pop(0)
 
             # Create internal node
-            internal_id = 0x100 + len(tree_nodes)
-            tree_nodes.append((id1 if id1 >= 0x100 else left1, id2 if id2 >= 0x100 else left2))
+            internal_id = HUFFMAN_LEAF_THRESHOLD + len(tree_nodes)
+            tree_nodes.append((id1 if id1 >= HUFFMAN_LEAF_THRESHOLD else left1, id2 if id2 >= HUFFMAN_LEAF_THRESHOLD else left2))
 
             # Insert combined node (keep sorted)
             combined = (freq1 + freq2, internal_id, -1, -1)
@@ -441,9 +452,9 @@ class HuffmanEncoder:
                 nodes.append(combined)
 
             # Track leaf assignments
-            if id1 < 0x100:
+            if id1 < HUFFMAN_LEAF_THRESHOLD:
                 leaf_to_code[left1] = (internal_id, 0)
-            if id2 < 0x100:
+            if id2 < HUFFMAN_LEAF_THRESHOLD:
                 leaf_to_code[left2] = (internal_id, 1)
 
         # Build the table for decoder
@@ -455,17 +466,17 @@ class HuffmanEncoder:
             root_id = nodes[0][1]
             table.append(root_id)  # Table length / root pointer
         else:
-            table.append(0x100)
+            table.append(HUFFMAN_LEAF_THRESHOLD)
 
         # Add node data (format expected by decoder)
         # Decoder navigates: data[node*2 - 0x200 + bit]
         # We need to build table so decoder can traverse
         for i, (left, right) in enumerate(tree_nodes):
-            table.append(left if left >= 0x100 else left)  # Left child (0 bit)
-            table.append(right if right >= 0x100 else right)  # Right child (1 bit)
+            table.append(left if left >= HUFFMAN_LEAF_THRESHOLD else left)  # Left child (0 bit)
+            table.append(right if right >= HUFFMAN_LEAF_THRESHOLD else right)  # Right child (1 bit)
 
         # Generate bit codes by traversing tree
-        self._generate_codes(tree_nodes, len(tree_nodes) - 1 + 0x100 if tree_nodes else 0)
+        self._generate_codes(tree_nodes, len(tree_nodes) - 1 + HUFFMAN_LEAF_THRESHOLD if tree_nodes else 0)
 
         return table
 
@@ -482,13 +493,13 @@ class HuffmanEncoder:
             return
 
         def traverse(node_id: int, code: int, length: int) -> None:
-            if node_id < 0x100:
+            if node_id < HUFFMAN_LEAF_THRESHOLD:
                 # Leaf node - this is a byte value
                 self._codes[node_id] = (code, length)
                 return
 
             # Internal node
-            idx = node_id - 0x100
+            idx = node_id - HUFFMAN_LEAF_THRESHOLD
             if 0 <= idx < len(tree_nodes):
                 left, right = tree_nodes[idx]
                 traverse(left, code << 1, length + 1)

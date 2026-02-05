@@ -110,8 +110,77 @@ Supported compression types:
 ### Running Tests
 
 ```bash
-python -m unittest tests.test_jkr -v
+python -m unittest discover -s tests -v
 ```
+
+## Troubleshooting
+
+### Common Errors
+
+#### `FileNotFoundError: 'data/mhfdat.bin' does not exist`
+
+The input file was not found. Make sure to:
+1. Create a `data/` folder in the project directory
+2. Place your decrypted game files (`mhfdat.bin`, `mhfpac.bin`, etc.) in it
+3. Verify the file path matches your command
+
+#### `InterruptedError: file.csv has less than one line!`
+
+The CSV file is empty or has no data rows. Ensure your CSV file has:
+1. A header row: `location,source,target`
+2. At least one data row
+
+#### `EncodingError: Failed to encode string to Shift-JIS`
+
+Your translation contains characters not supported by the game's encoding (Shift-JIS). Common causes:
+- Emoji characters
+- Special Unicode symbols
+- Characters from non-Japanese/ASCII scripts
+
+**Solution:** Replace unsupported characters with ASCII or Japanese equivalents.
+
+#### `CSVParseError: Invalid location format`
+
+The CSV location column is malformed. Expected format: `0x1234@filename.bin`
+
+Check that:
+1. The hex offset starts with `0x`
+2. There's an `@` separator between offset and filename
+3. No extra spaces or characters
+
+#### `ValueError: Cannot find any readable data in 'file.bin' with xpath 'path'`
+
+The xpath doesn't match the file type or the file structure is different. Solutions:
+1. Verify you're using the correct xpath for your file (e.g., `dat/` for mhfdat.bin, `pac/` for mhfpac.bin)
+2. Check available xpaths in `headers.json`
+3. Ensure the file is decrypted (ECD files must be decrypted with ReFrontier first)
+
+#### `Warning: file starts with an ECD header, meaning it's encrypted`
+
+The file is still encrypted. Use [ReFrontier](https://github.com/Houmgaor/ReFrontier) to decrypt it first:
+
+```bash
+./ReFrontier mhfdat.bin --decrypt
+```
+
+#### `Failed to decompress JPK file`
+
+The JPK file is corrupted or uses an unsupported compression variant. Try:
+1. Re-extracting the file from the game data
+2. Checking if the file was partially downloaded or truncated
+
+### Debug Mode
+
+Use the `-v` or `--verbose` flag to see detailed debug output:
+
+```bash
+python main.py -v data/mhfdat.bin
+```
+
+This shows:
+- Number of translations found
+- Pointer assignments during import
+- File creation messages
 
 ## Credits
 

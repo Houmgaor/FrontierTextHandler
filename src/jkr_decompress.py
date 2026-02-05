@@ -31,6 +31,28 @@ class CompressionType(IntEnum):
 # JKR magic bytes: "JKR\x1A" (little endian: 0x1A524B4A)
 JKR_MAGIC = 0x1A524B4A
 
+# JKR header constants
+JKR_HEADER_SIZE = 16        # Size of JKR header in bytes
+JKR_DEFAULT_VERSION = 0x108  # Default version number
+
+# Huffman decoding constants
+# Boundary between leaf nodes (0-255) and internal tree nodes (256+)
+HUFFMAN_LEAF_THRESHOLD = 0x100
+# Base offset for Huffman table navigation: (node * 2 - 0x200 + bit) * 2
+HUFFMAN_TABLE_BASE = 0x200
+# Offset adjustment for calculating data start: table_len * 4 - 0x3FC
+HUFFMAN_DATA_OFFSET_ADJ = 0x3FC
+
+# LZ77 decoding constants
+# Bit masks for extracting values from hi/lo bytes
+LZ_LENGTH_MASK = 0xE0       # Upper 3 bits of hi byte contain length
+LZ_LENGTH_SHIFT = 5         # Shift to extract length from hi byte
+LZ_OFFSET_HI_MASK = 0x1F    # Lower 5 bits of hi byte contain offset high bits
+# Length constants for back-reference cases
+LZ_BASE_LENGTH_LONG = 0x1A  # Base length for Case 3/4 (26)
+LZ_LITERAL_RUN_BASE = 0x1B  # Base length for literal run (27)
+LZ_LITERAL_RUN_MARKER = 0xFF  # Marker byte indicating literal run mode
+
 
 @dataclass
 class JKRHeader:
@@ -49,11 +71,11 @@ class JKRHeader:
         :param data: At least 16 bytes of header data.
         :return: Parsed header or None if invalid magic.
         """
-        if len(data) < 16:
+        if len(data) < JKR_HEADER_SIZE:
             return None
 
         magic, version, compression_type, data_offset, decompressed_size = struct.unpack(
-            "<IHHII", data[:16]
+            "<IHHII", data[:JKR_HEADER_SIZE]
         )
 
         if magic != JKR_MAGIC:
@@ -132,8 +154,8 @@ class LZDecoder:
 
                 hi = self._read_byte(in_stream)
                 lo = self._read_byte(in_stream)
-                length = (hi & 0xE0) >> 5
-                offset = ((hi & 0x1F) << 8) | lo
+                length = (hi & LZ_LENGTH_MASK) >> LZ_LENGTH_SHIFT
+                offset = ((hi & LZ_OFFSET_HI_MASK) << 8) | lo
 
                 if length != 0:
                     # Case 1: use length directly
@@ -150,15 +172,15 @@ class LZDecoder:
                     continue
 
                 temp = self._read_byte(in_stream)
-                if temp == 0xFF:
+                if temp == LZ_LITERAL_RUN_MARKER:
                     # Case 3: literal run
-                    for _ in range(offset + 0x1B):
+                    for _ in range(offset + LZ_LITERAL_RUN_BASE):
                         out_buffer[out_index] = self._read_byte(in_stream)
                         out_index += 1
                     continue
 
                 # Case 4: long back-reference
-                out_index += self._jpk_copy_lz(out_buffer, offset, temp + 0x1A, out_index)
+                out_index += self._jpk_copy_lz(out_buffer, offset, temp + LZ_BASE_LENGTH_LONG, out_index)
 
             except EOFError:
                 break
@@ -196,7 +218,7 @@ class HFIDecoder(LZDecoder):
         # JpkGetHf implementation
         data = self._hf_table_len
 
-        while data >= 0x100:
+        while data >= HUFFMAN_LEAF_THRESHOLD:
             self._flag_shift -= 1
             if self._flag_shift < 0:
                 self._flag_shift = 7
@@ -208,7 +230,7 @@ class HFIDecoder(LZDecoder):
                 self._flag_hf = byte_read[0]
 
             bit = (self._flag_hf >> self._flag_shift) & 0x1
-            stream.seek((data * 2 - 0x200 + bit) * 2 + self._hf_table_offset)
+            stream.seek((data * 2 - HUFFMAN_TABLE_BASE + bit) * 2 + self._hf_table_offset)
             data = struct.unpack("<h", stream.read(2))[0]
 
         return data & 0xFF
@@ -224,7 +246,7 @@ class HFIDecoder(LZDecoder):
         # Read Huffman table length
         self._hf_table_len = struct.unpack("<h", in_stream.read(2))[0]
         self._hf_table_offset = in_stream.tell()
-        self._hf_data_offset = self._hf_table_offset + self._hf_table_len * 4 - 0x3FC
+        self._hf_data_offset = self._hf_table_offset + self._hf_table_len * 4 - HUFFMAN_DATA_OFFSET_ADJ
         self._stream = in_stream
 
         # Enable Huffman byte reading
@@ -262,7 +284,7 @@ class HFIRWDecoder:
         """Read a byte using Huffman decoding."""
         data = self._hf_table_len
 
-        while data >= 0x100:
+        while data >= HUFFMAN_LEAF_THRESHOLD:
             self._flag_shift -= 1
             if self._flag_shift < 0:
                 self._flag_shift = 7
@@ -271,7 +293,7 @@ class HFIRWDecoder:
                 self._flag_hf = stream.read(1)[0]
 
             bit = (self._flag_hf >> self._flag_shift) & 0x1
-            stream.seek((data * 2 - 0x200 + bit) * 2 + self._hf_table_offset)
+            stream.seek((data * 2 - HUFFMAN_TABLE_BASE + bit) * 2 + self._hf_table_offset)
             data = struct.unpack("<h", stream.read(2))[0]
 
         return data & 0xFF
@@ -281,7 +303,7 @@ class HFIRWDecoder:
         # Read Huffman table length
         self._hf_table_len = struct.unpack("<h", in_stream.read(2))[0]
         self._hf_table_offset = in_stream.tell()
-        self._hf_data_offset = self._hf_table_offset + self._hf_table_len * 4 - 0x3FC
+        self._hf_data_offset = self._hf_table_offset + self._hf_table_len * 4 - HUFFMAN_DATA_OFFSET_ADJ
 
         out_buffer = bytearray(out_size)
         for i in range(out_size):
