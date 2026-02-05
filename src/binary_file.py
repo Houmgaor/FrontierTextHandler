@@ -3,6 +3,7 @@ Define BinaryFile class.
 """
 import struct
 import warnings
+from io import BytesIO
 
 
 class BinaryFile:
@@ -57,3 +58,19 @@ class BinaryFile:
     def write_int(self, value):
         """Write data as an integer."""
         self.write(struct.pack("<I", value))
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> "BinaryFile":
+        """
+        Create a BinaryFile from in-memory bytes.
+
+        Useful for working with decompressed data without writing to disk.
+
+        :param data: Binary data to wrap.
+        :return: BinaryFile instance backed by BytesIO.
+        """
+        instance = cls.__new__(cls)
+        instance.file_path = None
+        instance.file = BytesIO(data)
+        instance.mode = "rb"
+        return instance

@@ -7,6 +7,7 @@ import struct
 import warnings
 
 from .binary_file import BinaryFile
+from .jkr_decompress import is_jkr_file, decompress_jkr
 
 
 def read_json_data(xpath="dat/armor/head"):
@@ -113,6 +114,9 @@ def read_from_pointers(file_path, pointers_data):
     """
     Read data using pointer headers.
 
+    Automatically decompresses JPK files. ECD encrypted files must still
+    be decrypted using ReFrontier first.
+
     :param str file_path: Input file path
     :param tuple[int, int, int] pointers_data: Pointers indicated where to read.
     :return dict: Dictionary of "offset", "text" and "id" elements
@@ -121,24 +125,32 @@ def read_from_pointers(file_path, pointers_data):
     next_field_pointer = pointers_data[1]
     crop_end = pointers_data[2]
 
-    with BinaryFile(file_path) as bfile:
-        # Check for proper header first
-        header = bfile.read(3)
-        if header == b"ecd":
-            warnings.warn(
-                f"'{file_path}' starts with an ECD header, meaning it's encrypted. "
-                + "Make sure to decrypt the file using ReFrontier before using it."
-            )
-        elif header == b"jpk":
-            warnings.warn(
-                f"'{file_path}' starts with a JPK header, meaning it's compressed. "
-                + "Make sure to decompress the file using ReFrontier before using it."
-            )
-        # Move the file pointer to the desired start position
-        bfile.seek(start_pointer)
-        start_position = bfile.read_int()
-        bfile.seek(next_field_pointer)
-        read_length = bfile.read_int() - start_position - crop_end
-        reads = read_file_section(bfile, start_position, read_length)
+    # Read file and check headers
+    with open(file_path, "rb") as f:
+        file_data = f.read()
+
+    # Check for encrypted file (must be handled externally)
+    if file_data[:3] == b"ecd":
+        warnings.warn(
+            f"'{file_path}' starts with an ECD header, meaning it's encrypted. "
+            + "Make sure to decrypt the file using ReFrontier before using it."
+        )
+
+    # Auto-decompress JPK files
+    if is_jkr_file(file_data):
+        decompressed = decompress_jkr(file_data)
+        if decompressed is None:
+            raise ValueError(f"Failed to decompress JPK file: {file_path}")
+        file_data = decompressed
+
+    # Use BinaryFile to work with the (potentially decompressed) data
+    bfile = BinaryFile.from_bytes(file_data)
+
+    # Move the file pointer to the desired start position
+    bfile.seek(start_pointer)
+    start_position = bfile.read_int()
+    bfile.seek(next_field_pointer)
+    read_length = bfile.read_int() - start_position - crop_end
+    reads = read_file_section(bfile, start_position, read_length)
 
     return reads

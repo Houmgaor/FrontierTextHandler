@@ -21,9 +21,11 @@ python main.py --help
 
 To extract the data:
 
-1. Decrypt, decompile MHFrontier source code with [ReFrontier](https://github.com/Houmgaor/ReFrontier).
+1. Decrypt MHFrontier source files with [ReFrontier](https://github.com/Houmgaor/ReFrontier).
 2. Place the binary files ``mhfdat.bin``, ``mhfpac.bin`` or ``mhfinf.bin`` in a ``data/`` folder.
 3. Run ``main.py``.
+
+**Note:** JPK-compressed files are automatically decompressed. You only need to decrypt ECD-encrypted files with ReFrontier first.
 
 Output data will be in ``output/*.csv``. The file ``output/refrontier.csv`` is compatible with ReFrontier.
 
@@ -65,6 +67,46 @@ python main.py --refrontier-to-csv
 ```
 
 Currently, you can extract all names and descriptions for: weapons, armors, items as well as skills.
+
+## JPK Compression
+
+FrontierTextHandler includes built-in support for JPK/JKR compression, the format used by Monster Hunter Frontier for compressed game files. This removes the dependency on ReFrontier for decompression.
+
+### Automatic Decompression
+
+JPK files are automatically detected and decompressed when reading game data. No additional steps needed.
+
+### Python API
+
+You can also use the compression functions directly in Python:
+
+```python
+from src import compress_jkr_hfi, decompress_jkr, is_jkr_file
+
+# Check if a file is JPK compressed
+with open("file.bin", "rb") as f:
+    data = f.read()
+    if is_jkr_file(data):
+        decompressed = decompress_jkr(data)
+
+# Compress data (HFI = Huffman + LZ77, most common)
+compressed = compress_jkr_hfi(original_data)
+
+# Decompress
+original = decompress_jkr(compressed)
+```
+
+Supported compression types:
+- **RW (0)**: Raw, no compression
+- **HFIRW (2)**: Huffman encoding only
+- **LZ (3)**: LZ77 compression only
+- **HFI (4)**: Huffman + LZ77 (most common, best compression)
+
+### Running Tests
+
+```bash
+python -m unittest tests.test_jkr -v
+```
 
 ## Credits
 
