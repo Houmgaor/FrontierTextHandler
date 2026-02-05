@@ -5,12 +5,26 @@ Files need to be decrypted and decompressed with a tool like ReFrontier.
 """
 
 import argparse
+import logging
 import os
 
 import src
 
 
-def parse_inputs():
+def setup_logging(verbose: bool = False) -> None:
+    """
+    Configure logging for the application.
+
+    :param verbose: If True, set DEBUG level; otherwise INFO level
+    """
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s: %(message)s"
+    )
+
+
+def parse_inputs() -> argparse.ArgumentParser:
     """Parse console arguments."""
     parser = argparse.ArgumentParser(
         prog="FrontierTextConverter",
@@ -45,11 +59,18 @@ def parse_inputs():
         action="store_true",
         help="Convert from a CSV file (UTF-8) to your binary file.",
     )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose (debug) output.",
+    )
     return parser
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     """Main function to read everything."""
+    setup_logging(args.verbose)
+
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(
             f"'{args.input_file}' does not exist. You need to import it first."

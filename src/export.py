@@ -3,19 +3,28 @@ Export data from a binary file to another format (usually CSV).
 """
 import csv
 import codecs
+import logging
 import zlib
 import os
+from typing import Iterable
 
 from . import common
 
+logger = logging.getLogger(__name__)
 
-def export_as_csv(data, output_file, location_name=""):
+
+def export_as_csv(
+    data: Iterable[dict[str, int | str]],
+    output_file: str,
+    location_name: str = ""
+) -> int:
     """
     Export data in a CSV file with standard compatibility format.
 
-    :param typing.Iterable data: Extracted strings, format is usually {"offset": offset, "text": string}
-    :param str output_file: Output file path
-    :param str location_name: File in which to find the source
+    :param data: Extracted strings, format is usually {"offset": offset, "text": string}
+    :param output_file: Output file path
+    :param location_name: File in which to find the source
+    :return: Number of lines written
     """
     lines = 0
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
@@ -26,59 +35,44 @@ def export_as_csv(data, output_file, location_name=""):
                 [f"0x{datum['offset']:x}@{location_name}", datum["text"], datum["text"]]
             )
             lines += 1
-    print(f"Wrote {lines} lines of translation CSV as {output_file}")
+    logger.info("Wrote %d lines of translation CSV as %s", lines, output_file)
+    return lines
 
 
-def export_for_refrontier(data, output_file):
+def export_for_refrontier(
+    data: list[dict[str, int | str]],
+    output_file: str
+) -> int:
     """
     Export data in a CSV file with ReFrontier compatible format.
 
-    :param list data: Extracted strings with offsets
-    :param str output_file: File path for output.
-    :return:
+    :param data: Extracted strings with offsets
+    :param output_file: File path for output.
+    :return: Number of lines written
     """
     lines = 0
     with codecs.open(output_file, "w", encoding="shift_jisx0213") as csvfile:
         writer = csv.writer(csvfile, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
         writer.writerow(["Offset", "Hash", "JString"])
         for datum in data:
-            string = datum["text"]
+            string = str(datum["text"])
             for standard, escaped in common.REFRONTIER_REPLACEMENTS:
                 string = string.replace(standard, escaped)
             writer.writerow(
                 [datum["offset"], zlib.crc32(codecs.encode(string, "shift_jisx0213")), string]
             )
             lines += 1
-    print(f"Wrote {lines} lines of ReFrontier compatible file as {output_file}")
+    logger.info("Wrote %d lines of ReFrontier compatible file as %s", lines, output_file)
+    return lines
 
 
-def __find_next_pointer(input_file, start_pointer):
-    """
-    Find the valid string ending pointers values.
-
-    :param str input_file: Input file path
-    :param int start_pointer: Initial strings' pointer.
-    :return list[int]: List of valid file pointers
-    """
-    valid_pointers = []
-    for i in range(0, 1000, 4):
-        try:
-            common.read_from_pointers(input_file, (start_pointer, i, 0))
-        except ValueError:
-            pass
-        else:
-            print("valid ending:" + hex(i))
-            valid_pointers.append(i)
-    return valid_pointers
-
-
-def extract_from_file(input_file, xpath, output_file):
+def extract_from_file(input_file: str, xpath: str, output_file: str) -> None:
     """
     Extract data from a single file.
 
-    :param str input_file: Input file path
-    :param str xpath: String selection xpath
-    :param str output_file: Output file path
+    :param input_file: Input file path
+    :param xpath: String selection xpath
+    :param output_file: Output file path
     """
     # Read data
     pointers_data = common.read_json_data(xpath)
@@ -93,7 +87,7 @@ def extract_from_file(input_file, xpath, output_file):
     folder_name = "output"
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
-        print(f"Created new folder '{folder_name}'.")
+        logger.info("Created new folder '%s'", folder_name)
     export_name = output_file
     if xpath:
         export_name = "output/" + xpath.replace("/", "-") + ".csv"

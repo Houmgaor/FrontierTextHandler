@@ -1,8 +1,13 @@
 # FrontierTextHandler
 
 A utility to read text from Monster Hunter Frontier, edit and reinsert.
-It is roughly a Python rewrite of FrontierTextTool 
+It is roughly a Python rewrite of FrontierTextTool
 (from [ReFrontier](https://github.com/Houmgaor/ReFrontier), by mhvuze) in Python.
+
+## Requirements
+
+- **Python 3.7+** (uses dataclasses and modern type hints)
+- No external dependencies (pure standard library)
 
 ## Install
 

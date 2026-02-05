@@ -5,25 +5,26 @@ import codecs
 import json
 import struct
 import warnings
+from typing import Iterator
 
 from .binary_file import BinaryFile
 from .jkr_decompress import is_jkr_file, decompress_jkr
 
 # Escape sequence replacements for ReFrontier format compatibility.
 # Format: (standard_string, refrontier_escape)
-REFRONTIER_REPLACEMENTS = (
+REFRONTIER_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("\t", "<TAB>"),
     ("\r\n", "<CLINE>"),
     ("\n", "<NLINE>"),
 )
 
 
-def skip_csv_header(reader, input_file):
+def skip_csv_header(reader: Iterator[list[str]], input_file: str) -> None:
     """
     Skip the header row of a CSV reader.
 
     :param reader: CSV reader object
-    :param str input_file: Input file path (for error messages)
+    :param input_file: Input file path (for error messages)
     :raises InterruptedError: If the file has less than one line
     """
     try:
@@ -32,13 +33,13 @@ def skip_csv_header(reader, input_file):
         raise InterruptedError(f"{input_file} has less than one line!") from exc
 
 
-def read_json_data(xpath="dat/armor/head"):
+def read_json_data(xpath: str = "dat/armor/head") -> tuple[int, int, int]:
     """
     Read data from a JSON file.
 
-    :param str xpath: Data path as an XPATH.
+    :param xpath: Data path as an XPATH.
     For instance, "dat/armor/head" to get 'headers.json'["dat"]["armors"]["head"].
-    :return tuple[int, int, int]: Begin pointer, end pointer and crop before end
+    :return: Begin pointer, end pointer and crop before end
     """
     path = xpath.split("/")
     with open("headers.json", encoding="utf-8") as f:
@@ -61,12 +62,12 @@ def read_json_data(xpath="dat/armor/head"):
         )
 
 
-def read_until_null(bfile):
+def read_until_null(bfile: BinaryFile) -> bytes:
     """
     Read data until we meet null terminator or end of file.
 
-    :param binary_file.BinaryFile bfile: File to read from
-    :return bytes: Data read as a binary stream
+    :param bfile: File to read from
+    :return: Data read as a binary stream
     """
     stream = b""
     byte = bfile.read(1)
@@ -76,8 +77,13 @@ def read_until_null(bfile):
     return stream
 
 
-def read_next_string(bfile):
-    """Read a string from a position."""
+def read_next_string(bfile: BinaryFile) -> str:
+    """
+    Read a string from a position.
+
+    :param bfile: Binary file positioned at a pointer
+    :return: Decoded string
+    """
     pointer = bfile.read_int()
     bfile.seek(pointer)
     data_stream = read_until_null(bfile)
@@ -85,20 +91,25 @@ def read_next_string(bfile):
     return string
 
 
-def read_file_section(bfile, start_position, length):
+def read_file_section(
+    bfile: BinaryFile,
+    start_position: int,
+    length: int
+) -> list[dict[str, int | str]]:
     """
     Read a part of a file and return strings found.
 
     :param bfile: Binary file to read from
-    :param int start_position: Initial position to read from
-    :param int length: Number of bytes to read.
-    :return list[tuple[int, str]]: Read a full section."""
+    :param start_position: Initial position to read from
+    :param length: Number of bytes to read.
+    :return: List of dicts with "offset" and "text" keys
+    """
     bfile.seek(start_position)
     pointers_stream = bfile.read(length)
     # Get the list of continuous pointers
     pointers = struct.unpack(f"<{length // 4}I", pointers_stream)
-    strings = []
-    ids = []
+    strings: list[str] = []
+    ids: list[int] = []
     current_id = 0
     join_lines = 0 in pointers
     for pointer in pointers:
@@ -117,7 +128,7 @@ def read_file_section(bfile, start_position, length):
         ids.append(current_id)
 
     # Group output by id
-    output = []
+    output: list[dict[str, int | str]] = []
     last_id = -1
     for offset, string, current_id in zip(
         range(start_position, start_position + length, 4),
@@ -132,16 +143,19 @@ def read_file_section(bfile, start_position, length):
     return output
 
 
-def read_from_pointers(file_path, pointers_data):
+def read_from_pointers(
+    file_path: str,
+    pointers_data: tuple[int, int, int]
+) -> list[dict[str, int | str]]:
     """
     Read data using pointer headers.
 
     Automatically decompresses JPK files. ECD encrypted files must still
     be decrypted using ReFrontier first.
 
-    :param str file_path: Input file path
-    :param tuple[int, int, int] pointers_data: Pointers indicated where to read.
-    :return dict: Dictionary of "offset", "text" and "id" elements
+    :param file_path: Input file path
+    :param pointers_data: Pointers indicated where to read.
+    :return: List of dicts with "offset" and "text" keys
     """
     start_pointer = pointers_data[0]
     next_field_pointer = pointers_data[1]
