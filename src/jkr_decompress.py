@@ -19,6 +19,11 @@ from io import BytesIO
 from typing import Optional
 
 
+class JKRError(ValueError):
+    """Raised when JKR/JPK decompression fails."""
+    pass
+
+
 class CompressionType(IntEnum):
     """JKR compression types."""
     RW = 0      # Raw (no compression)
@@ -312,21 +317,36 @@ class HFIRWDecoder:
         return bytes(out_buffer)
 
 
-def decompress_jkr(data: bytes) -> Optional[bytes]:
+def decompress_jkr(data: bytes) -> bytes:
     """
     Decompress JKR/JPK compressed data.
 
     :param data: Raw JKR file data.
-    :return: Decompressed data, or None if not a valid JKR file.
+    :return: Decompressed data.
+    :raises JKRError: If the data is not a valid JKR file or decompression fails.
     """
+    if len(data) < JKR_HEADER_SIZE:
+        raise JKRError(
+            f"Data too short for JKR header: {len(data)} bytes "
+            f"(minimum {JKR_HEADER_SIZE} required)"
+        )
+
     header = JKRHeader.from_bytes(data)
     if header is None:
-        return None
+        raise JKRError(
+            f"Invalid JKR magic bytes: expected 0x{JKR_MAGIC:08x}, "
+            f"got 0x{struct.unpack('<I', data[:4])[0]:08x}"
+        )
 
     stream = BytesIO(data)
     stream.seek(header.data_offset)
 
-    compression_type = CompressionType(header.compression_type)
+    try:
+        compression_type = CompressionType(header.compression_type)
+    except ValueError as exc:
+        raise JKRError(
+            f"Unknown JKR compression type: {header.compression_type}"
+        ) from exc
 
     if compression_type == CompressionType.RW:
         decoder = RWDecoder()
@@ -339,9 +359,12 @@ def decompress_jkr(data: bytes) -> Optional[bytes]:
     elif compression_type == CompressionType.HFI:
         decoder = HFIDecoder()
     else:
-        raise NotImplementedError(f"JPK compression type {header.compression_type} not supported")
+        raise JKRError(f"JKR compression type {header.compression_type} not supported")
 
-    return decoder.decode(stream, header.decompressed_size)
+    try:
+        return decoder.decode(stream, header.decompressed_size)
+    except (EOFError, struct.error) as exc:
+        raise JKRError(f"Decompression failed: {exc}") from exc
 
 
 def is_jkr_file(data: bytes) -> bool:

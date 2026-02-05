@@ -11,5 +11,6 @@ from .common import (
     decode_game_string,
     GAME_ENCODING,
 )
-from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType
+from .binary_file import InvalidPointerError
+from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError
 from .jkr_compress import compress_jkr, compress_jkr_hfi, compress_jkr_raw

@@ -12,6 +12,7 @@ from src.jkr_decompress import (
     RWDecoder,
     decompress_jkr,
     is_jkr_file,
+    JKRError,
 )
 from src.jkr_compress import (
     BitWriter,
@@ -293,10 +294,11 @@ class TestDecompressJkr(unittest.TestCase):
         self.assertEqual(result, test_payload)
 
     def test_decompress_invalid_magic(self):
-        """Test decompressing non-JKR data returns None."""
+        """Test decompressing non-JKR data raises JKRError."""
         data = b"Not a JKR file" + b"\x00" * 100
-        result = decompress_jkr(data)
-        self.assertIsNone(result)
+        with self.assertRaises(JKRError) as ctx:
+            decompress_jkr(data)
+        self.assertIn("Invalid JKR magic", str(ctx.exception))
 
     def test_decompress_type_none(self):
         """Test decompressing NONE type (same as RW)."""

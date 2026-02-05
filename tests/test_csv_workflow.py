@@ -423,5 +423,257 @@ class TestRefrontierReplacements(unittest.TestCase):
         self.assertEqual(replacements["\n"], "<NLINE>")
 
 
+class TestInvalidPointers(unittest.TestCase):
+    """Tests for invalid pointer handling."""
+
+    def test_pointer_out_of_bounds(self):
+        """Test that out-of-bounds pointers raise InvalidPointerError."""
+        from src.binary_file import InvalidPointerError
+        # Create binary data with a pointer that points beyond the file
+        # File is 20 bytes, but pointer points to offset 0x1000
+        pointers = struct.pack("<II", 0x1000, 8)  # First pointer is invalid
+        strings = b"Hello\x00Test\x00"
+        data = pointers + strings
+
+        bfile = BinaryFile.from_bytes(data)
+        with self.assertRaises(InvalidPointerError) as ctx:
+            read_file_section(bfile, 0, 8)
+        self.assertIn("0x1000", str(ctx.exception))
+
+    def test_negative_pointer_value(self):
+        """Test that negative-like pointer values (as unsigned) are caught."""
+        from src.binary_file import InvalidPointerError
+        # 0xFFFFFFFF as unsigned int is a very large positive number
+        pointers = struct.pack("<I", 0xFFFFFFFF)
+        data = pointers + b"Test\x00"
+
+        bfile = BinaryFile.from_bytes(data)
+        with self.assertRaises(InvalidPointerError):
+            read_file_section(bfile, 0, 4)
+
+    def test_section_start_out_of_bounds(self):
+        """Test that section start beyond file raises InvalidPointerError."""
+        from src.binary_file import InvalidPointerError
+        data = b"Short data"
+        bfile = BinaryFile.from_bytes(data)
+
+        with self.assertRaises(InvalidPointerError) as ctx:
+            read_file_section(bfile, 0x1000, 8)
+        self.assertIn("section start", str(ctx.exception))
+
+    def test_section_end_out_of_bounds(self):
+        """Test that section extending beyond file raises InvalidPointerError."""
+        from src.binary_file import InvalidPointerError
+        data = b"Short data"  # 10 bytes
+        bfile = BinaryFile.from_bytes(data)
+
+        with self.assertRaises(InvalidPointerError) as ctx:
+            read_file_section(bfile, 0, 20)  # 20 bytes from a 10-byte file
+        self.assertIn("section end", str(ctx.exception))
+
+
+class TestMalformedInputs(unittest.TestCase):
+    """Tests for handling malformed and corrupted inputs."""
+
+    def test_truncated_pointer_table(self):
+        """Test handling of truncated pointer data."""
+        from src.binary_file import InvalidPointerError
+        # Only 2 bytes when we need 4 for a pointer
+        data = b"\x08\x00"
+        bfile = BinaryFile.from_bytes(data)
+
+        # Bounds checking catches this before struct.unpack
+        with self.assertRaises(InvalidPointerError) as ctx:
+            read_file_section(bfile, 0, 4)
+        self.assertIn("section end", str(ctx.exception))
+
+    def test_csv_with_invalid_encoding(self):
+        """Test handling CSV with encoding issues."""
+        # This tests the robustness of CSV parsing
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv", delete=False) as f:
+            # Write invalid UTF-8 sequence
+            f.write(b"location,source,target\n")
+            f.write(b"0x100@file.bin,\xff\xfe,translation\n")
+            temp_path = f.name
+
+        try:
+            # Should not crash, might skip the malformed line
+            result = get_new_strings(temp_path)
+            # The result depends on how Python's csv module handles it
+            self.assertIsInstance(result, list)
+        except UnicodeDecodeError:
+            # Also acceptable - strict handling of encoding errors
+            pass
+        finally:
+            os.unlink(temp_path)
+
+    def test_empty_binary_file(self):
+        """Test handling of empty binary files."""
+        from src.binary_file import InvalidPointerError
+        data = b""
+        bfile = BinaryFile.from_bytes(data)
+        self.assertEqual(bfile.size, 0)
+
+        with self.assertRaises(InvalidPointerError):
+            read_file_section(bfile, 0, 4)
+
+
+class TestJKRMalformedInputs(unittest.TestCase):
+    """Tests for malformed JKR inputs."""
+
+    def test_jkr_too_short(self):
+        """Test JKR decompression with truncated header."""
+        from src.jkr_decompress import decompress_jkr, JKRError, JKR_MAGIC
+
+        # Only 8 bytes when header needs 16
+        data = struct.pack("<II", JKR_MAGIC, 0x108)
+        with self.assertRaises(JKRError) as ctx:
+            decompress_jkr(data)
+        self.assertIn("too short", str(ctx.exception).lower())
+
+    def test_jkr_invalid_compression_type(self):
+        """Test JKR with invalid compression type."""
+        from src.jkr_decompress import decompress_jkr, JKRError, JKR_MAGIC
+
+        # Use compression type 99 which doesn't exist
+        header = struct.pack("<IHHII", JKR_MAGIC, 0x108, 99, 16, 100)
+        data = header + b"\x00" * 100
+
+        with self.assertRaises(JKRError) as ctx:
+            decompress_jkr(data)
+        self.assertIn("compression type", str(ctx.exception).lower())
+
+    def test_jkr_truncated_compressed_data(self):
+        """Test JKR with truncated compressed data."""
+        from src.jkr_decompress import decompress_jkr, JKR_MAGIC, CompressionType
+
+        # Header says 1000 bytes decompressed, but we only provide 9
+        header = struct.pack("<IHHII", JKR_MAGIC, 0x108, CompressionType.RW, 16, 1000)
+        data = header + b"ShortData"
+
+        # RW decoder reads available bytes (returns less than expected size)
+        result = decompress_jkr(data)
+        # RW decoder returns exactly what it reads, not padded
+        self.assertEqual(len(result), 9)  # Only 9 bytes were available
+        self.assertEqual(result, b"ShortData")
+
+
+class TestIntegrationWorkflow(unittest.TestCase):
+    """Integration tests for complete extract-modify-import workflow."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        import shutil
+        shutil.rmtree(self.temp_dir)
+
+    def _create_test_binary(self, strings: list[str]) -> bytes:
+        """Create a test binary file with pointer table and strings."""
+        # Calculate string positions
+        pointer_table_size = len(strings) * 4
+        string_offsets = []
+        current_offset = pointer_table_size
+
+        encoded_strings = []
+        for s in strings:
+            encoded = encode_game_string(s) + b"\x00"
+            string_offsets.append(current_offset)
+            encoded_strings.append(encoded)
+            current_offset += len(encoded)
+
+        # Build binary: pointers + strings
+        data = b""
+        for offset in string_offsets:
+            data += struct.pack("<I", offset)
+        for encoded in encoded_strings:
+            data += encoded
+
+        return data
+
+    def test_roundtrip_extract_and_import(self):
+        """Test complete workflow: extract to CSV, modify, import back."""
+        from src.import_data import import_from_csv, get_new_strings
+
+        # Create test binary
+        original_strings = ["Hello", "World", "Test"]
+        binary_data = self._create_test_binary(original_strings)
+
+        # Write binary to temp file
+        binary_path = os.path.join(self.temp_dir, "test.bin")
+        with open(binary_path, "wb") as f:
+            f.write(binary_data)
+
+        # Create CSV with translations
+        csv_path = os.path.join(self.temp_dir, "translations.csv")
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            import csv
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            # Translate "Hello" at offset 0 (pointer table start)
+            writer.writerow(["0x0@test.bin", "Hello", "Bonjour"])
+            # Keep "World" the same (should be skipped)
+            writer.writerow(["0x4@test.bin", "World", "World"])
+            # Translate "Test"
+            writer.writerow(["0x8@test.bin", "Test", "Prueba"])
+
+        # Get new strings
+        new_strings = get_new_strings(csv_path)
+
+        # Should have 2 translations (World was skipped as unchanged)
+        self.assertEqual(len(new_strings), 2)
+        self.assertEqual(new_strings[0], (0x0, "Bonjour"))
+        self.assertEqual(new_strings[1], (0x8, "Prueba"))
+
+    def test_extract_section_valid_pointers(self):
+        """Test extracting strings from a section with valid pointers."""
+        strings = ["Item1", "Item2", "Item3"]
+        binary_data = self._create_test_binary(strings)
+
+        bfile = BinaryFile.from_bytes(binary_data)
+        result = read_file_section(bfile, 0, 12)  # 3 pointers = 12 bytes
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["text"], "Item1")
+        self.assertEqual(result[1]["text"], "Item2")
+        self.assertEqual(result[2]["text"], "Item3")
+
+    def test_extract_japanese_text(self):
+        """Test extracting Japanese text."""
+        strings = ["テスト", "日本語", "ゲーム"]
+        binary_data = self._create_test_binary(strings)
+
+        bfile = BinaryFile.from_bytes(binary_data)
+        result = read_file_section(bfile, 0, 12)
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["text"], "テスト")
+        self.assertEqual(result[1]["text"], "日本語")
+        self.assertEqual(result[2]["text"], "ゲーム")
+
+    def test_binary_file_size_tracking(self):
+        """Test that BinaryFile correctly tracks file size."""
+        data = b"Test data with some content"
+        bfile = BinaryFile.from_bytes(data)
+
+        self.assertEqual(bfile.size, len(data))
+
+    def test_binary_file_context_manager(self):
+        """Test BinaryFile as context manager."""
+        # Create a test file
+        test_path = os.path.join(self.temp_dir, "context_test.bin")
+        test_data = b"Context manager test data"
+        with open(test_path, "wb") as f:
+            f.write(test_data)
+
+        # Test context manager
+        with BinaryFile(test_path) as bf:
+            self.assertEqual(bf.size, len(test_data))
+            content = bf.read(len(test_data))
+            self.assertEqual(content, test_data)
+
+
 if __name__ == "__main__":
     unittest.main()

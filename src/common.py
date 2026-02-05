@@ -8,8 +8,8 @@ import struct
 import warnings
 from typing import Iterator, Optional
 
-from .binary_file import BinaryFile
-from .jkr_decompress import is_jkr_file, decompress_jkr
+from .binary_file import BinaryFile, InvalidPointerError
+from .jkr_decompress import is_jkr_file, decompress_jkr, JKRError
 
 logger = logging.getLogger(__name__)
 
@@ -134,12 +134,12 @@ def read_until_null(bfile: BinaryFile) -> bytes:
     :param bfile: File to read from
     :return: Data read as a binary stream
     """
-    stream = b""
+    buffer = bytearray()
     byte = bfile.read(1)
     while byte != b"\x00" and byte != b"":
-        stream += byte
+        buffer.extend(byte)
         byte = bfile.read(1)
-    return stream
+    return bytes(buffer)
 
 
 def read_next_string(bfile: BinaryFile) -> str:
@@ -148,8 +148,10 @@ def read_next_string(bfile: BinaryFile) -> str:
 
     :param bfile: Binary file positioned at a pointer
     :return: Decoded string
+    :raises InvalidPointerError: If the pointer points outside the file
     """
     pointer = bfile.read_int()
+    bfile.validate_offset(pointer, context="string pointer")
     bfile.seek(pointer)
     data_stream = read_until_null(bfile)
     return decode_game_string(data_stream, context=f"pointer 0x{pointer:x}")
@@ -167,7 +169,12 @@ def read_file_section(
     :param start_position: Initial position to read from
     :param length: Number of bytes to read.
     :return: List of dicts with "offset" and "text" keys
+    :raises InvalidPointerError: If any pointer points outside the file
     """
+    bfile.validate_offset(start_position, context="section start")
+    if length > 0:
+        bfile.validate_offset(start_position + length - 1, context="section end")
+
     bfile.seek(start_position)
     pointers_stream = bfile.read(length)
     # Get the list of continuous pointers
@@ -185,6 +192,8 @@ def read_file_section(
                 continue
         else:
             current_id += 1
+        # Validate pointer is within file bounds before seeking
+        bfile.validate_offset(pointer, context=f"string at offset 0x{pointer:x}")
         # Move to string pointer
         bfile.seek(pointer)
         data_stream = read_until_null(bfile)
@@ -238,10 +247,10 @@ def read_from_pointers(
 
     # Auto-decompress JPK files
     if is_jkr_file(file_data):
-        decompressed = decompress_jkr(file_data)
-        if decompressed is None:
-            raise ValueError(f"Failed to decompress JPK file: {file_path}")
-        file_data = decompressed
+        try:
+            file_data = decompress_jkr(file_data)
+        except JKRError as exc:
+            raise JKRError(f"Failed to decompress '{file_path}': {exc}") from exc
 
     # Use BinaryFile to work with the (potentially decompressed) data
     bfile = BinaryFile.from_bytes(file_data)
