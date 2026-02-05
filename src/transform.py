@@ -4,6 +4,7 @@ Manipulation of the extracted data.
 import csv
 import os
 
+from . import common
 from . import export
 
 
@@ -11,17 +12,11 @@ def import_from_refrontier(input_file):
     """Import data with a ReFrontier format."""
     with open(input_file, "r", newline="\n", encoding="shift_jisx0213") as refrontier_csv:
         reader = csv.reader(refrontier_csv, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
-        # reader header : ['Offset', 'Hash', 'jString']
-        try:
-            next(reader)
-        except StopIteration as _exc:
-            raise InterruptedError(f"{input_file} has less than one line!") from _exc
+        common.skip_csv_header(reader, input_file)
         for line in reader:
-            # Necessary replacement for ReFrontier
-            replacements = ("\t", "<TAB>"), ("\r\n", "<CLINE>"), ("\n", "<NLINE>")
             string = line[2]
-            for rep in replacements:
-                string = string.replace(rep[1], rep[0])
+            for standard, escaped in common.REFRONTIER_REPLACEMENTS:
+                string = string.replace(escaped, standard)
             yield {"offset": int(line[0]), "text": string}
 
 

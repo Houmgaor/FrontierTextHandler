@@ -42,11 +42,9 @@ def export_for_refrontier(data, output_file):
         writer = csv.writer(csvfile, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
         writer.writerow(["Offset", "Hash", "JString"])
         for datum in data:
-            # Necessary replacement for ReFrontier
-            replacements = ("\t", "<TAB>"), ("\r\n", "<CLINE>"), ("\n", "<NLINE>")
             string = datum["text"]
-            for rep in replacements:
-                string = string.replace(rep[0], rep[1])
+            for standard, escaped in common.REFRONTIER_REPLACEMENTS:
+                string = string.replace(standard, escaped)
             writer.writerow(
                 [datum["offset"], zlib.crc32(codecs.encode(string, "shift_jisx0213")), string]
             )

@@ -9,6 +9,28 @@ import warnings
 from .binary_file import BinaryFile
 from .jkr_decompress import is_jkr_file, decompress_jkr
 
+# Escape sequence replacements for ReFrontier format compatibility.
+# Format: (standard_string, refrontier_escape)
+REFRONTIER_REPLACEMENTS = (
+    ("\t", "<TAB>"),
+    ("\r\n", "<CLINE>"),
+    ("\n", "<NLINE>"),
+)
+
+
+def skip_csv_header(reader, input_file):
+    """
+    Skip the header row of a CSV reader.
+
+    :param reader: CSV reader object
+    :param str input_file: Input file path (for error messages)
+    :raises InterruptedError: If the file has less than one line
+    """
+    try:
+        next(reader)
+    except StopIteration as exc:
+        raise InterruptedError(f"{input_file} has less than one line!") from exc
+
 
 def read_json_data(xpath="dat/armor/head"):
     """
