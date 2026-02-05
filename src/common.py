@@ -3,12 +3,15 @@ Core module functions.
 """
 import codecs
 import json
+import logging
 import struct
 import warnings
-from typing import Iterator
+from typing import Iterator, Optional
 
 from .binary_file import BinaryFile
 from .jkr_decompress import is_jkr_file, decompress_jkr
+
+logger = logging.getLogger(__name__)
 
 # Escape sequence replacements for ReFrontier format compatibility.
 # Format: (standard_string, refrontier_escape)
@@ -17,6 +20,61 @@ REFRONTIER_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("\r\n", "<CLINE>"),
     ("\n", "<NLINE>"),
 )
+
+# Encoding used by Monster Hunter Frontier
+GAME_ENCODING = "shift_jisx0213"
+
+
+class EncodingError(ValueError):
+    """Raised when encoding or decoding fails for game text."""
+    pass
+
+
+def decode_game_string(
+    data: bytes,
+    errors: str = "replace",
+    context: Optional[str] = None
+) -> str:
+    """
+    Decode a byte string from the game's encoding (Shift-JIS).
+
+    :param data: Raw bytes to decode
+    :param errors: Error handling mode ('strict', 'replace', 'ignore')
+    :param context: Optional context string for error messages (e.g., offset)
+    :return: Decoded string
+    :raises EncodingError: If errors='strict' and decoding fails
+    """
+    try:
+        return codecs.decode(data, GAME_ENCODING, errors=errors)
+    except (UnicodeDecodeError, LookupError) as exc:
+        ctx = f" at {context}" if context else ""
+        raise EncodingError(
+            f"Failed to decode Shift-JIS string{ctx}: {exc}"
+        ) from exc
+
+
+def encode_game_string(
+    text: str,
+    errors: str = "strict",
+    context: Optional[str] = None
+) -> bytes:
+    """
+    Encode a string to the game's encoding (Shift-JIS).
+
+    :param text: String to encode
+    :param errors: Error handling mode ('strict', 'replace', 'ignore', 'xmlcharrefreplace')
+    :param context: Optional context string for error messages
+    :return: Encoded bytes
+    :raises EncodingError: If errors='strict' and encoding fails
+    """
+    try:
+        return codecs.encode(text, GAME_ENCODING, errors=errors)
+    except (UnicodeEncodeError, LookupError) as exc:
+        ctx = f" for {context}" if context else ""
+        raise EncodingError(
+            f"Failed to encode string to Shift-JIS{ctx}: {exc}. "
+            f"String contains characters not representable in Shift-JIS."
+        ) from exc
 
 
 def skip_csv_header(reader: Iterator[list[str]], input_file: str) -> None:
@@ -33,16 +91,23 @@ def skip_csv_header(reader: Iterator[list[str]], input_file: str) -> None:
         raise InterruptedError(f"{input_file} has less than one line!") from exc
 
 
-def read_json_data(xpath: str = "dat/armor/head") -> tuple[int, int, int]:
+DEFAULT_HEADERS_PATH = "headers.json"
+
+
+def read_json_data(
+    xpath: str = "dat/armor/head",
+    headers_path: str = DEFAULT_HEADERS_PATH
+) -> tuple[int, int, int]:
     """
     Read data from a JSON file.
 
     :param xpath: Data path as an XPATH.
-    For instance, "dat/armor/head" to get 'headers.json'["dat"]["armors"]["head"].
+        For instance, "dat/armor/head" to get 'headers.json'["dat"]["armors"]["head"].
+    :param headers_path: Path to the headers.json configuration file.
     :return: Begin pointer, end pointer and crop before end
     """
     path = xpath.split("/")
-    with open("headers.json", encoding="utf-8") as f:
+    with open(headers_path, encoding="utf-8") as f:
         data = json.load(f)
         pointers = data
         for part in path:
@@ -87,8 +152,7 @@ def read_next_string(bfile: BinaryFile) -> str:
     pointer = bfile.read_int()
     bfile.seek(pointer)
     data_stream = read_until_null(bfile)
-    string = codecs.decode(data_stream, "shift_jisx0213")
-    return string
+    return decode_game_string(data_stream, context=f"pointer 0x{pointer:x}")
 
 
 def read_file_section(
@@ -124,7 +188,7 @@ def read_file_section(
         # Move to string pointer
         bfile.seek(pointer)
         data_stream = read_until_null(bfile)
-        strings.append(codecs.decode(data_stream, "shift_jisx0213"))
+        strings.append(decode_game_string(data_stream, context=f"pointer 0x{pointer:x}"))
         ids.append(current_id)
 
     # Group output by id

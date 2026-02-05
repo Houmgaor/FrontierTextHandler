@@ -1,7 +1,6 @@
 """
 Import data from a CSV file to a binary file.
 """
-import codecs
 import csv
 import logging
 import os
@@ -10,6 +9,7 @@ from typing import Optional
 
 from .binary_file import BinaryFile
 from . import common
+from .common import encode_game_string, EncodingError
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,7 @@ def append_to_binary(
     :param new_strings: New strings to append as (offset, text) tuples
     :param pointers_change: Tuple of pointer offsets to change
     :param output_file: Binary file to edit
+    :raises EncodingError: If a string cannot be encoded to Shift-JIS
     """
     with BinaryFile(output_file, "r+b") as bfile:
         for new_value, pointer_offset in zip(new_strings, pointers_change):
@@ -94,19 +95,32 @@ def append_to_binary(
             bfile.seek(0, os.SEEK_END)
             # Edit the pointer to the new position
             new_pointer = bfile.tell()
-            bfile.write(codecs.encode(new_value[1], "shift_jisx0213") + b"\x00")
+            encoded = encode_game_string(
+                new_value[1],
+                context=f"offset 0x{pointer_offset:x}"
+            )
+            bfile.write(encoded + b"\x00")
 
             bfile.seek(pointer_offset)
             logger.info("Assigned value %d at offset %d", new_pointer, pointer_offset)
             bfile.write_int(new_pointer)
 
 
-def import_from_csv(input_file: str, output_file: str) -> Optional[str]:
+DEFAULT_OUTPUT_DIR = "output"
+
+
+def import_from_csv(
+    input_file: str,
+    output_file: str,
+    output_path: Optional[str] = None
+) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
 
     :param input_file: Path to CSV file with translations
     :param output_file: Path to source binary file
+    :param output_path: Path for the modified binary file. If None, uses
+        '{output_dir}/{basename}-modified.bin' where basename is derived from output_file.
     :return: Path to the modified binary file, or None if no changes
     """
     new_strings = get_new_strings(input_file)
@@ -123,8 +137,18 @@ def import_from_csv(input_file: str, output_file: str) -> Optional[str]:
             bfile.seek(candidate[0])
             pointers_to_update.append(candidate[0])
 
-    new_output = "output/mhfdat-modified.bin"
-    shutil.copyfile(output_file, new_output)
-    append_to_binary(new_strings, tuple(pointers_to_update), new_output)
-    logger.info("Wrote output to %s", new_output)
-    return new_output
+    if output_path is None:
+        # Generate default output path
+        basename = os.path.splitext(os.path.basename(output_file))[0]
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}-modified.bin")
+
+    # Ensure output directory exists
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logger.info("Created output directory '%s'", output_dir)
+
+    shutil.copyfile(output_file, output_path)
+    append_to_binary(new_strings, tuple(pointers_to_update), output_path)
+    logger.info("Wrote output to %s", output_path)
+    return output_path

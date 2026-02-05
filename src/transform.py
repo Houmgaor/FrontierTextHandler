@@ -7,6 +7,7 @@ from typing import Iterator
 
 from . import common
 from . import export
+from .common import GAME_ENCODING
 
 
 def import_from_refrontier(input_file: str) -> Iterator[dict[str, int | str]]:
@@ -16,7 +17,7 @@ def import_from_refrontier(input_file: str) -> Iterator[dict[str, int | str]]:
     :param input_file: Path to ReFrontier format CSV (TSV, Shift-JIS encoded)
     :yield: Dict with "offset" (int) and "text" (str) keys
     """
-    with open(input_file, "r", newline="\n", encoding="shift_jisx0213") as refrontier_csv:
+    with open(input_file, "r", newline="\n", encoding=GAME_ENCODING) as refrontier_csv:
         reader = csv.reader(refrontier_csv, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
         common.skip_csv_header(reader, input_file)
         for line in reader:
