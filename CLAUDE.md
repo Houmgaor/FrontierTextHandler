@@ -9,8 +9,8 @@ FrontierTextHandler extracts and reimports text from Monster Hunter Frontier bin
 ## Commands
 
 ```bash
-# Extract all text to output/
-python main.py
+# Extract all sections defined in headers.json
+python main.py --extract-all
 
 # Extract specific data section
 python main.py --xpath=dat/armors/legs
@@ -20,11 +20,14 @@ python main.py --xpath=pac/skills/description
 # Insert translations back to binary (creates output/mhfdat-modified.bin)
 python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin
 
+# Insert and compress output using JKR HFI (still needs ReFrontier to encrypt for game)
+python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin --compress
+
 # Convert ReFrontier TSV format to standard CSV
 python main.py --refrontier-to-csv input.csv output.csv
 
-# Run JPK codec tests
-python -m unittest tests.test_jkr -v
+# Run all tests
+python -m unittest discover -v
 
 # Show help
 python main.py --help
@@ -49,7 +52,12 @@ Decrypted binary (mhfdat.bin) → Extract strings via pointers → CSV → Edit 
 - `jkr_compress.py` - JPK/JKR compression (all 4 compression types)
 
 **Configuration (`headers.json`):**
-Defines pointer offsets for each data section. Structure: `{file_type}/{category}/{subcategory}` with `begin_pointer`, `next_field_pointer`, and optional `crop_end`.
+Defines pointer offsets for each data section. Structure: `{file_type}/{category}/{subcategory}` with:
+- `begin_pointer`: Hex offset to a pointer that points to the start of the pointer table
+- `next_field_pointer`: Hex offset to a pointer that points to the end of the pointer table
+- `crop_end`: Optional bytes to exclude from end (for padding/metadata, default: 0)
+
+Note: These are pointers-to-pointers. The file stores addresses that point to the actual table boundaries.
 
 ## CSV Format
 

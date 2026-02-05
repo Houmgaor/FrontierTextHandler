@@ -27,16 +27,31 @@ python main.py --help
 To extract the data:
 
 1. Decrypt MHFrontier source files with [ReFrontier](https://github.com/Houmgaor/ReFrontier).
-2. Place the binary files ``mhfdat.bin``, ``mhfpac.bin`` or ``mhfinf.bin`` in a ``data/`` folder.
+2. Place the decrypted files (``mhfdat.bin``, ``mhfpac.bin``, ``mhfinf.bin``) in a ``data/`` folder.
 3. Run ``main.py``.
 
-**Note:** JPK-compressed files are automatically decompressed. You only need to decrypt ECD-encrypted files with ReFrontier first.
+**Note on file formats:** Game files are both **encrypted (ECD)** and **compressed (JKR)**. This tool handles JKR compression/decompression automatically, but ECD encryption must be handled by ReFrontier:
+- **Extraction:** Decrypt with ReFrontier first → this tool auto-decompresses JKR
+- **Reimport:** This tool can compress with JKR → encrypt with ReFrontier for game use
 
 Output data will be in ``output/*.csv``. The file ``output/refrontier.csv`` is compatible with ReFrontier.
 
+### Extract all data
+
+To extract all available text sections at once:
+
+```bash
+python main.py --extract-all
+```
+
+This reads `headers.json` and extracts every defined section, creating separate CSV files in `output/`. The tool automatically maps xpaths to their corresponding files:
+- `dat/*` sections → `data/mhfdat.bin`
+- `pac/*` sections → `data/mhfpac.bin`
+- `inf/*` sections → `data/mhfinf.bin`
+
 ### Extract specific data
 
-You can customize with data will be extracted. 
+You can customize which data will be extracted.
 For instance to extract only the legs armor names from mhfdat.bin:
 
 ```bash
@@ -63,6 +78,23 @@ For instance:
 python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin
 ```
 
+The modified file is saved to `output/mhfdat-modified.bin`.
+
+### Compress after import
+
+To automatically compress the modified binary using JKR HFI compression:
+
+```bash
+python main.py --csv-to-bin output/translations.csv data/mhfdat.bin --compress
+```
+
+This creates `output/mhfdat-modified.bin` with JKR compression applied. The compression log shows the size reduction achieved.
+
+**Important:** For use with the game, you still need to encrypt the file with ReFrontier:
+```bash
+./ReFrontier output/mhfdat-modified.bin --encrypt
+```
+
 ### Compatibility with ReFrontier
 
 You can also convert any translation CSV to ReFrontier
@@ -75,7 +107,9 @@ Currently, you can extract all names and descriptions for: weapons, armors, item
 
 ## JPK Compression
 
-FrontierTextHandler includes built-in support for JPK/JKR compression, the format used by Monster Hunter Frontier for compressed game files. This removes the dependency on ReFrontier for decompression.
+FrontierTextHandler includes built-in support for JPK/JKR compression, the format used by Monster Hunter Frontier for compressed game files.
+
+**Note:** Game files (`.bin`) have two layers: ECD encryption (outer) and JKR compression (inner). This tool handles JKR only - use ReFrontier for ECD encryption/decryption.
 
 ### Automatic Decompression
 
@@ -112,6 +146,119 @@ Supported compression types:
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## Configuration: headers.json
+
+The `headers.json` file defines where text data is located within each binary file. Understanding this format allows you to add support for new data sections.
+
+### Structure Overview
+
+```json
+{
+  "file_type": {
+    "category": {
+      "subcategory": {
+        "begin_pointer": "0x64",
+        "next_field_pointer": "0x60",
+        "crop_end": 24
+      }
+    }
+  }
+}
+```
+
+### Pointer Table Format
+
+Monster Hunter Frontier stores text as **pointer tables** - arrays of 4-byte offsets that point to null-terminated Shift-JIS strings elsewhere in the file.
+
+```
+Binary file layout:
+┌─────────────────────────────────────────────────────────┐
+│ ... file header and other data ...                      │
+├─────────────────────────────────────────────────────────┤
+│ Pointer Table (at begin_pointer offset):                │
+│   [0x1000] [0x1008] [0x1010] [0x1018] ...              │
+│   (each entry is a 4-byte little-endian offset)        │
+├─────────────────────────────────────────────────────────┤
+│ String Data (pointed to by the table):                  │
+│   0x1000: "Leather Helm\0"                              │
+│   0x1008: "Iron Helm\0"                                 │
+│   0x1010: "Steel Helm\0"                                │
+│   ...                                                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Field Definitions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `begin_pointer` | Hex string | Offset to a pointer that points to the **start** of the pointer table |
+| `next_field_pointer` | Hex string | Offset to a pointer that points to the **end** of the pointer table (or start of next section) |
+| `crop_end` | Integer | Number of bytes to exclude from the end of the calculated range (optional, default: 0) |
+
+**Important:** These are *pointers to pointers*. The values at `begin_pointer` and `next_field_pointer` contain the actual addresses of the pointer table boundaries.
+
+### Understanding crop_end
+
+The `crop_end` parameter handles cases where the pointer table contains trailing entries that shouldn't be processed:
+
+- **Padding bytes**: Some sections have null padding at the end
+- **Metadata entries**: Some tables end with non-string pointers (counts, flags, etc.)
+- **Overlap prevention**: Prevents reading into the next section's data
+
+For example, with `crop_end: 24`, the last 24 bytes (6 pointers) of the calculated range are excluded.
+
+### Adding New Sections
+
+To add support for a new text section:
+
+1. **Find the pointer table** using a hex editor or [ImHex](https://imhex.werwolv.net/) with [MHF patterns](https://github.com/var-username/Monster-Hunter-Frontier-Patterns)
+
+2. **Identify the boundaries**:
+   - Find where the file stores the table's start address (`begin_pointer`)
+   - Find where the file stores the table's end address (`next_field_pointer`)
+
+3. **Add the entry** to `headers.json`:
+   ```json
+   "monsters": {
+     "names": {
+       "begin_pointer": "0x200",
+       "next_field_pointer": "0x1FC",
+       "crop_end": 0
+     }
+   }
+   ```
+
+4. **Test extraction**:
+   ```bash
+   python main.py --xpath=dat/monsters/names -v
+   ```
+
+5. **Verify output**: Check that strings are decoded correctly and no garbage data appears
+
+### Example: Armor Section
+
+The armor head names section in mhfdat.bin:
+
+```json
+"armors": {
+  "head": {
+    "begin_pointer": "0x64",
+    "next_field_pointer": "0x60",
+    "crop_end": 24
+  }
+}
+```
+
+This means:
+- Read the 4-byte value at offset `0x64` → this gives the pointer table start
+- Read the 4-byte value at offset `0x60` → this gives the pointer table end
+- Subtract 24 bytes from the range to exclude trailing metadata
+- Each 4-byte entry in this range is a pointer to a null-terminated armor name
+
+### Multiline Strings
+
+Some sections (like weapon descriptions) use **null pointer separators** (`0x00000000`) to indicate line breaks within a single logical entry. The tool automatically joins these into a single string with `<join>` markers.
 
 ## Troubleshooting
 
@@ -163,11 +310,21 @@ The file is still encrypted. Use [ReFrontier](https://github.com/Houmgaor/ReFron
 ./ReFrontier mhfdat.bin --decrypt
 ```
 
-#### `Failed to decompress JPK file`
+#### `JKRError: Invalid JKR magic bytes` or `JKRError: Data too short`
 
-The JPK file is corrupted or uses an unsupported compression variant. Try:
-1. Re-extracting the file from the game data
-2. Checking if the file was partially downloaded or truncated
+The file is not a valid JPK/JKR compressed file or is corrupted:
+1. Verify the file is actually JPK-compressed (not all game files are)
+2. Re-extract the file from the game data
+3. Check if the file was partially downloaded or truncated
+
+#### `InvalidPointerError: Pointer offset 0x... is outside file bounds`
+
+A pointer in the file points to an invalid location. This usually means:
+1. The file is corrupted or truncated
+2. The wrong xpath is being used for this file type
+3. The `headers.json` configuration has incorrect offsets for this game version
+
+Try using `-v` to see which pointer is causing the issue.
 
 ### Debug Mode
 

@@ -143,8 +143,7 @@ def import_from_csv(
     if output_path is None:
         # Generate default output path
         basename = os.path.splitext(os.path.basename(output_file))[0]
-        suffix = "-modified.jkr" if compress else "-modified.bin"
-        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}{suffix}")
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}-modified.bin")
 
     # Ensure output directory exists
     output_dir = os.path.dirname(output_path)
