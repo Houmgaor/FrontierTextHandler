@@ -9,6 +9,7 @@ import logging
 import os
 
 import src
+from src import __version__
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -27,9 +28,11 @@ def setup_logging(verbose: bool = False) -> None:
 def parse_inputs() -> argparse.ArgumentParser:
     """Parse console arguments."""
     parser = argparse.ArgumentParser(
-        prog="FrontierTextConverter",
-        description="Converts strings from Monster Hunter Frontier "
-        + "between ReFrontier and other formats.",
+        prog="FrontierTextHandler",
+        description="Extract, edit, and reimport text from Monster Hunter Frontier game files.",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "input_file", type=str, default="data/mhfdat.bin", nargs="?", help="Input file."

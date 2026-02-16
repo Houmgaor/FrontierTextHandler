@@ -2,6 +2,8 @@
 Definition of the FrontierTextHandler module.
 """
 
+__version__ = "1.0.0"
+
 from .export import extract_from_file, extract_all
 from .transform import refrontier_to_csv
 from .import_data import import_from_csv, CSVParseError

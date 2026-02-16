@@ -4,7 +4,7 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] - 2026-02-16
 
 ### Added
 - **ECD/EXF encryption support**: Full round-trip encryption and decryption for Monster Hunter Frontier's encrypted file formats
