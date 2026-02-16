@@ -26,13 +26,12 @@ python main.py --help
 
 To extract the data:
 
-1. Decrypt MHFrontier source files with [ReFrontier](https://github.com/Houmgaor/ReFrontier).
-2. Place the decrypted files (``mhfdat.bin``, ``mhfpac.bin``, ``mhfinf.bin``) in a ``data/`` folder.
-3. Run ``main.py``.
+1. Place game files (``mhfdat.bin``, ``mhfpac.bin``, ``mhfinf.bin``) in a ``data/`` folder.
+2. Run ``main.py``.
 
-**Note on file formats:** Game files are both **encrypted (ECD)** and **compressed (JKR)**. This tool handles JKR compression/decompression automatically, but ECD encryption must be handled by ReFrontier:
-- **Extraction:** Decrypt with ReFrontier first → this tool auto-decompresses JKR
-- **Reimport:** This tool can compress with JKR → encrypt with ReFrontier for game use
+**Note on file formats:** Game files are both **encrypted (ECD/EXF)** and **compressed (JKR)**. This tool handles both layers automatically:
+- **Extraction:** Auto-decrypts ECD/EXF and auto-decompresses JKR
+- **Reimport:** Use ``--compress --encrypt`` to produce game-ready files
 
 Output data will be in ``output/*.csv``. The file ``output/refrontier.csv`` is compatible with ReFrontier.
 
@@ -90,9 +89,9 @@ python main.py --csv-to-bin output/translations.csv data/mhfdat.bin --compress
 
 This creates `output/mhfdat-modified.bin` with JKR compression applied. The compression log shows the size reduction achieved.
 
-**Important:** For use with the game, you still need to encrypt the file with ReFrontier:
+**Tip:** To produce a game-ready file in one step, add `--encrypt`:
 ```bash
-./ReFrontier output/mhfdat-modified.bin --encrypt
+python main.py --csv-to-bin output/translations.csv data/mhfdat.bin --compress --encrypt
 ```
 
 ### Compatibility with ReFrontier
@@ -109,7 +108,7 @@ Currently, you can extract all names and descriptions for: weapons, armors, item
 
 FrontierTextHandler includes built-in support for JPK/JKR compression, the format used by Monster Hunter Frontier for compressed game files.
 
-**Note:** Game files (`.bin`) have two layers: ECD encryption (outer) and JKR compression (inner). This tool handles JKR only - use ReFrontier for ECD encryption/decryption.
+**Note:** Game files (`.bin`) have two layers: ECD encryption (outer) and JKR compression (inner). This tool handles both layers automatically.
 
 ### Automatic Decompression
 
@@ -300,15 +299,7 @@ Check that:
 The xpath doesn't match the file type or the file structure is different. Solutions:
 1. Verify you're using the correct xpath for your file (e.g., `dat/` for mhfdat.bin, `pac/` for mhfpac.bin)
 2. Check available xpaths in `headers.json`
-3. Ensure the file is decrypted (ECD files must be decrypted with ReFrontier first)
-
-#### `Warning: file starts with an ECD header, meaning it's encrypted`
-
-The file is still encrypted. Use [ReFrontier](https://github.com/Houmgaor/ReFrontier) to decrypt it first:
-
-```bash
-./ReFrontier mhfdat.bin --decrypt
-```
+3. Ensure the file is a valid game file (ECD-encrypted files are auto-decrypted)
 
 #### `JKRError: Invalid JKR magic bytes` or `JKRError: Data too short`
 
