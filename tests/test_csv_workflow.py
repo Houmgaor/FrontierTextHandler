@@ -16,6 +16,8 @@ from src import (
     encode_game_string,
     decode_game_string,
     GAME_ENCODING,
+    encode_ecd,
+    compress_jkr_hfi,
 )
 from src.common import (
     skip_csv_header,
@@ -627,6 +629,136 @@ class TestIntegrationWorkflow(unittest.TestCase):
         self.assertEqual(len(new_strings), 2)
         self.assertEqual(new_strings[0], (0x0, "Bonjour"))
         self.assertEqual(new_strings[1], (0x8, "Prueba"))
+
+    def test_import_auto_decrypts_ecd_source(self):
+        """Test that import_from_csv auto-decrypts ECD-encrypted source files."""
+        from src.import_data import import_from_csv
+
+        # Create test binary and encrypt it
+        original_strings = ["Hello", "World", "Test"]
+        binary_data = self._create_test_binary(original_strings)
+        encrypted_data = encode_ecd(binary_data)
+
+        # Write encrypted binary to temp file
+        binary_path = os.path.join(self.temp_dir, "encrypted.bin")
+        with open(binary_path, "wb") as f:
+            f.write(encrypted_data)
+
+        # Create CSV with a translation
+        csv_path = os.path.join(self.temp_dir, "translations.csv")
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            writer.writerow(["0x0@encrypted.bin", "Hello", "Bonjour"])
+
+        # Import should auto-decrypt and produce valid output
+        output_path = os.path.join(self.temp_dir, "output.bin")
+        result = import_from_csv(csv_path, binary_path, output_path=output_path)
+
+        self.assertIsNotNone(result)
+        with open(output_path, "rb") as f:
+            output_data = f.read()
+
+        # Output should NOT be encrypted (no ECD header)
+        self.assertNotEqual(output_data[:4], b"ecd\x1a")
+
+        # Verify the translation was written: read pointer at offset 0,
+        # follow it, and check the string
+        pointer = struct.unpack("<I", output_data[0:4])[0]
+        # The new pointer should point to appended data at end of original binary
+        self.assertGreaterEqual(pointer, len(binary_data))
+        # Read null-terminated string at pointer offset
+        end = output_data.index(b"\x00", pointer)
+        translated = output_data[pointer:end]
+        self.assertEqual(translated, encode_game_string("Bonjour"))
+
+    def test_import_auto_decompresses_jkr_source(self):
+        """Test that import_from_csv auto-decompresses JPK-compressed source files."""
+        from src.import_data import import_from_csv
+
+        # Create test binary and compress it
+        original_strings = ["Hello", "World", "Test"]
+        binary_data = self._create_test_binary(original_strings)
+        compressed_data = compress_jkr_hfi(binary_data)
+
+        # Write compressed binary to temp file
+        binary_path = os.path.join(self.temp_dir, "compressed.bin")
+        with open(binary_path, "wb") as f:
+            f.write(compressed_data)
+
+        # Create CSV with a translation
+        csv_path = os.path.join(self.temp_dir, "translations.csv")
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            writer.writerow(["0x0@compressed.bin", "Hello", "Bonjour"])
+
+        # Import should auto-decompress and produce valid output
+        output_path = os.path.join(self.temp_dir, "output.bin")
+        result = import_from_csv(csv_path, binary_path, output_path=output_path)
+
+        self.assertIsNotNone(result)
+        with open(output_path, "rb") as f:
+            output_data = f.read()
+
+        # Output should NOT be compressed (no JKR header)
+        self.assertNotEqual(output_data[:4], b"JKR\x1a")
+
+        # Verify the translation was written
+        pointer = struct.unpack("<I", output_data[0:4])[0]
+        self.assertGreaterEqual(pointer, len(binary_data))
+        end = output_data.index(b"\x00", pointer)
+        translated = output_data[pointer:end]
+        self.assertEqual(translated, encode_game_string("Bonjour"))
+
+    def test_import_auto_decrypts_and_decompresses(self):
+        """Test that import_from_csv handles encrypted+compressed source files."""
+        from src.import_data import import_from_csv
+
+        # Create test binary, compress, then encrypt (game format)
+        original_strings = ["Alpha", "Beta", "Gamma"]
+        binary_data = self._create_test_binary(original_strings)
+        compressed_data = compress_jkr_hfi(binary_data)
+        encrypted_data = encode_ecd(compressed_data)
+
+        # Write encrypted+compressed binary to temp file
+        binary_path = os.path.join(self.temp_dir, "game_file.bin")
+        with open(binary_path, "wb") as f:
+            f.write(encrypted_data)
+
+        # Create CSV with translations
+        csv_path = os.path.join(self.temp_dir, "translations.csv")
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            writer.writerow(["0x0@game_file.bin", "Alpha", "Premier"])
+            writer.writerow(["0x8@game_file.bin", "Gamma", "Troisieme"])
+
+        # Import should auto-decrypt then auto-decompress
+        output_path = os.path.join(self.temp_dir, "output.bin")
+        result = import_from_csv(csv_path, binary_path, output_path=output_path)
+
+        self.assertIsNotNone(result)
+        with open(output_path, "rb") as f:
+            output_data = f.read()
+
+        # Output should be plain binary (not encrypted, not compressed)
+        self.assertNotEqual(output_data[:4], b"ecd\x1a")
+        self.assertNotEqual(output_data[:4], b"JKR\x1a")
+
+        # Verify both translations were written
+        pointer_0 = struct.unpack("<I", output_data[0:4])[0]
+        end_0 = output_data.index(b"\x00", pointer_0)
+        self.assertEqual(output_data[pointer_0:end_0], encode_game_string("Premier"))
+
+        pointer_8 = struct.unpack("<I", output_data[8:12])[0]
+        end_8 = output_data.index(b"\x00", pointer_8)
+        self.assertEqual(output_data[pointer_8:end_8], encode_game_string("Troisieme"))
+
+        # Verify untouched pointer still works (Beta at offset 4)
+        pointer_4 = struct.unpack("<I", output_data[4:8])[0]
+        end_4 = output_data.index(b"\x00", pointer_4)
+        self.assertEqual(output_data[pointer_4:end_4], encode_game_string("Beta"))
 
     def test_extract_section_valid_pointers(self):
         """Test extracting strings from a section with valid pointers."""
