@@ -10,8 +10,9 @@ from typing import Optional
 from .binary_file import BinaryFile
 from . import common
 from .common import encode_game_string, EncodingError
+from .jkr_decompress import is_jkr_file, decompress_jkr
 from .jkr_compress import compress_jkr_hfi
-from .crypto import encode_ecd, DEFAULT_KEY_INDEX
+from .crypto import is_encrypted_file, decrypt, encode_ecd, DEFAULT_KEY_INDEX
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,21 @@ def import_from_csv(
         os.makedirs(output_dir)
         logger.info("Created output directory '%s'", output_dir)
 
-    shutil.copyfile(output_file, output_path)
+    # Read source file and auto-decrypt/decompress before modification
+    with open(output_file, "rb") as f:
+        file_data = f.read()
+
+    if is_encrypted_file(file_data):
+        file_data, _ = decrypt(file_data)
+        logger.info("Auto-decrypted source file")
+
+    if is_jkr_file(file_data):
+        file_data = decompress_jkr(file_data)
+        logger.info("Auto-decompressed source file")
+
+    with open(output_path, "wb") as f:
+        f.write(file_data)
+
     append_to_binary(new_strings, tuple(pointers_to_update), output_path)
     logger.info("Wrote output to %s", output_path)
 
