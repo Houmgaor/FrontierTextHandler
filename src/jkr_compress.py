@@ -193,8 +193,33 @@ class LZEncoder:
     MAX_MATCH_MED = 25  # Case 2 max
     MAX_MATCH_LONG = 255 + 0x1A  # Case 3 max
 
+    # Hash-chain parameters
+    HASH_BITS = 15
+    HASH_SIZE = 1 << HASH_BITS
+    HASH_MASK = HASH_SIZE - 1
+    MAX_CHAIN_LENGTH = 64  # Cap chain walks for worst-case performance
+
     def __init__(self):
         self._writer = None
+        self._head = None  # hash table: trigram hash -> most recent position
+        self._prev = None  # chain array: position -> previous position with same hash
+
+    def _init_hash(self, data_len: int) -> None:
+        """Initialize hash table and chain arrays."""
+        self._head = [-1] * self.HASH_SIZE
+        self._prev = [-1] * data_len
+
+    def _hash3(self, data: bytes, pos: int) -> int:
+        """Hash 3 bytes at the given position."""
+        return ((data[pos] << 10) ^ (data[pos + 1] << 5) ^ data[pos + 2]) & self.HASH_MASK
+
+    def _update_hash(self, data: bytes, pos: int) -> None:
+        """Insert position into hash chain (call for every byte consumed)."""
+        if pos + 2 >= len(data):
+            return
+        h = self._hash3(data, pos)
+        self._prev[pos] = self._head[h]
+        self._head[h] = pos
 
     def _find_match(
         self,
@@ -202,37 +227,58 @@ class LZEncoder:
         pos: int,
     ) -> Tuple[int, int]:
         """
-        Find the longest match in the sliding window.
+        Find the longest match using hash chains.
 
         :param data: Full input data.
         :param pos: Current position in data.
         :return: (offset, length) tuple. offset is 0 if no match found.
         """
-        if pos < 1:
+        if pos < 1 or pos + 2 >= len(data):
             return 0, 0
+
+        # Lazy init if called outside encode() (e.g., from tests)
+        if self._head is None:
+            self._init_hash(len(data))
+            for i in range(pos):
+                self._update_hash(data, i)
 
         best_offset = 0
         best_length = 0
-        max_offset = min(pos, self.WINDOW_SIZE)
         remaining = len(data) - pos
         max_length = min(remaining, self.MAX_MATCH_LONG)
+        min_pos = max(0, pos - self.WINDOW_SIZE)
 
-        # Search backwards through the window
-        for offset in range(1, max_offset + 1):
-            match_pos = pos - offset
+        h = self._hash3(data, pos)
+        match_pos = self._head[h]
+        chain_count = 0
+
+        while match_pos >= min_pos and match_pos != -1 and chain_count < self.MAX_CHAIN_LENGTH:
+            chain_count += 1
+            offset = pos - match_pos
+
+            # Quick check: compare the byte just past the current best length
+            # to prune non-improving matches early
+            if best_length >= self.MIN_MATCH and (
+                pos + best_length >= len(data)
+                or data[match_pos + (best_length % offset)] != data[pos + best_length]
+            ):
+                match_pos = self._prev[match_pos]
+                continue
+
+            # Count matching bytes (handles overlapping copies via modulo)
             length = 0
-
-            # Count matching bytes
-            while length < max_length and pos + length < len(data):
-                if data[match_pos + (length % offset)] == data[pos + length]:
-                    length += 1
-                else:
+            while length < max_length:
+                if data[match_pos + (length % offset)] != data[pos + length]:
                     break
+                length += 1
 
-            # Keep track of best match (prefer longer matches, then shorter offsets)
             if length >= self.MIN_MATCH and length > best_length:
                 best_offset = offset
                 best_length = length
+                if best_length >= max_length:
+                    break  # Can't do better
+
+            match_pos = self._prev[match_pos]
 
         return best_offset, best_length
 
@@ -350,6 +396,7 @@ class LZEncoder:
         :return: LZ77 compressed data.
         """
         self._writer = LZInterleavedWriter()
+        self._init_hash(len(data))
         pos = 0
 
         while pos < len(data):
@@ -360,6 +407,9 @@ class LZEncoder:
                 while length >= self.MIN_MATCH:
                     chunk = min(length, 280)
                     self._encode_backref(offset, chunk)
+                    # Update hash for all bytes consumed by this chunk
+                    for i in range(pos, pos + chunk):
+                        self._update_hash(data, i)
                     pos += chunk
                     length -= chunk
                     # For subsequent chunks, offset stays same (relative to NEW position)
@@ -368,6 +418,7 @@ class LZEncoder:
                         offset, length = self._find_match(data, pos)
             else:
                 self._encode_literal(data[pos])
+                self._update_hash(data, pos)
                 pos += 1
 
         return self._writer.finish()
