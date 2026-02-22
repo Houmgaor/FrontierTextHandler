@@ -99,10 +99,12 @@ def _is_extraction_leaf(value: dict) -> bool:
     """
     Check if a headers.json node is a leaf extraction config.
 
-    Supports three formats:
+    Supports five formats:
     - Standard pointer-pair: begin_pointer + next_field_pointer
     - Count-based pointer table: begin_pointer + count_pointer
     - Struct-strided fields: begin_pointer + entry_count + entry_size + field_offset
+    - Indirect count: begin_pointer + count_base_pointer + count_offset
+    - Null-terminated: begin_pointer + null_terminated
     """
     if "begin_pointer" not in value:
         return False
@@ -110,6 +112,8 @@ def _is_extraction_leaf(value: dict) -> bool:
         "next_field_pointer" in value
         or "count_pointer" in value
         or "entry_count" in value
+        or "count_base_pointer" in value
+        or value.get("null_terminated") is True
     )
 
 
@@ -419,9 +423,11 @@ def extract_text_data(
     """
     Extract text from a game file based on extraction config.
 
-    Supports three extraction modes:
+    Supports five extraction modes:
     - Standard pointer-pair (begin_pointer + next_field_pointer)
     - Count-based pointer table (begin_pointer + count_pointer)
+    - Indirect count (begin_pointer + count_base_pointer + count_offset)
+    - Null-terminated (begin_pointer + null_terminated)
     - Struct-strided fields (begin_pointer + entry_count + entry_size + field_offset)
 
     :param file_path: Path to the game file
@@ -455,6 +461,54 @@ def extract_text_data(
         if count == 0:
             return []
         read_length = count * 4
+        return read_file_section(bfile, start_position, read_length)
+
+    elif "count_base_pointer" in config:
+        # Indirect count: count stored at base_pointer[count_offset] as u16/u32
+        count_base_pointer = int(config["count_base_pointer"], 16)
+        count_offset = int(config["count_offset"], 16)
+        count_type = config.get("count_type", "u16")
+        pointers_per_entry = config.get("pointers_per_entry", 1)
+
+        # Read base address, then read count at base + offset
+        bfile.seek(count_base_pointer)
+        base_addr = bfile.read_int()
+        count_addr = base_addr + count_offset
+        bfile.validate_offset(count_addr, context="indirect count address")
+        bfile.seek(count_addr)
+        if count_type == "u16":
+            count = struct.unpack_from("<H", bfile.read(2))[0]
+        else:
+            count = struct.unpack_from("<I", bfile.read(4))[0]
+        if count == 0:
+            return []
+
+        bfile.seek(begin_pointer)
+        start_position = bfile.read_int()
+        read_length = count * pointers_per_entry * 4
+        return read_file_section(bfile, start_position, read_length)
+
+    elif config.get("null_terminated"):
+        # Null-terminated: scan pointer groups until first pointer of group is 0
+        pointers_per_entry = config.get("pointers_per_entry", 1)
+        group_bytes = pointers_per_entry * 4
+
+        bfile.seek(begin_pointer)
+        start_position = bfile.read_int()
+
+        # Scan to find array length
+        pos = start_position
+        while True:
+            bfile.validate_offset(pos, context="null-terminated scan")
+            bfile.seek(pos)
+            first_ptr = bfile.read_int()
+            if first_ptr == 0:
+                break
+            pos += group_bytes
+
+        read_length = pos - start_position
+        if read_length == 0:
+            return []
         return read_file_section(bfile, start_position, read_length)
 
     elif "entry_count" in config:

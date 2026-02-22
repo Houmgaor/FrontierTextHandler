@@ -14,9 +14,18 @@
         }
       },
       "ranged": {
-        "begin_pointer": "0x84",
-        "next_field_pointer": "0x88",
-        "crop_end": 4
+        "name": {
+          "begin_pointer": "0x84",
+          "next_field_pointer": "0x88",
+          "crop_end": 4
+        },
+        "description": {
+          "begin_pointer": "0x090",
+          "count_base_pointer": "0x0E8",
+          "count_offset": "0x0E",
+          "count_type": "u16",
+          "pointers_per_entry": 4
+        }
       }
     },
     "armors": {
@@ -56,6 +65,27 @@
         "begin_pointer": "0x12C",
         "next_field_pointer": "0x100",
         "crop_end": 12
+      },
+      "source": {
+        "begin_pointer": "0xA40",
+        "count_base_pointer": "0x010",
+        "count_offset": "0x08",
+        "count_type": "u16"
+      }
+    },
+    "monsters": {
+      "description": {
+        "begin_pointer": "0x134",
+        "count_base_pointer": "0x010",
+        "count_offset": "0x22",
+        "count_type": "u16"
+      }
+    },
+    "equipment": {
+      "description": {
+        "begin_pointer": "0x078",
+        "null_terminated": true,
+        "pointers_per_entry": 4
       }
     }
   },

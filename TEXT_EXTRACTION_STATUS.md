@@ -6,13 +6,15 @@ Last updated: 2026-02-22
 
 ## How extraction works
 
-FrontierTextHandler reads text from Monster Hunter Frontier game files using three extraction modes, configured in `headers.json`:
+FrontierTextHandler reads text from Monster Hunter Frontier game files using five extraction modes, configured in `headers.json`:
 
 | Mode | headers.json fields | Description |
 |------|-------------------|-------------|
 | **Pointer-pair** | `begin_pointer` + `next_field_pointer` | Two pointers in the file header define the start and end of a contiguous `s32p` array. Each `s32p` is a 4-byte pointer to a null-terminated Shift-JIS string. |
 | **Count-based** | `begin_pointer` + `count_pointer` | A pointer to the array start + a count field. Array length = count * 4. |
 | **Struct-strided** | `begin_pointer` + `entry_count` + `entry_size` + `field_offset` | String pointers embedded at a fixed byte offset within repeated structs. |
+| **Indirect count** | `begin_pointer` + `count_base_pointer` + `count_offset` | Count stored as u16/u32 at an address computed by dereferencing a base pointer + offset. Supports `pointers_per_entry` for grouped pointer arrays (e.g., s32px4). |
+| **Null-terminated** | `begin_pointer` + `null_terminated` | Scans pointer groups until the first pointer of a group is zero. Supports `pointers_per_entry` for grouped pointer arrays. |
 
 All files are auto-decrypted (ECD/EXF) and auto-decompressed (JPK/JKR) before parsing.
 
@@ -35,25 +37,23 @@ Decompile pattern: `patterns/mhf-patterns/mhfdat/decompile.hexpat`
 | `dat/armors/legs` | 0x074 | Leg armor names | pointer-pair (end: 0x070) |
 | `dat/weapons/melee/name` | 0x088 | Melee weapon names | pointer-pair (end: 0x174) |
 | `dat/weapons/melee/description` | 0x08C | Melee weapon descriptions | pointer-pair (end: 0x040) |
-| `dat/weapons/ranged` | 0x084 | Ranged weapon names | pointer-pair (end: 0x088) |
+| `dat/weapons/ranged/name` | 0x084 | Ranged weapon names | pointer-pair (end: 0x088) |
+| `dat/weapons/ranged/description` | 0x090 | Ranged weapon descriptions | indirect-count (base: 0x0E8, +0x0E, s32px4) |
 | `dat/items/name` | 0x100 | Item names | pointer-pair (end: 0x0FC) |
 | `dat/items/description` | 0x12C | Item descriptions | pointer-pair (end: 0x100) |
+| `dat/items/source` | 0xA40 | Item source/acquisition text | indirect-count (base: 0x010, +0x08) |
+| `dat/monsters/description` | 0x134 | Monster descriptions | indirect-count (base: 0x010, +0x22) |
+| `dat/equipment/description` | 0x078 | Equipment descriptions (all armor + weapons) | null-terminated (s32px4) |
 
 ### Not yet extracted
 
 | Pointer | Named field | Content | Est. count | Structure | Difficulty |
 |---------|------------|---------|-----------|-----------|------------|
-| 0x078 | `equipDesc` | Equipment descriptions (all armor + weapons) | thousands | `s32px4` — 4 string pointers per entry (desc line 1, 2, 3, mhfy). Terminated by first pointer == 0. | MEDIUM — needs new `s32px4` mode or treating as flat pointer table with `<join>` |
-| 0x090 | `rangedWeaponDesc` | Ranged weapon descriptions | hundreds | `s32px4` — same 4-pointer-per-entry structure as melee descriptions. Count from `important_nums`. | MEDIUM — same as equipDesc |
-| 0x134 | `monsterDesc` | Monster descriptions | ~177 | Simple `s32p` array. Count from `important_nums`. | **EASY** — standard pointer-pair or count-based. Just needs the right end-pointer identified. |
-| 0xA40 | `itemSourceStrings` | Item source/acquisition text ("Available from General Store", etc.) | thousands | `s32p` array. | **EASY** — standard pointer-pair. Needs end-pointer identified. |
 | 0x168 | `hd_dll_af52ba` | Rank requirement label pairs ("HR1+", "HR1~") | small | `struct { s32p; s32p; padding[0xC]; }` — 2 strings + 12 bytes padding per entry. Count from `important_nums + 0x4E`. | MEDIUM — needs strided extraction with 2 fields per struct |
-| 0x180 | `hd_dll_af5397` | Hunting Horn guide pages | ~10-20 | `s32p` array. Count from `important_nums + 0x26`. | **EASY** — count-based extraction |
-| 0x184 | `hd_dll_af53c0` | Hunting Horn tutorial pages | ~10-20 | `s32p` array. Count from `important_nums + 0x28`. | **EASY** — count-based extraction |
+| 0x180 | `hd_dll_af5397` | Hunting Horn guide pages | ~10-20 | `s32p` array. Count from `important_nums + 0x26`. | **EASY** — indirect-count extraction |
+| 0x184 | `hd_dll_af53c0` | Hunting Horn tutorial pages | ~10-20 | `s32p` array. Count from `important_nums + 0x28`. | **EASY** — indirect-count extraction |
 
-Note on `s32px4`: The existing pointer-pair mode reads a flat array of `s32p` pointers. For `equipDesc` (0x078) and `rangedWeaponDesc` (0x090), the data is 4 consecutive string pointers per item. If treated as a flat pointer table, the existing `<join>` multiline support should group them correctly (null pointers separate entries). Alternatively, the struct-strided mode could be extended to support multiple `field_offset` values.
-
-Note on `important_nums`: Several counts are stored as `u16` values at offsets within the data block pointed to by header offset 0x010. The exact offset depends on game version (Wii U: `+0x272` range, PC G10-ZZ: `+0x350` range). These are needed for count-based extraction.
+Note on `important_nums`: Several counts are stored as `u16` values at offsets within the data block pointed to by header offset 0x010. The exact offset depends on game version (Wii U: `+0x272` range, PC G10-ZZ: `+0x350` range). The indirect-count extraction mode now reads these automatically.
 
 ---
 
@@ -193,8 +193,8 @@ These files contain readable text but have **no ImHex patterns or format documen
 | Category | Strings extracted | Strings remaining | Blocking issue |
 |----------|------------------|-------------------|----------------|
 | mhfdat.bin — names | ~thousands | 0 | - |
-| mhfdat.bin — descriptions | melee only | ~thousands (equip desc, ranged desc, monster desc, item source) | `s32px4` groups for equip/ranged; monster desc and item source are easy |
-| mhfdat.bin — misc | 0 | ~50 (HH guides, rank labels) | Count from `important_nums` needed |
+| mhfdat.bin — descriptions | melee + ranged + equipment + monster + item source | ~50 (HH guides, rank labels) | - |
+| mhfdat.bin — misc | 0 | ~50 (HH guides, rank labels) | Strided extraction with 2 fields per struct for rank labels |
 | mhfpac.bin — skills | ~hundreds | 0 | - |
 | mhfpac.bin — UI/dialogue | 0 | ~hundreds (menus, labels, NPC dialogue) | `s32pxT<N>` grouped strings, padded structs |
 | mhfjmp.bin | 53 | 0 | - |
@@ -204,10 +204,7 @@ These files contain readable text but have **no ImHex patterns or format documen
 
 ### Recommended next steps (by effort/impact ratio)
 
-1. **mhfdat.bin monster descriptions** (0x134) — ~177 strings, simple `s32p` array, documented
-2. **mhfdat.bin item source strings** (0xA40) — thousands of strings, simple `s32p` array, documented
-3. **mhfdat.bin equipment descriptions** (0x078) — thousands of strings, needs `s32px4` handling
-4. **mhfdat.bin ranged weapon descriptions** (0x090) — hundreds of strings, same `s32px4` structure
-5. **mhfpac.bin UI labels** (0x14-0x34) — treat `s32pxT<N>` as flat pointer tables
-6. **mhfinf.bin quest text** — biggest single gap (~22,700 strings), needs dedicated parser
-7. **Undocumented files** — require reverse engineering before implementation
+1. **mhfdat.bin Hunting Horn guides** (0x180, 0x184) — ~20-40 strings, indirect-count extraction (already supported)
+2. **mhfpac.bin UI labels** (0x14-0x34) — treat `s32pxT<N>` as flat pointer tables using null-terminated mode
+3. **mhfinf.bin quest text** — biggest single gap (~22,700 strings), needs dedicated parser
+4. **Undocumented files** — require reverse engineering before implementation

@@ -944,6 +944,30 @@ class TestIsExtractionLeaf(unittest.TestCase):
         }
         self.assertTrue(_is_extraction_leaf(config))
 
+    def test_indirect_count_format(self):
+        """Test indirect count format is detected."""
+        config = {
+            "begin_pointer": "0x134",
+            "count_base_pointer": "0x010",
+            "count_offset": "0x22",
+            "count_type": "u16"
+        }
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_null_terminated_format(self):
+        """Test null-terminated format is detected."""
+        config = {
+            "begin_pointer": "0x078",
+            "null_terminated": True,
+            "pointers_per_entry": 4
+        }
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_null_terminated_false_not_leaf(self):
+        """Test that null_terminated=False is not detected as leaf."""
+        config = {"begin_pointer": "0x078", "null_terminated": False}
+        self.assertFalse(_is_extraction_leaf(config))
+
     def test_missing_begin_pointer(self):
         """Test that missing begin_pointer returns False."""
         config = {"next_field_pointer": "0x60"}
@@ -1396,6 +1420,343 @@ class TestGetAllXpathsNewFormats(unittest.TestCase):
         self.assertIn("jmp/menu/title", result)
         self.assertIn("jmp/menu/description", result)
         self.assertIn("jmp/strings", result)
+
+    def test_real_headers_includes_new_dat_targets(self):
+        """Test that the real headers.json includes new mhfdat extraction targets."""
+        with open(self.headers_path, "w") as f:
+            json.dump({}, f)
+
+        result = get_all_xpaths(DEFAULT_HEADERS_PATH)
+        self.assertIn("dat/monsters/description", result)
+        self.assertIn("dat/items/source", result)
+        self.assertIn("dat/equipment/description", result)
+        self.assertIn("dat/weapons/ranged/name", result)
+        self.assertIn("dat/weapons/ranged/description", result)
+        # Old flat ranged xpath should no longer exist
+        self.assertNotIn("dat/weapons/ranged", result)
+
+
+class TestIndirectCountExtraction(unittest.TestCase):
+    """Tests for indirect count extraction via extract_text_data."""
+
+    def _build_indirect_count_binary(
+        self, strings: list[str], pointers_per_entry: int = 1
+    ) -> bytes:
+        """
+        Build a binary with indirect count extraction layout.
+
+        Layout:
+        - 0x00-0x03: pointer to count table (points to 0x10)
+        - 0x04-0x07: pointer to string pointer array
+        - 0x08-0x0F: padding
+        - 0x10-0x11: count value (u16) at count table + 0x00
+        - 0x12-0x13: padding
+        - 0x14+: string pointer array, then actual strings
+        """
+        header_size = 0x14
+        pointer_array_start = header_size
+        count = len(strings)
+        pointer_array_size = count * pointers_per_entry * 4
+        strings_start = pointer_array_start + pointer_array_size
+
+        encoded = []
+        string_offsets = []
+        current = strings_start
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            string_offsets.append(current)
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray(header_size)
+        # 0x00: pointer to count table (points to 0x10)
+        struct.pack_into("<I", data, 0x00, 0x10)
+        # 0x04: pointer to string pointer array
+        struct.pack_into("<I", data, 0x04, pointer_array_start)
+        # 0x10: count as u16
+        struct.pack_into("<H", data, 0x10, count)
+
+        # Pointer array
+        for offset in string_offsets:
+            data.extend(struct.pack("<I", offset))
+        # Pad remaining pointer slots with zeros for multi-pointer entries
+        zero_slots = count * pointers_per_entry - count
+        for _ in range(zero_slots):
+            data.extend(struct.pack("<I", 0))
+        # Actual strings
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def _build_indirect_count_binary_multi(
+        self, groups: list[list[str]]
+    ) -> bytes:
+        """
+        Build a binary with s32px4 indirect count layout.
+
+        Each group has 4 string pointers (some may be None for zero).
+        Groups are separated by a zero pointer as the first of 4.
+        """
+        pointers_per_entry = 4
+        header_size = 0x14
+        count = len(groups)
+        pointer_array_start = header_size
+        pointer_array_size = count * pointers_per_entry * 4
+
+        # Collect all non-None strings and assign offsets
+        all_strings = []
+        string_map: dict[int, int] = {}  # index in flat list -> file offset
+        current_offset = pointer_array_start + pointer_array_size
+        for group in groups:
+            for s in group:
+                if s is not None:
+                    enc = encode_game_string(s) + b"\x00"
+                    string_map[len(all_strings)] = current_offset
+                    all_strings.append(enc)
+                    current_offset += len(enc)
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, 0x10)  # count table pointer
+        struct.pack_into("<I", data, 0x04, pointer_array_start)  # array pointer
+        struct.pack_into("<H", data, 0x10, count)  # count
+
+        # Build pointer array
+        str_idx = 0
+        for group in groups:
+            for s in group:
+                if s is not None:
+                    data.extend(struct.pack("<I", string_map[str_idx]))
+                    str_idx += 1
+                else:
+                    data.extend(struct.pack("<I", 0))
+
+        # Append strings
+        for enc in all_strings:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_indirect_count_simple(self):
+        """Test indirect count extraction with simple s32p array."""
+        binary = self._build_indirect_count_binary(["Alpha", "Beta", "Gamma"])
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x04",
+                "count_base_pointer": "0x00",
+                "count_offset": "0x00",
+                "count_type": "u16"
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 3)
+            self.assertEqual(result[0]["text"], "Alpha")
+            self.assertEqual(result[1]["text"], "Beta")
+            self.assertEqual(result[2]["text"], "Gamma")
+        finally:
+            os.unlink(temp_path)
+
+    def test_indirect_count_zero(self):
+        """Test indirect count extraction with zero count."""
+        data = bytearray(0x18)
+        struct.pack_into("<I", data, 0x00, 0x10)  # count table at 0x10
+        struct.pack_into("<I", data, 0x04, 0x14)  # array at 0x14
+        struct.pack_into("<H", data, 0x10, 0)      # count = 0
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x04",
+                "count_base_pointer": "0x00",
+                "count_offset": "0x00",
+                "count_type": "u16"
+            }
+            result = extract_text_data(temp_path, config)
+            self.assertEqual(len(result), 0)
+        finally:
+            os.unlink(temp_path)
+
+    def test_indirect_count_with_pointers_per_entry(self):
+        """Test indirect count with pointers_per_entry=4 (s32px4)."""
+        # 2 entries, each with 4 pointers. Zero pointers separate groups.
+        groups = [
+            ["Desc1a", "Desc1b", None, None],
+            ["Desc2a", None, "Desc2c", None],
+        ]
+        binary = self._build_indirect_count_binary_multi(groups)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x04",
+                "count_base_pointer": "0x00",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "pointers_per_entry": 4
+            }
+            result = extract_text_data(temp_path, config)
+
+            # With s32px4, zero pointers act as separators for join_lines
+            # We should get grouped results
+            self.assertGreater(len(result), 0)
+            # All non-None strings should appear in results
+            all_text = " ".join(r["text"] for r in result)
+            self.assertIn("Desc1a", all_text)
+            self.assertIn("Desc1b", all_text)
+            self.assertIn("Desc2a", all_text)
+            self.assertIn("Desc2c", all_text)
+        finally:
+            os.unlink(temp_path)
+
+
+class TestNullTerminatedExtraction(unittest.TestCase):
+    """Tests for null-terminated extraction via extract_text_data."""
+
+    def _build_null_terminated_binary(
+        self, groups: list[list[str]], pointers_per_entry: int = 1
+    ) -> bytes:
+        """
+        Build a binary with null-terminated pointer groups.
+
+        Layout:
+        - 0x00-0x03: pointer to start of pointer array
+        - 0x04+: pointer array (groups of pointers_per_entry),
+                  terminated by a group whose first pointer is 0,
+                  then actual strings
+        """
+        header_size = 4
+        array_start = header_size
+
+        # Calculate total pointer slots including terminator
+        total_groups = len(groups)
+        total_pointer_slots = total_groups * pointers_per_entry + pointers_per_entry  # +terminator
+        strings_start = array_start + total_pointer_slots * 4
+
+        # Encode strings and map offsets
+        encoded_strings = []
+        string_offsets: dict[int, int] = {}
+        current = strings_start
+        flat_idx = 0
+        for group in groups:
+            for s in group:
+                if s is not None:
+                    enc = encode_game_string(s) + b"\x00"
+                    string_offsets[flat_idx] = current
+                    encoded_strings.append(enc)
+                    current += len(enc)
+                flat_idx += 1
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, array_start)
+
+        # Build pointer array
+        flat_idx = 0
+        for group in groups:
+            for s in group:
+                if s is not None:
+                    data.extend(struct.pack("<I", string_offsets[flat_idx]))
+                else:
+                    data.extend(struct.pack("<I", 0))
+                flat_idx += 1
+
+        # Terminator: group of zeros
+        for _ in range(pointers_per_entry):
+            data.extend(struct.pack("<I", 0))
+
+        # Strings
+        for enc in encoded_strings:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_null_terminated_simple(self):
+        """Test null-terminated extraction with single pointer per entry."""
+        binary = self._build_null_terminated_binary(
+            [["Hello"], ["World"], ["Test"]],
+            pointers_per_entry=1
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "null_terminated": True,
+                "pointers_per_entry": 1
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 3)
+            self.assertEqual(result[0]["text"], "Hello")
+            self.assertEqual(result[1]["text"], "World")
+            self.assertEqual(result[2]["text"], "Test")
+        finally:
+            os.unlink(temp_path)
+
+    def test_null_terminated_s32px4(self):
+        """Test null-terminated extraction with 4 pointers per entry (s32px4)."""
+        groups = [
+            ["Line1a", "Line1b", "Line1c", "Line1d"],
+            ["Line2a", "Line2b", None, None],
+        ]
+        binary = self._build_null_terminated_binary(groups, pointers_per_entry=4)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "null_terminated": True,
+                "pointers_per_entry": 4
+            }
+            result = extract_text_data(temp_path, config)
+
+            # Should have results with joined text (zero pointers in groups)
+            self.assertGreater(len(result), 0)
+            all_text = " ".join(r["text"] for r in result)
+            self.assertIn("Line1a", all_text)
+            self.assertIn("Line1d", all_text)
+            self.assertIn("Line2a", all_text)
+            self.assertIn("Line2b", all_text)
+        finally:
+            os.unlink(temp_path)
+
+    def test_null_terminated_empty(self):
+        """Test null-terminated extraction with immediate terminator."""
+        # Just a header pointing to a zero (immediate terminator)
+        data = bytearray(8)
+        struct.pack_into("<I", data, 0x00, 0x04)  # pointer to offset 4
+        struct.pack_into("<I", data, 0x04, 0)      # immediate zero = terminator
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "null_terminated": True,
+                "pointers_per_entry": 1
+            }
+            result = extract_text_data(temp_path, config)
+            self.assertEqual(len(result), 0)
+        finally:
+            os.unlink(temp_path)
 
 
 if __name__ == "__main__":
