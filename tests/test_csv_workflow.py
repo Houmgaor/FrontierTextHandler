@@ -25,11 +25,13 @@ from src.common import (
     read_until_null,
     read_file_section,
     read_struct_strings,
+    read_quest_table,
     read_extraction_config,
     extract_text_data,
     load_file_data,
     get_all_xpaths,
     _is_extraction_leaf,
+    _read_indirect_count,
     REFRONTIER_REPLACEMENTS,
     DEFAULT_HEADERS_PATH,
 )
@@ -968,6 +970,29 @@ class TestIsExtractionLeaf(unittest.TestCase):
         config = {"begin_pointer": "0x078", "null_terminated": False}
         self.assertFalse(_is_extraction_leaf(config))
 
+    def test_quest_table_format(self):
+        """Test quest table format is detected."""
+        config = {
+            "begin_pointer": "0x14",
+            "quest_table": True,
+            "count_base_pointer": "0x10",
+            "count_offset": "0x00",
+        }
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_indirect_count_strided_format(self):
+        """Test indirect count + strided format is detected."""
+        config = {
+            "begin_pointer": "0x168",
+            "count_base_pointer": "0x010",
+            "count_offset": "0x4E",
+            "count_type": "u16",
+            "count_adjust": 1,
+            "entry_size": 20,
+            "field_offset": 0,
+        }
+        self.assertTrue(_is_extraction_leaf(config))
+
     def test_missing_begin_pointer(self):
         """Test that missing begin_pointer returns False."""
         config = {"next_field_pointer": "0x60"}
@@ -1422,7 +1447,7 @@ class TestGetAllXpathsNewFormats(unittest.TestCase):
         self.assertIn("jmp/strings", result)
 
     def test_real_headers_includes_new_dat_targets(self):
-        """Test that the real headers.json includes new mhfdat extraction targets."""
+        """Test that the real headers.json includes all mhfdat extraction targets."""
         with open(self.headers_path, "w") as f:
             json.dump({}, f)
 
@@ -1432,6 +1457,11 @@ class TestGetAllXpathsNewFormats(unittest.TestCase):
         self.assertIn("dat/equipment/description", result)
         self.assertIn("dat/weapons/ranged/name", result)
         self.assertIn("dat/weapons/ranged/description", result)
+        self.assertIn("dat/ranks/label", result)
+        self.assertIn("dat/ranks/requirement", result)
+        self.assertIn("dat/hunting_horn/guide", result)
+        self.assertIn("dat/hunting_horn/tutorial", result)
+        self.assertIn("inf/quests", result)
         # Old flat ranged xpath should no longer exist
         self.assertNotIn("dat/weapons/ranged", result)
 
@@ -1616,6 +1646,371 @@ class TestIndirectCountExtraction(unittest.TestCase):
             self.assertIn("Desc1b", all_text)
             self.assertIn("Desc2a", all_text)
             self.assertIn("Desc2c", all_text)
+        finally:
+            os.unlink(temp_path)
+
+
+class TestIndirectCountStridedExtraction(unittest.TestCase):
+    """Tests for indirect-count strided extraction (rank labels)."""
+
+    def _build_indirect_count_strided_binary(
+        self, string_pairs: list[tuple[str, str]],
+        entry_size: int = 20
+    ) -> bytes:
+        """
+        Build a binary with indirect count + strided struct layout.
+
+        Layout:
+        - 0x00-0x03: pointer to count table (points to 0x10)
+        - 0x04-0x07: pointer to struct array
+        - 0x08-0x0F: padding
+        - 0x10-0x11: count value (u16), stored as count - 1 (needs +1 adjust)
+        - 0x12-0x13: padding
+        - 0x14+: struct array (2 s32p + 12 padding per entry), then strings
+        """
+        header_size = 0x14
+        array_start = header_size
+        count = len(string_pairs)
+        array_size = count * entry_size
+        strings_start = array_start + array_size
+
+        encoded = []
+        string_offsets = []
+        current = strings_start
+        for s1, s2 in string_pairs:
+            enc1 = encode_game_string(s1) + b"\x00"
+            enc2 = encode_game_string(s2) + b"\x00"
+            string_offsets.append((current, current + len(enc1)))
+            encoded.extend([enc1, enc2])
+            current += len(enc1) + len(enc2)
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, 0x10)  # count table pointer
+        struct.pack_into("<I", data, 0x04, array_start)  # array pointer
+        struct.pack_into("<H", data, 0x10, count - 1)  # count - 1 (needs adjust)
+
+        # Build struct array
+        for i, (off1, off2) in enumerate(string_offsets):
+            entry = bytearray(entry_size)
+            struct.pack_into("<I", entry, 0, off1)
+            struct.pack_into("<I", entry, 4, off2)
+            data.extend(entry)
+
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_strided_field_0(self):
+        """Test extracting first string field from strided structs."""
+        pairs = [("HR1+", "HR1~"), ("HR2+", "HR2~"), ("HR3+", "HR3~")]
+        binary = self._build_indirect_count_strided_binary(pairs)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x04",
+                "count_base_pointer": "0x00",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "count_adjust": 1,
+                "entry_size": 20,
+                "field_offset": 0,
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 3)
+            self.assertEqual(result[0]["text"], "HR1+")
+            self.assertEqual(result[1]["text"], "HR2+")
+            self.assertEqual(result[2]["text"], "HR3+")
+        finally:
+            os.unlink(temp_path)
+
+    def test_strided_field_4(self):
+        """Test extracting second string field from strided structs."""
+        pairs = [("HR1+", "HR1~"), ("HR2+", "HR2~")]
+        binary = self._build_indirect_count_strided_binary(pairs)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x04",
+                "count_base_pointer": "0x00",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "count_adjust": 1,
+                "entry_size": 20,
+                "field_offset": 4,
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 2)
+            self.assertEqual(result[0]["text"], "HR1~")
+            self.assertEqual(result[1]["text"], "HR2~")
+        finally:
+            os.unlink(temp_path)
+
+    def test_strided_zero_count(self):
+        """Test indirect count strided with zero count (after adjust)."""
+        # count_adjust=0, stored count=0 → 0 entries
+        data = bytearray(0x18)
+        struct.pack_into("<I", data, 0x00, 0x10)
+        struct.pack_into("<I", data, 0x04, 0x14)
+        struct.pack_into("<H", data, 0x10, 0)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x04",
+                "count_base_pointer": "0x00",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "entry_size": 20,
+                "field_offset": 0,
+            }
+            result = extract_text_data(temp_path, config)
+            self.assertEqual(len(result), 0)
+        finally:
+            os.unlink(temp_path)
+
+
+class TestQuestTableExtraction(unittest.TestCase):
+    """Tests for quest table extraction (mhfinf.bin format)."""
+
+    def _build_quest_binary(
+        self, categories: list[list[list[str | None]]]
+    ) -> bytes:
+        """
+        Build a binary with quest table structure.
+
+        :param categories: List of categories. Each category is a list of quests.
+            Each quest is a list of 8 strings (or None for empty slots).
+
+        Layout:
+        - 0x00-0x03: padding
+        - 0x04-0x07: padding
+        - 0x08-0x0B: padding
+        - 0x0C-0x0F: padding
+        - 0x10-0x13: pointer to important_nums → 0x18
+        - 0x14-0x17: pointer to category table
+        - 0x18-0x19: num_categories (u16)
+        - 0x1A-0x1B: padding
+        - category table, quest pointer arrays, QUEST_INFO_TBLs, text blocks, strings
+        """
+        num_categories = len(categories)
+
+        # Phase 1: Calculate sizes
+        header_size = 0x1C
+        cat_table_start = header_size
+        cat_table_size = num_categories * 8
+
+        # Quest pointer arrays follow category table
+        quest_arrays_start = cat_table_start + cat_table_size
+        quest_arrays_size = sum(len(cat) for cat in categories) * 4
+
+        # QUEST_INFO_TBL structs follow quest pointer arrays
+        quest_struct_size = 0xBC  # 188 bytes
+        quest_structs_start = quest_arrays_start + quest_arrays_size
+        total_quests = sum(len(cat) for cat in categories)
+        quest_structs_total = total_quests * quest_struct_size
+
+        # Text blocks (8 pointers each) follow quest structs
+        text_blocks_start = quest_structs_start + quest_structs_total
+        text_blocks_total = total_quests * 8 * 4  # 8 pointers * 4 bytes
+
+        # Strings follow text blocks
+        strings_start = text_blocks_start + text_blocks_total
+
+        # Phase 2: Encode strings and compute offsets
+        all_encoded: list[bytes] = []
+        string_offset_map: dict[int, int] = {}  # sequential index → file offset
+        current = strings_start
+        str_idx = 0
+        for cat in categories:
+            for quest_strings in cat:
+                for s in quest_strings:
+                    if s is not None:
+                        enc = encode_game_string(s) + b"\x00"
+                        string_offset_map[str_idx] = current
+                        all_encoded.append(enc)
+                        current += len(enc)
+                    str_idx += 1
+
+        # Phase 3: Build binary
+        data = bytearray(strings_start)
+
+        # Header
+        struct.pack_into("<I", data, 0x10, 0x18)  # important_nums pointer
+        struct.pack_into("<I", data, 0x14, cat_table_start)  # category table
+        struct.pack_into("<H", data, 0x18, num_categories)
+
+        # Build category table and quest data
+        quest_array_offset = quest_arrays_start
+        quest_struct_offset = quest_structs_start
+        text_block_offset = text_blocks_start
+        str_idx = 0
+
+        for cat_idx, cat in enumerate(categories):
+            # Category entry: endID, count, pointer to quest array
+            cat_entry_addr = cat_table_start + cat_idx * 8
+            end_id = (cat_idx + 1) * 100 - 1
+            struct.pack_into("<H", data, cat_entry_addr, end_id)
+            struct.pack_into("<H", data, cat_entry_addr + 2, len(cat))
+            struct.pack_into("<I", data, cat_entry_addr + 4, quest_array_offset)
+
+            for quest_idx, quest_strings in enumerate(cat):
+                # Quest pointer array entry
+                struct.pack_into("<I", data, quest_array_offset + quest_idx * 4,
+                                 quest_struct_offset)
+
+                # QUEST_INFO_TBL: put text pointer at +0x28
+                struct.pack_into("<I", data, quest_struct_offset + 0x28,
+                                 text_block_offset)
+
+                # Text block: 8 string pointers
+                for i, s in enumerate(quest_strings):
+                    ptr = string_offset_map.get(str_idx, 0)
+                    struct.pack_into("<I", data, text_block_offset + i * 4, ptr)
+                    str_idx += 1
+
+                quest_struct_offset += quest_struct_size
+                text_block_offset += 8 * 4
+
+            quest_array_offset += len(cat) * 4
+
+        # Append strings
+        for enc in all_encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_single_quest(self):
+        """Test extracting text from a single quest."""
+        categories = [
+            [["Title", "Main Obj", "Sub A", "Sub B",
+              "Success", "Fail", "Hunter", "Description"]]
+        ]
+        binary = self._build_quest_binary(categories)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x14",
+                "quest_table": True,
+                "count_base_pointer": "0x10",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "quest_text_offset": "0x28",
+                "text_pointers_count": 8,
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 1)
+            self.assertIn("Title", result[0]["text"])
+            self.assertIn("Main Obj", result[0]["text"])
+            self.assertIn("Description", result[0]["text"])
+            # All 8 strings joined
+            self.assertEqual(result[0]["text"].count("<join"), 7)
+        finally:
+            os.unlink(temp_path)
+
+    def test_multiple_categories(self):
+        """Test extracting from multiple categories with multiple quests."""
+        categories = [
+            [
+                ["Quest A1", "Obj A1", None, None, None, None, None, None],
+                ["Quest A2", "Obj A2", None, None, None, None, None, None],
+            ],
+            [
+                ["Quest B1", "Obj B1", None, None, None, None, "NPC", "Desc"],
+            ],
+        ]
+        binary = self._build_quest_binary(categories)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x14",
+                "quest_table": True,
+                "count_base_pointer": "0x10",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "quest_text_offset": "0x28",
+                "text_pointers_count": 8,
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 3)
+            self.assertIn("Quest A1", result[0]["text"])
+            self.assertIn("Quest A2", result[1]["text"])
+            self.assertIn("Quest B1", result[2]["text"])
+            self.assertIn("NPC", result[2]["text"])
+        finally:
+            os.unlink(temp_path)
+
+    def test_empty_categories(self):
+        """Test extraction with zero categories."""
+        data = bytearray(0x20)
+        struct.pack_into("<I", data, 0x10, 0x18)
+        struct.pack_into("<I", data, 0x14, 0x1C)
+        struct.pack_into("<H", data, 0x18, 0)  # 0 categories
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x14",
+                "quest_table": True,
+                "count_base_pointer": "0x10",
+                "count_offset": "0x00",
+                "count_type": "u16",
+            }
+            result = extract_text_data(temp_path, config)
+            self.assertEqual(len(result), 0)
+        finally:
+            os.unlink(temp_path)
+
+    def test_quest_with_all_null_strings(self):
+        """Test quest where all 8 text pointers are null."""
+        categories = [
+            [[None, None, None, None, None, None, None, None]]
+        ]
+        binary = self._build_quest_binary(categories)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x14",
+                "quest_table": True,
+                "count_base_pointer": "0x10",
+                "count_offset": "0x00",
+                "count_type": "u16",
+                "quest_text_offset": "0x28",
+                "text_pointers_count": 8,
+            }
+            result = extract_text_data(temp_path, config)
+            # Quest with all-null strings should be skipped
+            self.assertEqual(len(result), 0)
         finally:
             os.unlink(temp_path)
 

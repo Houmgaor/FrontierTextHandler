@@ -99,12 +99,14 @@ def _is_extraction_leaf(value: dict) -> bool:
     """
     Check if a headers.json node is a leaf extraction config.
 
-    Supports five formats:
-    - Standard pointer-pair: begin_pointer + next_field_pointer
-    - Count-based pointer table: begin_pointer + count_pointer
-    - Struct-strided fields: begin_pointer + entry_count + entry_size + field_offset
-    - Indirect count: begin_pointer + count_base_pointer + count_offset
-    - Null-terminated: begin_pointer + null_terminated
+    Leaf nodes must have ``begin_pointer`` plus one of these mode indicators:
+
+    - Standard pointer-pair: ``next_field_pointer``
+    - Count-based pointer table: ``count_pointer``
+    - Struct-strided fields: ``entry_count`` + ``entry_size`` + ``field_offset``
+    - Indirect count (flat or strided): ``count_base_pointer`` + ``count_offset``
+    - Null-terminated: ``null_terminated``
+    - Quest table: ``quest_table``
     """
     if "begin_pointer" not in value:
         return False
@@ -114,6 +116,7 @@ def _is_extraction_leaf(value: dict) -> bool:
         or "entry_count" in value
         or "count_base_pointer" in value
         or value.get("null_terminated") is True
+        or value.get("quest_table") is True
     )
 
 
@@ -416,6 +419,127 @@ def read_struct_strings(
     return results
 
 
+def _read_indirect_count(bfile: BinaryFile, config: dict) -> int:
+    """
+    Read an entry count from an indirect pointer table.
+
+    Dereferences a base pointer in the file header, then reads a u16 or u32
+    count at a fixed offset within that table.
+
+    :param bfile: Binary file to read from
+    :param config: Extraction config containing count_base_pointer,
+        count_offset, count_type, and optional count_adjust
+    :return: The count value (with adjustment applied)
+    """
+    count_base_pointer = int(config["count_base_pointer"], 16)
+    count_offset = int(config["count_offset"], 16)
+    count_type = config.get("count_type", "u16")
+    count_adjust = config.get("count_adjust", 0)
+
+    bfile.seek(count_base_pointer)
+    base_addr = bfile.read_int()
+    count_addr = base_addr + count_offset
+    bfile.validate_offset(count_addr, context="indirect count address")
+    bfile.seek(count_addr)
+    if count_type == "u16":
+        count = struct.unpack_from("<H", bfile.read(2))[0]
+    else:
+        count = struct.unpack_from("<I", bfile.read(4))[0]
+    return count + count_adjust
+
+
+def read_quest_table(
+    bfile: BinaryFile,
+    category_table_ptr: int,
+    num_categories: int,
+    quest_text_offset: int = 0x28,
+    text_pointers_count: int = 8
+) -> list[dict[str, int | str]]:
+    """
+    Read quest text from a multi-level category table (mhfinf.bin).
+
+    Walks the category table, follows quest pointers, and reads string
+    sub-pointers from each quest's text block.
+
+    :param bfile: Binary file to read from
+    :param category_table_ptr: File offset of the category table
+    :param num_categories: Number of category entries
+    :param quest_text_offset: Byte offset of text pointer within QUEST_INFO_TBL
+    :param text_pointers_count: Number of string pointers per quest text block
+    :return: List of dicts with "offset" and "text" keys
+    """
+    results: list[dict[str, int | str]] = []
+
+    for cat_idx in range(num_categories):
+        cat_addr = category_table_ptr + cat_idx * 8
+        bfile.validate_offset(cat_addr + 7, context=f"category {cat_idx}")
+        bfile.seek(cat_addr + 2)  # skip endID u16
+        count = struct.unpack_from("<H", bfile.read(2))[0]
+        quest_array_ptr = bfile.read_int()
+
+        if quest_array_ptr == 0 or count == 0:
+            continue
+
+        # Read all quest pointers for this category
+        bfile.validate_offset(
+            quest_array_ptr + count * 4 - 1,
+            context=f"category {cat_idx} quest array"
+        )
+        bfile.seek(quest_array_ptr)
+        quest_ptrs = struct.unpack(f"<{count}I", bfile.read(count * 4))
+
+        for quest_ptr in quest_ptrs:
+            if quest_ptr == 0:
+                continue
+
+            # Read text block pointer from QUEST_INFO_TBL + quest_text_offset
+            text_ptr_addr = quest_ptr + quest_text_offset
+            bfile.validate_offset(
+                text_ptr_addr + 3,
+                context=f"quest at 0x{quest_ptr:x} text field"
+            )
+            bfile.seek(text_ptr_addr)
+            text_block_ptr = bfile.read_int()
+
+            if text_block_ptr == 0:
+                continue
+
+            # Read string sub-pointers
+            text_block_end = text_block_ptr + text_pointers_count * 4 - 1
+            bfile.validate_offset(
+                text_block_end,
+                context=f"quest text block at 0x{text_block_ptr:x}"
+            )
+            bfile.seek(text_block_ptr)
+            str_ptrs = struct.unpack(
+                f"<{text_pointers_count}I",
+                bfile.read(text_pointers_count * 4)
+            )
+
+            # Read strings and group with joins
+            entry: dict[str, int | str] | None = None
+            for i, sp in enumerate(str_ptrs):
+                if sp == 0:
+                    continue
+                bfile.validate_offset(
+                    sp, context=f"quest string ptr {i} at 0x{sp:x}"
+                )
+                bfile.seek(sp)
+                data_stream = read_until_null(bfile)
+                text = decode_game_string(
+                    data_stream, context=f"quest string 0x{sp:x}"
+                )
+                ptr_offset = text_block_ptr + i * 4
+                if entry is None:
+                    entry = {"offset": ptr_offset, "text": text}
+                else:
+                    entry["text"] += f'<join at="{ptr_offset}">{text}'
+            if entry is not None:
+                results.append(entry)
+
+    return results
+
+
 def extract_text_data(
     file_path: str,
     config: dict
@@ -423,12 +547,14 @@ def extract_text_data(
     """
     Extract text from a game file based on extraction config.
 
-    Supports five extraction modes:
+    Supports these extraction modes:
     - Standard pointer-pair (begin_pointer + next_field_pointer)
     - Count-based pointer table (begin_pointer + count_pointer)
-    - Indirect count (begin_pointer + count_base_pointer + count_offset)
+    - Indirect count flat (begin_pointer + count_base_pointer, no entry_size)
+    - Indirect count strided (begin_pointer + count_base_pointer + entry_size)
     - Null-terminated (begin_pointer + null_terminated)
-    - Struct-strided fields (begin_pointer + entry_count + entry_size + field_offset)
+    - Struct-strided fields (begin_pointer + entry_count + entry_size)
+    - Quest table (begin_pointer + quest_table)
 
     :param file_path: Path to the game file
     :param config: Extraction config dict from headers.json
@@ -463,23 +589,39 @@ def extract_text_data(
         read_length = count * 4
         return read_file_section(bfile, start_position, read_length)
 
-    elif "count_base_pointer" in config:
-        # Indirect count: count stored at base_pointer[count_offset] as u16/u32
-        count_base_pointer = int(config["count_base_pointer"], 16)
-        count_offset = int(config["count_offset"], 16)
-        count_type = config.get("count_type", "u16")
-        pointers_per_entry = config.get("pointers_per_entry", 1)
+    elif config.get("quest_table"):
+        # Quest table: multi-level category table (mhfinf.bin)
+        count = _read_indirect_count(bfile, config)
+        if count == 0:
+            return []
 
-        # Read base address, then read count at base + offset
-        bfile.seek(count_base_pointer)
-        base_addr = bfile.read_int()
-        count_addr = base_addr + count_offset
-        bfile.validate_offset(count_addr, context="indirect count address")
-        bfile.seek(count_addr)
-        if count_type == "u16":
-            count = struct.unpack_from("<H", bfile.read(2))[0]
-        else:
-            count = struct.unpack_from("<I", bfile.read(4))[0]
+        bfile.seek(begin_pointer)
+        category_table_ptr = bfile.read_int()
+        quest_text_offset = int(config.get("quest_text_offset", "0x28"), 16)
+        text_pointers_count = config.get("text_pointers_count", 8)
+        return read_quest_table(
+            bfile, category_table_ptr, count,
+            quest_text_offset, text_pointers_count
+        )
+
+    elif "count_base_pointer" in config and "entry_size" in config:
+        # Indirect count strided: count from indirect table, struct-strided read
+        entry_size = config["entry_size"]
+        field_offset = config["field_offset"]
+        count = _read_indirect_count(bfile, config)
+        if count == 0:
+            return []
+
+        bfile.seek(begin_pointer)
+        base_offset = bfile.read_int()
+        return read_struct_strings(
+            bfile, base_offset, count, entry_size, field_offset
+        )
+
+    elif "count_base_pointer" in config:
+        # Indirect count flat: count from indirect table, flat pointer array
+        pointers_per_entry = config.get("pointers_per_entry", 1)
+        count = _read_indirect_count(bfile, config)
         if count == 0:
             return []
 

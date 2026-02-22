@@ -87,6 +87,41 @@
         "null_terminated": true,
         "pointers_per_entry": 4
       }
+    },
+    "ranks": {
+      "_comment": "Rank requirement label pairs (HR1+, HR1~). Struct: 2 s32p + 12 bytes padding = 20 bytes.",
+      "label": {
+        "begin_pointer": "0x168",
+        "count_base_pointer": "0x010",
+        "count_offset": "0x4E",
+        "count_type": "u16",
+        "count_adjust": 1,
+        "entry_size": 20,
+        "field_offset": 0
+      },
+      "requirement": {
+        "begin_pointer": "0x168",
+        "count_base_pointer": "0x010",
+        "count_offset": "0x4E",
+        "count_type": "u16",
+        "count_adjust": 1,
+        "entry_size": 20,
+        "field_offset": 4
+      }
+    },
+    "hunting_horn": {
+      "guide": {
+        "begin_pointer": "0x180",
+        "count_base_pointer": "0x010",
+        "count_offset": "0x26",
+        "count_type": "u16"
+      },
+      "tutorial": {
+        "begin_pointer": "0x184",
+        "count_base_pointer": "0x010",
+        "count_offset": "0x28",
+        "count_type": "u16"
+      }
     }
   },
   "pac": {
@@ -111,7 +146,16 @@
     }
   },
   "inf": {
-    "_comment": "Quest data."
+    "_comment": "Quest data (mhfinf.bin). Multi-level category table with 8 text strings per quest.",
+    "quests": {
+      "begin_pointer": "0x14",
+      "quest_table": true,
+      "count_base_pointer": "0x10",
+      "count_offset": "0x00",
+      "count_type": "u16",
+      "quest_text_offset": "0x28",
+      "text_pointers_count": 8
+    }
   },
   "jmp": {
     "_comment": "Jump/teleport menu data (mhfjmp.bin).",

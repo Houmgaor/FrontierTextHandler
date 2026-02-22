@@ -6,15 +6,17 @@ Last updated: 2026-02-22
 
 ## How extraction works
 
-FrontierTextHandler reads text from Monster Hunter Frontier game files using five extraction modes, configured in `headers.json`:
+FrontierTextHandler reads text from Monster Hunter Frontier game files using these extraction modes, configured in `headers.json`:
 
 | Mode | headers.json fields | Description |
 |------|-------------------|-------------|
 | **Pointer-pair** | `begin_pointer` + `next_field_pointer` | Two pointers in the file header define the start and end of a contiguous `s32p` array. Each `s32p` is a 4-byte pointer to a null-terminated Shift-JIS string. |
 | **Count-based** | `begin_pointer` + `count_pointer` | A pointer to the array start + a count field. Array length = count * 4. |
 | **Struct-strided** | `begin_pointer` + `entry_count` + `entry_size` + `field_offset` | String pointers embedded at a fixed byte offset within repeated structs. |
-| **Indirect count** | `begin_pointer` + `count_base_pointer` + `count_offset` | Count stored as u16/u32 at an address computed by dereferencing a base pointer + offset. Supports `pointers_per_entry` for grouped pointer arrays (e.g., s32px4). |
+| **Indirect count (flat)** | `begin_pointer` + `count_base_pointer` + `count_offset` | Count stored as u16/u32 at an address computed by dereferencing a base pointer + offset. Supports `pointers_per_entry` for grouped pointer arrays (e.g., s32px4) and `count_adjust` for ±1 corrections. |
+| **Indirect count (strided)** | `begin_pointer` + `count_base_pointer` + `entry_size` + `field_offset` | Same indirect count mechanism, but reads from struct-strided arrays instead of flat pointer tables. |
 | **Null-terminated** | `begin_pointer` + `null_terminated` | Scans pointer groups until the first pointer of a group is zero. Supports `pointers_per_entry` for grouped pointer arrays. |
+| **Quest table** | `begin_pointer` + `quest_table` + `count_base_pointer` | Multi-level parser: walks a category table, follows quest struct pointers, reads text sub-pointers per quest. All 8 strings per quest are joined with `<join>` tags. |
 
 All files are auto-decrypted (ECD/EXF) and auto-decompressed (JPK/JKR) before parsing.
 
@@ -44,16 +46,16 @@ Decompile pattern: `patterns/mhf-patterns/mhfdat/decompile.hexpat`
 | `dat/items/source` | 0xA40 | Item source/acquisition text | indirect-count (base: 0x010, +0x08) |
 | `dat/monsters/description` | 0x134 | Monster descriptions | indirect-count (base: 0x010, +0x22) |
 | `dat/equipment/description` | 0x078 | Equipment descriptions (all armor + weapons) | null-terminated (s32px4) |
+| `dat/ranks/label` | 0x168 | Rank requirement labels ("HR1+") | indirect-count strided (base: 0x010, +0x4E, +1, size: 20, field: 0) |
+| `dat/ranks/requirement` | 0x168 | Rank requirement ranges ("HR1~") | indirect-count strided (base: 0x010, +0x4E, +1, size: 20, field: 4) |
+| `dat/hunting_horn/guide` | 0x180 | Hunting Horn guide pages | indirect-count (base: 0x010, +0x26) |
+| `dat/hunting_horn/tutorial` | 0x184 | Hunting Horn tutorial pages | indirect-count (base: 0x010, +0x28) |
 
 ### Not yet extracted
 
-| Pointer | Named field | Content | Est. count | Structure | Difficulty |
-|---------|------------|---------|-----------|-----------|------------|
-| 0x168 | `hd_dll_af52ba` | Rank requirement label pairs ("HR1+", "HR1~") | small | `struct { s32p; s32p; padding[0xC]; }` — 2 strings + 12 bytes padding per entry. Count from `important_nums + 0x4E`. | MEDIUM — needs strided extraction with 2 fields per struct |
-| 0x180 | `hd_dll_af5397` | Hunting Horn guide pages | ~10-20 | `s32p` array. Count from `important_nums + 0x26`. | **EASY** — indirect-count extraction |
-| 0x184 | `hd_dll_af53c0` | Hunting Horn tutorial pages | ~10-20 | `s32p` array. Count from `important_nums + 0x28`. | **EASY** — indirect-count extraction |
+All documented text fields in mhfdat.bin are now extracted.
 
-Note on `important_nums`: Several counts are stored as `u16` values at offsets within the data block pointed to by header offset 0x010. The exact offset depends on game version (Wii U: `+0x272` range, PC G10-ZZ: `+0x350` range). The indirect-count extraction mode now reads these automatically.
+Note on `important_nums`: Several counts are stored as `u16` values at offsets within the data block pointed to by header offset 0x010. The exact offset depends on game version (Wii U: `+0x272` range, PC G10-ZZ: `+0x350` range). The indirect-count extraction mode reads these automatically.
 
 ---
 
@@ -128,13 +130,13 @@ Source: `client/pc/dat/mhfinf.bin` (ECD-encrypted)
 Documentation: `docs/mhfinf.md`
 Pattern: `patterns/mhf-patterns/mhfinf.bin.hexpat`
 
-### Not yet extracted
+### Extracted
 
-| Content | Est. count | Structure | Difficulty |
-|---------|-----------|-----------|------------|
-| Quest text (title, objectives, conditions, quest giver, description) | **~22,700 strings** across ~2,800 quests | Each `QUEST_INFO_TBL` (188 bytes) has a pointer at +0x28 leading to 8 `s32p` sub-pointers. Quest entries are reached via a category table at header +0x14. | **HARD** — requires a new multi-level parser: walk category table -> follow quest pointers -> read 8 sub-pointers per quest. Cannot be expressed in `headers.json`. |
+| xpath | Pointer | Content | Mode |
+|-------|---------|---------|------|
+| `inf/quests` | 0x14 | Quest text (~2,800 quests × 8 strings: title, objectives, conditions, contractor, description) | quest-table (category count at 0x10+0x00, text at quest+0x28) |
 
-The 8 strings per quest are:
+The 8 strings per quest are joined with `<join>` tags in a single CSV row:
 
 | Sub-offset | Content |
 |------------|---------|
@@ -147,7 +149,7 @@ The 8 strings per quest are:
 | +0x18 | Contractor (quest giver) name |
 | +0x1C | Quest description / flavor text |
 
-This is the single largest gap in text extraction coverage.
+All text in this file is fully extracted.
 
 ---
 
@@ -193,18 +195,17 @@ These files contain readable text but have **no ImHex patterns or format documen
 | Category | Strings extracted | Strings remaining | Blocking issue |
 |----------|------------------|-------------------|----------------|
 | mhfdat.bin — names | ~thousands | 0 | - |
-| mhfdat.bin — descriptions | melee + ranged + equipment + monster + item source | ~50 (HH guides, rank labels) | - |
-| mhfdat.bin — misc | 0 | ~50 (HH guides, rank labels) | Strided extraction with 2 fields per struct for rank labels |
+| mhfdat.bin — descriptions | all (melee, ranged, equipment, monster, item source) | 0 | - |
+| mhfdat.bin — misc | rank labels, HH guides/tutorials | 0 | - |
 | mhfpac.bin — skills | ~hundreds | 0 | - |
 | mhfpac.bin — UI/dialogue | 0 | ~hundreds (menus, labels, NPC dialogue) | `s32pxT<N>` grouped strings, padded structs |
 | mhfjmp.bin | 53 | 0 | - |
-| mhfinf.bin — quests | 0 | **~22,700** | New multi-level parser needed |
+| mhfinf.bin — quests | **~22,700** | 0 | - |
 | Undocumented files | 0 | ~2,450 (mhfgao, mhfsqd, mhfrcc, mhfmsx) | No format documentation |
-| **Total** | | **~25,000+** | |
+| **Total remaining** | | **~2,500+** | |
 
 ### Recommended next steps (by effort/impact ratio)
 
-1. **mhfdat.bin Hunting Horn guides** (0x180, 0x184) — ~20-40 strings, indirect-count extraction (already supported)
-2. **mhfpac.bin UI labels** (0x14-0x34) — treat `s32pxT<N>` as flat pointer tables using null-terminated mode
-3. **mhfinf.bin quest text** — biggest single gap (~22,700 strings), needs dedicated parser
-4. **Undocumented files** — require reverse engineering before implementation
+1. **mhfpac.bin UI labels** (0x14-0x34) — treat `s32pxT<N>` as flat pointer tables using null-terminated mode
+2. **mhfpac.bin strided sections** (0x40-0xD4) — use indirect-count strided mode
+3. **Undocumented files** — require reverse engineering before implementation
