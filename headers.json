@@ -38,7 +38,7 @@
       "waist": {
         "begin_pointer": "0x70",
         "next_field_pointer": "0x6C",
-        "crop_end": 16 
+        "crop_end": 16
       },
       "legs": {
         "begin_pointer": "0x74",
@@ -59,29 +59,52 @@
       }
     }
   },
-   "pac": {
+  "pac": {
     "_comment": "Skill data.",
-     "skills": {
-       "name": {
-         "begin_pointer": "0xA20",
-         "next_field_pointer": "0xA1C"
-       },
-       "effect": {
-         "begin_pointer": "0xA1C",
-         "next_field_pointer": "0xBC0"
-       },
-       "effect_z": {
-         "begin_pointer": "0xFBC",
-         "next_field_pointer": "0xFB0"
-       },
-       "description": {
-         "begin_pointer": "0xB8",
-         "next_field_pointer": "0xC0"
-       }
-     }
+    "skills": {
+      "name": {
+        "begin_pointer": "0xA20",
+        "next_field_pointer": "0xA1C"
+      },
+      "effect": {
+        "begin_pointer": "0xA1C",
+        "next_field_pointer": "0xBC0"
+      },
+      "effect_z": {
+        "begin_pointer": "0xFBC",
+        "next_field_pointer": "0xFB0"
+      },
+      "description": {
+        "begin_pointer": "0xB8",
+        "next_field_pointer": "0xC0"
+      }
+    }
   },
   "inf": {
     "_comment": "Quest data."
+  },
+  "jmp": {
+    "_comment": "Jump/teleport menu data (mhfjmp.bin).",
+    "menu": {
+      "title": {
+        "begin_pointer": "0x00",
+        "entry_count": 24,
+        "entry_size": 56,
+        "field_offset": 48
+      },
+      "description": {
+        "begin_pointer": "0x00",
+        "entry_count": 24,
+        "entry_size": 56,
+        "field_offset": 52
+      }
+    },
+    "strings": {
+      "begin_pointer": "0x0C",
+      "count_pointer": "0x10"
+    }
+  },
+  "nav": {
+    "_comment": "Hunter Navi data (mhfnav.bin). Text fields not yet documented in ImHex patterns."
   }
 }
-

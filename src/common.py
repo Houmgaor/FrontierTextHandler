@@ -95,12 +95,30 @@ def skip_csv_header(reader: Iterator[list[str]], input_file: str) -> None:
 DEFAULT_HEADERS_PATH = "headers.json"
 
 
+def _is_extraction_leaf(value: dict) -> bool:
+    """
+    Check if a headers.json node is a leaf extraction config.
+
+    Supports three formats:
+    - Standard pointer-pair: begin_pointer + next_field_pointer
+    - Count-based pointer table: begin_pointer + count_pointer
+    - Struct-strided fields: begin_pointer + entry_count + entry_size + field_offset
+    """
+    if "begin_pointer" not in value:
+        return False
+    return (
+        "next_field_pointer" in value
+        or "count_pointer" in value
+        or "entry_count" in value
+    )
+
+
 def get_all_xpaths(headers_path: str = DEFAULT_HEADERS_PATH) -> list[str]:
     """
     Get all valid xpaths from the headers configuration.
 
     Recursively traverses the headers.json structure to find all
-    leaf nodes that have 'begin_pointer' and 'next_field_pointer'.
+    leaf nodes with extraction configurations.
 
     :param headers_path: Path to the headers.json configuration file.
     :return: List of xpath strings (e.g., ["dat/armors/head", "dat/weapons/melee/name"])
@@ -118,8 +136,8 @@ def get_all_xpaths(headers_path: str = DEFAULT_HEADERS_PATH) -> list[str]:
                 continue
             if not isinstance(value, dict):
                 continue
-            # Check if this is a leaf node with pointer data
-            if "begin_pointer" in value and "next_field_pointer" in value:
+            # Check if this is a leaf node with extraction config
+            if _is_extraction_leaf(value):
                 xpaths.append("/".join(path + [key]))
             else:
                 # Recurse into nested structure
@@ -298,3 +316,158 @@ def read_from_pointers(
     reads = read_file_section(bfile, start_position, read_length)
 
     return reads
+
+
+def load_file_data(file_path: str) -> bytes:
+    """
+    Load a game file, auto-decrypting and decompressing as needed.
+
+    :param file_path: Path to the game file
+    :return: Raw binary data ready for parsing
+    """
+    with open(file_path, "rb") as f:
+        file_data = f.read()
+
+    if is_encrypted_file(file_data):
+        try:
+            file_data, _ = decrypt(file_data)
+        except CryptoError as exc:
+            raise CryptoError(f"Failed to decrypt '{file_path}': {exc}") from exc
+
+    if is_jkr_file(file_data):
+        try:
+            file_data = decompress_jkr(file_data)
+        except JKRError as exc:
+            raise JKRError(f"Failed to decompress '{file_path}': {exc}") from exc
+
+    return file_data
+
+
+def read_extraction_config(
+    xpath: str,
+    headers_path: str = DEFAULT_HEADERS_PATH
+) -> dict:
+    """
+    Read the extraction configuration for a given xpath.
+
+    Returns the raw dict from headers.json for the given xpath leaf node.
+
+    :param xpath: Data path (e.g., "jmp/menu/title")
+    :param headers_path: Path to the headers.json configuration file
+    :return: Config dict with extraction parameters
+    :raises ValueError: If the xpath doesn't point to a valid leaf node
+    :raises KeyError: If the xpath path doesn't exist
+    """
+    path = xpath.split("/")
+    with open(headers_path, encoding="utf-8") as f:
+        data = json.load(f)
+    node = data
+    for part in path:
+        node = node[part]
+    if not isinstance(node, dict) or not _is_extraction_leaf(node):
+        raise ValueError(
+            "Please specify more precise path. Options are: '"
+            + ",".join(k for k in node.keys() if not k.startswith("_")) + "'."
+        )
+    return node
+
+
+def read_struct_strings(
+    bfile: BinaryFile,
+    base_offset: int,
+    entry_count: int,
+    entry_size: int,
+    field_offset: int
+) -> list[dict[str, int | str]]:
+    """
+    Read strings from struct fields at regular intervals.
+
+    Extracts string pointers embedded in repeated structs (e.g., menu
+    entries where title/description pointers sit at a fixed offset
+    within each struct).
+
+    :param bfile: Binary file to read from
+    :param base_offset: Start address of the struct array in the file
+    :param entry_count: Number of structs in the array
+    :param entry_size: Size of each struct in bytes
+    :param field_offset: Byte offset of the string pointer within each struct
+    :return: List of dicts with "offset" and "text" keys
+    """
+    results: list[dict[str, int | str]] = []
+    for i in range(entry_count):
+        pointer_offset = base_offset + i * entry_size + field_offset
+        bfile.validate_offset(
+            pointer_offset,
+            context=f"struct entry {i} field at +0x{field_offset:x}"
+        )
+        bfile.seek(pointer_offset)
+        pointer = bfile.read_int()
+        if pointer == 0:
+            continue
+        bfile.validate_offset(pointer, context=f"string pointer in entry {i}")
+        bfile.seek(pointer)
+        data_stream = read_until_null(bfile)
+        text = decode_game_string(data_stream, context=f"struct entry {i}")
+        results.append({"offset": pointer_offset, "text": text})
+    return results
+
+
+def extract_text_data(
+    file_path: str,
+    config: dict
+) -> list[dict[str, int | str]]:
+    """
+    Extract text from a game file based on extraction config.
+
+    Supports three extraction modes:
+    - Standard pointer-pair (begin_pointer + next_field_pointer)
+    - Count-based pointer table (begin_pointer + count_pointer)
+    - Struct-strided fields (begin_pointer + entry_count + entry_size + field_offset)
+
+    :param file_path: Path to the game file
+    :param config: Extraction config dict from headers.json
+    :return: List of dicts with "offset" and "text" keys
+    """
+    file_data = load_file_data(file_path)
+    bfile = BinaryFile.from_bytes(file_data)
+
+    begin_pointer = int(config["begin_pointer"], 16)
+
+    if "next_field_pointer" in config:
+        # Standard: pointer pair defining start and end of pointer table
+        next_field_pointer = int(config["next_field_pointer"], 16)
+        crop_end = config.get("crop_end", 0)
+
+        bfile.seek(begin_pointer)
+        start_position = bfile.read_int()
+        bfile.seek(next_field_pointer)
+        read_length = bfile.read_int() - start_position - crop_end
+        return read_file_section(bfile, start_position, read_length)
+
+    elif "count_pointer" in config:
+        # Count-based: pointer to array start + pointer to entry count
+        count_pointer = int(config["count_pointer"], 16)
+
+        bfile.seek(begin_pointer)
+        start_position = bfile.read_int()
+        bfile.seek(count_pointer)
+        count = bfile.read_int()
+        if count == 0:
+            return []
+        read_length = count * 4
+        return read_file_section(bfile, start_position, read_length)
+
+    elif "entry_count" in config:
+        # Struct-strided: read string pointers at fixed intervals in struct array
+        entry_count = config["entry_count"]
+        entry_size = config["entry_size"]
+        field_offset = config["field_offset"]
+
+        bfile.seek(begin_pointer)
+        base_offset = bfile.read_int()
+        return read_struct_strings(
+            bfile, base_offset, entry_count, entry_size, field_offset
+        )
+
+    else:
+        raise ValueError(f"Unknown extraction config format: {list(config.keys())}")

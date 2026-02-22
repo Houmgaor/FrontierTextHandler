@@ -24,7 +24,12 @@ from src.common import (
     read_json_data,
     read_until_null,
     read_file_section,
+    read_struct_strings,
+    read_extraction_config,
+    extract_text_data,
+    load_file_data,
     get_all_xpaths,
+    _is_extraction_leaf,
     REFRONTIER_REPLACEMENTS,
     DEFAULT_HEADERS_PATH,
 )
@@ -914,6 +919,483 @@ class TestGetAllXpaths(unittest.TestCase):
         # Check some expected xpaths exist
         self.assertIn("dat/armors/head", result)
         self.assertIn("dat/weapons/melee/name", result)
+
+
+class TestIsExtractionLeaf(unittest.TestCase):
+    """Tests for _is_extraction_leaf function."""
+
+    def test_standard_format(self):
+        """Test standard pointer-pair format is detected."""
+        config = {"begin_pointer": "0x64", "next_field_pointer": "0x60"}
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_count_based_format(self):
+        """Test count-based format is detected."""
+        config = {"begin_pointer": "0x0C", "count_pointer": "0x10"}
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_strided_format(self):
+        """Test struct-strided format is detected."""
+        config = {
+            "begin_pointer": "0x00",
+            "entry_count": 24,
+            "entry_size": 56,
+            "field_offset": 48
+        }
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_missing_begin_pointer(self):
+        """Test that missing begin_pointer returns False."""
+        config = {"next_field_pointer": "0x60"}
+        self.assertFalse(_is_extraction_leaf(config))
+
+    def test_comment_only(self):
+        """Test that comment-only node returns False."""
+        config = {"_comment": "Some data."}
+        self.assertFalse(_is_extraction_leaf(config))
+
+
+class TestReadStructStrings(unittest.TestCase):
+    """Tests for read_struct_strings function."""
+
+    def _build_struct_binary(self, strings: list[str], entry_size: int, field_offset: int) -> bytes:
+        """Build a binary with struct entries containing string pointers."""
+        entry_count = len(strings)
+        # Layout: struct array first, then strings
+        struct_array_size = entry_count * entry_size
+        encoded = []
+        string_offsets = []
+        current_offset = struct_array_size
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            string_offsets.append(current_offset)
+            encoded.append(enc)
+            current_offset += len(enc)
+
+        # Build struct array
+        data = bytearray(struct_array_size)
+        for i, offset in enumerate(string_offsets):
+            pos = i * entry_size + field_offset
+            struct.pack_into("<I", data, pos, offset)
+
+        # Append string data
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_read_basic_structs(self):
+        """Test reading strings from simple struct array."""
+        binary = self._build_struct_binary(
+            ["Title A", "Title B", "Title C"],
+            entry_size=16, field_offset=8
+        )
+        bfile = BinaryFile.from_bytes(binary)
+        result = read_struct_strings(bfile, 0, 3, 16, 8)
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["text"], "Title A")
+        self.assertEqual(result[1]["text"], "Title B")
+        self.assertEqual(result[2]["text"], "Title C")
+
+    def test_read_with_large_stride(self):
+        """Test reading with stride matching mhfjmp menu entry size (56 bytes)."""
+        binary = self._build_struct_binary(
+            ["Menu 1", "Menu 2"],
+            entry_size=56, field_offset=48
+        )
+        bfile = BinaryFile.from_bytes(binary)
+        result = read_struct_strings(bfile, 0, 2, 56, 48)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "Menu 1")
+        self.assertEqual(result[0]["offset"], 48)
+        self.assertEqual(result[1]["text"], "Menu 2")
+        self.assertEqual(result[1]["offset"], 56 + 48)
+
+    def test_read_skips_null_pointers(self):
+        """Test that null string pointers are skipped."""
+        # Build with 3 entries, but middle one has null pointer
+        binary = self._build_struct_binary(
+            ["First", "Second", "Third"],
+            entry_size=16, field_offset=8
+        )
+        # Zero out the middle entry's pointer
+        data = bytearray(binary)
+        struct.pack_into("<I", data, 1 * 16 + 8, 0)
+        bfile = BinaryFile.from_bytes(bytes(data))
+        result = read_struct_strings(bfile, 0, 3, 16, 8)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "First")
+        self.assertEqual(result[1]["text"], "Third")
+
+    def test_read_japanese_structs(self):
+        """Test reading Japanese text from structs."""
+        binary = self._build_struct_binary(
+            ["塔", "砂漠"],
+            entry_size=12, field_offset=4
+        )
+        bfile = BinaryFile.from_bytes(binary)
+        result = read_struct_strings(bfile, 0, 2, 12, 4)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "塔")
+        self.assertEqual(result[1]["text"], "砂漠")
+
+
+class TestCountBasedExtraction(unittest.TestCase):
+    """Tests for count-based pointer table extraction via extract_text_data."""
+
+    def _build_count_based_binary(self, strings: list[str]) -> bytes:
+        """
+        Build a binary with a file header pointing to a string pointer array.
+
+        Layout:
+        - 0x00-0x03: padding (unused header field)
+        - 0x04-0x07: padding
+        - 0x08-0x0B: padding
+        - 0x0C-0x0F: pointer to string pointer array
+        - 0x10-0x13: count of strings
+        - 0x14+: string pointer array, then actual strings
+        """
+        header_size = 0x14
+        pointer_array_start = header_size
+        pointer_array_size = len(strings) * 4
+        strings_start = pointer_array_start + pointer_array_size
+
+        # Encode strings and compute offsets
+        encoded = []
+        string_offsets = []
+        current = strings_start
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            string_offsets.append(current)
+            encoded.append(enc)
+            current += len(enc)
+
+        # Build file
+        data = bytearray(header_size)
+        # Write pointer to array at 0x0C
+        struct.pack_into("<I", data, 0x0C, pointer_array_start)
+        # Write count at 0x10
+        struct.pack_into("<I", data, 0x10, len(strings))
+
+        # Pointer array
+        for offset in string_offsets:
+            data.extend(struct.pack("<I", offset))
+        # Actual strings
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_count_based_extraction(self):
+        """Test extracting strings using count-based pointer table."""
+        binary = self._build_count_based_binary(["Alpha", "Beta", "Gamma"])
+
+        # Write to temp file and extract
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x0C",
+                "count_pointer": "0x10"
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 3)
+            self.assertEqual(result[0]["text"], "Alpha")
+            self.assertEqual(result[1]["text"], "Beta")
+            self.assertEqual(result[2]["text"], "Gamma")
+        finally:
+            os.unlink(temp_path)
+
+    def test_count_based_empty(self):
+        """Test count-based extraction with zero entries."""
+        # Need extra byte so pointer 0x14 is within bounds for read_file_section
+        data = bytearray(0x18)
+        struct.pack_into("<I", data, 0x0C, 0x14)  # pointer to array at 0x14
+        struct.pack_into("<I", data, 0x10, 0)       # zero count
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x0C",
+                "count_pointer": "0x10"
+            }
+            result = extract_text_data(temp_path, config)
+            self.assertEqual(len(result), 0)
+        finally:
+            os.unlink(temp_path)
+
+
+class TestStridedExtraction(unittest.TestCase):
+    """Tests for struct-strided extraction via extract_text_data."""
+
+    def _build_strided_binary(
+        self, strings: list[str], entry_size: int, field_offset: int
+    ) -> bytes:
+        """
+        Build a binary with a header pointer to a struct array.
+
+        Layout:
+        - 0x00-0x03: pointer to struct array
+        - 0x04+: struct array, then strings
+        """
+        header_size = 4
+        array_start = header_size
+        array_size = len(strings) * entry_size
+        strings_start = array_start + array_size
+
+        encoded = []
+        string_offsets = []
+        current = strings_start
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            string_offsets.append(current)
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, array_start)
+
+        # Build struct array
+        array_data = bytearray(array_size)
+        for i, offset in enumerate(string_offsets):
+            struct.pack_into("<I", array_data, i * entry_size + field_offset, offset)
+        data.extend(array_data)
+
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_strided_extraction(self):
+        """Test extracting strings from struct-strided format."""
+        binary = self._build_strided_binary(
+            ["Tower", "Desert", "Forest"],
+            entry_size=56, field_offset=48
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "entry_count": 3,
+                "entry_size": 56,
+                "field_offset": 48
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 3)
+            self.assertEqual(result[0]["text"], "Tower")
+            self.assertEqual(result[1]["text"], "Desert")
+            self.assertEqual(result[2]["text"], "Forest")
+        finally:
+            os.unlink(temp_path)
+
+
+class TestReadExtractionConfig(unittest.TestCase):
+    """Tests for read_extraction_config function."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.headers_path = os.path.join(self.temp_dir, "headers.json")
+
+    def tearDown(self):
+        os.unlink(self.headers_path)
+        os.rmdir(self.temp_dir)
+
+    def test_standard_config(self):
+        """Test reading standard pointer-pair config."""
+        headers = {
+            "dat": {
+                "armors": {
+                    "head": {
+                        "begin_pointer": "0x64",
+                        "next_field_pointer": "0x60",
+                        "crop_end": 24
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        result = read_extraction_config("dat/armors/head", self.headers_path)
+        self.assertEqual(result["begin_pointer"], "0x64")
+        self.assertEqual(result["next_field_pointer"], "0x60")
+        self.assertEqual(result["crop_end"], 24)
+
+    def test_count_based_config(self):
+        """Test reading count-based config."""
+        headers = {
+            "jmp": {
+                "strings": {
+                    "begin_pointer": "0x0C",
+                    "count_pointer": "0x10"
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        result = read_extraction_config("jmp/strings", self.headers_path)
+        self.assertEqual(result["begin_pointer"], "0x0C")
+        self.assertEqual(result["count_pointer"], "0x10")
+
+    def test_strided_config(self):
+        """Test reading struct-strided config."""
+        headers = {
+            "jmp": {
+                "menu": {
+                    "title": {
+                        "begin_pointer": "0x00",
+                        "entry_count": 24,
+                        "entry_size": 56,
+                        "field_offset": 48
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        result = read_extraction_config("jmp/menu/title", self.headers_path)
+        self.assertEqual(result["entry_count"], 24)
+        self.assertEqual(result["entry_size"], 56)
+        self.assertEqual(result["field_offset"], 48)
+
+    def test_incomplete_xpath_raises(self):
+        """Test that incomplete xpath raises ValueError."""
+        headers = {
+            "jmp": {
+                "menu": {
+                    "title": {
+                        "begin_pointer": "0x00",
+                        "entry_count": 24,
+                        "entry_size": 56,
+                        "field_offset": 48
+                    },
+                    "description": {
+                        "begin_pointer": "0x00",
+                        "entry_count": 24,
+                        "entry_size": 56,
+                        "field_offset": 52
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        with self.assertRaises(ValueError) as ctx:
+            read_extraction_config("jmp/menu", self.headers_path)
+        self.assertIn("title", str(ctx.exception))
+
+
+class TestGetAllXpathsNewFormats(unittest.TestCase):
+    """Tests for get_all_xpaths with new extraction formats."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.headers_path = os.path.join(self.temp_dir, "headers.json")
+
+    def tearDown(self):
+        os.unlink(self.headers_path)
+        os.rmdir(self.temp_dir)
+
+    def test_detects_count_based(self):
+        """Test that count-based entries are found."""
+        headers = {
+            "jmp": {
+                "strings": {
+                    "begin_pointer": "0x0C",
+                    "count_pointer": "0x10"
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertIn("jmp/strings", result)
+
+    def test_detects_strided(self):
+        """Test that struct-strided entries are found."""
+        headers = {
+            "jmp": {
+                "menu": {
+                    "title": {
+                        "begin_pointer": "0x00",
+                        "entry_count": 24,
+                        "entry_size": 56,
+                        "field_offset": 48
+                    }
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertIn("jmp/menu/title", result)
+
+    def test_mixed_formats(self):
+        """Test that all three formats are detected together."""
+        headers = {
+            "dat": {
+                "items": {
+                    "name": {
+                        "begin_pointer": "0x100",
+                        "next_field_pointer": "0xFC"
+                    }
+                }
+            },
+            "jmp": {
+                "_comment": "Jump data.",
+                "menu": {
+                    "title": {
+                        "begin_pointer": "0x00",
+                        "entry_count": 24,
+                        "entry_size": 56,
+                        "field_offset": 48
+                    }
+                },
+                "strings": {
+                    "begin_pointer": "0x0C",
+                    "count_pointer": "0x10"
+                }
+            }
+        }
+        with open(self.headers_path, "w") as f:
+            json.dump(headers, f)
+
+        result = get_all_xpaths(self.headers_path)
+        self.assertEqual(len(result), 3)
+        self.assertIn("dat/items/name", result)
+        self.assertIn("jmp/menu/title", result)
+        self.assertIn("jmp/strings", result)
+
+    def test_real_headers_includes_jmp(self):
+        """Test that the real headers.json now includes jmp xpaths."""
+        # Write a dummy file so tearDown doesn't fail
+        with open(self.headers_path, "w") as f:
+            json.dump({}, f)
+
+        result = get_all_xpaths(DEFAULT_HEADERS_PATH)
+        self.assertIn("jmp/menu/title", result)
+        self.assertIn("jmp/menu/description", result)
+        self.assertIn("jmp/strings", result)
 
 
 if __name__ == "__main__":

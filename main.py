@@ -71,7 +71,7 @@ def parse_inputs() -> argparse.ArgumentParser:
         "--extract-all",
         action="store_true",
         help="Extract all sections defined in headers.json. "
-        "Looks for mhfdat.bin, mhfpac.bin, mhfinf.bin in data/ directory.",
+        "Looks for mhfdat.bin, mhfpac.bin, mhfinf.bin, mhfjmp.bin, mhfnav.bin in data/ directory.",
     )
     parser.add_argument(
         "--compress",

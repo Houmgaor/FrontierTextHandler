@@ -75,6 +75,8 @@ FILE_TYPE_DEFAULTS = {
     "dat": "data/mhfdat.bin",
     "pac": "data/mhfpac.bin",
     "inf": "data/mhfinf.bin",
+    "jmp": "data/mhfjmp.bin",
+    "nav": "data/mhfnav.bin",
 }
 
 
@@ -95,9 +97,9 @@ def extract_from_file(
     :param headers_path: Path to headers.json configuration file
     :return: Tuple of (csv_path, refrontier_path) for the exported files
     """
-    # Read data
-    pointers_data = common.read_json_data(xpath, headers_path)
-    file_section = common.read_from_pointers(input_file, pointers_data)
+    # Read data using config-based extraction (supports all formats)
+    config = common.read_extraction_config(xpath, headers_path)
+    file_section = common.extract_text_data(input_file, config)
 
     if not file_section:
         raise ValueError(

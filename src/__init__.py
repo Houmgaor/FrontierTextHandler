@@ -12,6 +12,9 @@ from .common import (
     encode_game_string,
     decode_game_string,
     GAME_ENCODING,
+    load_file_data,
+    read_extraction_config,
+    extract_text_data,
 )
 from .binary_file import InvalidPointerError
 from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError
