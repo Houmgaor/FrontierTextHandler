@@ -68,6 +68,138 @@ def export_for_refrontier(
     return lines
 
 
+def extract_ftxt_file(
+    input_file: str,
+    output_file: str = "",
+    output_dir: str = "output"
+) -> tuple[str, str]:
+    """
+    Extract text from an FTXT standalone text file.
+
+    :param input_file: Path to the FTXT file
+    :param output_file: Output file path (auto-generated if empty)
+    :param output_dir: Directory for output files
+    :return: Tuple of (csv_path, refrontier_path)
+    """
+    file_section = common.extract_ftxt(input_file)
+
+    if not file_section:
+        raise ValueError(f"No text found in FTXT file '{input_file}'.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logger.info("Created new folder '%s'", output_dir)
+
+    if not output_file:
+        basename = os.path.splitext(os.path.basename(input_file))[0]
+        output_file = os.path.join(output_dir, f"ftxt-{basename}.csv")
+
+    refrontier_path = os.path.join(output_dir, "refrontier.csv")
+
+    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_for_refrontier(file_section, refrontier_path)
+
+    return output_file, refrontier_path
+
+
+def extract_quest_files(
+    quest_dir: str,
+    output_dir: str = "output",
+    quest_type_flags_offset: int = 0x00,
+    quest_strings_offset: int = 0xE8,
+    text_pointers_count: int = 8
+) -> list[str]:
+    """
+    Batch extract text from all quest .bin files in a directory.
+
+    :param quest_dir: Directory containing quest .bin files
+    :param output_dir: Directory for output files
+    :param quest_type_flags_offset: Offset of questTypeFlagsPtr in quest header
+    :param quest_strings_offset: Offset of QuestStringsPtr in main quest props
+    :param text_pointers_count: Number of string pointers per quest (default 8)
+    :return: List of generated CSV file paths
+    """
+    if not os.path.isdir(quest_dir):
+        raise FileNotFoundError(f"Quest directory '{quest_dir}' not found.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    generated = []
+    skipped = 0
+
+    for filename in sorted(os.listdir(quest_dir)):
+        if not filename.endswith(".bin"):
+            continue
+        filepath = os.path.join(quest_dir, filename)
+        try:
+            file_section = common.extract_quest_file(
+                filepath, quest_type_flags_offset,
+                quest_strings_offset, text_pointers_count
+            )
+            if not file_section:
+                logger.debug("No text in quest file '%s', skipping", filename)
+                skipped += 1
+                continue
+
+            basename = os.path.splitext(filename)[0]
+            csv_path = os.path.join(output_dir, f"quest-{basename}.csv")
+            export_as_csv(file_section, csv_path, filename)
+            generated.append(csv_path)
+            logger.info("Extracted quest '%s' to '%s'", filename, csv_path)
+        except (ValueError, common.EncodingError) as exc:
+            logger.warning("Failed to extract quest '%s': %s", filename, exc)
+            skipped += 1
+
+    logger.info(
+        "Quest extraction complete: %d files, %d skipped",
+        len(generated), skipped
+    )
+    return generated
+
+
+def extract_single_quest_file(
+    input_file: str,
+    output_file: str = "",
+    output_dir: str = "output",
+    quest_type_flags_offset: int = 0x00,
+    quest_strings_offset: int = 0xE8,
+    text_pointers_count: int = 8
+) -> tuple[str, str]:
+    """
+    Extract text from a single quest .bin file.
+
+    :param input_file: Path to the quest .bin file
+    :param output_file: Output file path (auto-generated if empty)
+    :param output_dir: Directory for output files
+    :param quest_type_flags_offset: Offset of questTypeFlagsPtr in quest header
+    :param quest_strings_offset: Offset of QuestStringsPtr in main quest props
+    :param text_pointers_count: Number of string pointers per quest (default 8)
+    :return: Tuple of (csv_path, refrontier_path)
+    """
+    file_section = common.extract_quest_file(
+        input_file, quest_type_flags_offset,
+        quest_strings_offset, text_pointers_count
+    )
+
+    if not file_section:
+        raise ValueError(f"No text found in quest file '{input_file}'.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    if not output_file:
+        basename = os.path.splitext(os.path.basename(input_file))[0]
+        output_file = os.path.join(output_dir, f"quest-{basename}.csv")
+
+    refrontier_path = os.path.join(output_dir, "refrontier.csv")
+
+    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_for_refrontier(file_section, refrontier_path)
+
+    return output_file, refrontier_path
+
+
 DEFAULT_OUTPUT_DIR = "output"
 
 # Mapping of file type prefixes to their default input files

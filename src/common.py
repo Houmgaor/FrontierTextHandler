@@ -14,6 +14,10 @@ from .crypto import is_encrypted_file, decrypt, CryptoError
 
 logger = logging.getLogger(__name__)
 
+# FTXT file magic number
+FTXT_MAGIC = 0x000B0000
+FTXT_HEADER_SIZE = 16
+
 # Escape sequence replacements for ReFrontier format compatibility.
 # Format: (standard_string, refrontier_escape)
 REFRONTIER_REPLACEMENTS: tuple[tuple[str, str], ...] = (
@@ -538,6 +542,204 @@ def read_quest_table(
                 results.append(entry)
 
     return results
+
+
+def is_ftxt_file(data: bytes) -> bool:
+    """
+    Check if data is an FTXT text file.
+
+    :param data: Raw file data (at least 4 bytes)
+    :return: True if the data starts with FTXT magic (0x000B0000)
+    """
+    if len(data) < 4:
+        return False
+    magic = struct.unpack_from("<I", data, 0)[0]
+    return magic == FTXT_MAGIC
+
+
+def extract_ftxt(file_path: str) -> list[dict[str, int | str]]:
+    """
+    Extract text from an FTXT standalone text file.
+
+    FTXT format (16-byte header):
+    - 0x00: magic (u32) = 0x000B0000
+    - 0x04: padding (6 bytes)
+    - 0x0A: string_count (u16)
+    - 0x0C: text_block_size (u32)
+    - 0x10: null-terminated Shift-JIS strings
+
+    :param file_path: Path to the FTXT file (auto-decrypts/decompresses)
+    :return: List of dicts with "offset" and "text" keys
+    """
+    file_data = load_file_data(file_path)
+
+    if not is_ftxt_file(file_data):
+        raise ValueError(
+            f"'{file_path}' is not an FTXT file "
+            f"(expected magic 0x{FTXT_MAGIC:08X})"
+        )
+
+    if len(file_data) < FTXT_HEADER_SIZE:
+        raise ValueError(
+            f"FTXT file too small: {len(file_data)} bytes "
+            f"(minimum {FTXT_HEADER_SIZE})"
+        )
+
+    string_count = struct.unpack_from("<H", file_data, 0x0A)[0]
+    # text_block_size at 0x0C is informational; we parse by null terminators
+
+    bfile = BinaryFile.from_bytes(file_data)
+    bfile.seek(FTXT_HEADER_SIZE)
+
+    results: list[dict[str, int | str]] = []
+    for _ in range(string_count):
+        offset = bfile.tell()
+        data_stream = read_until_null(bfile)
+        text = decode_game_string(data_stream, context=f"FTXT offset 0x{offset:x}")
+        results.append({"offset": offset, "text": text})
+
+    return results
+
+
+def extract_ftxt_data(data: bytes) -> list[dict[str, int | str]]:
+    """
+    Extract text from raw FTXT bytes (already loaded/decrypted/decompressed).
+
+    :param data: Raw FTXT file data
+    :return: List of dicts with "offset" and "text" keys
+    """
+    if not is_ftxt_file(data):
+        raise ValueError(
+            f"Data is not FTXT (expected magic 0x{FTXT_MAGIC:08X})"
+        )
+
+    if len(data) < FTXT_HEADER_SIZE:
+        raise ValueError(
+            f"FTXT data too small: {len(data)} bytes "
+            f"(minimum {FTXT_HEADER_SIZE})"
+        )
+
+    string_count = struct.unpack_from("<H", data, 0x0A)[0]
+    bfile = BinaryFile.from_bytes(data)
+    bfile.seek(FTXT_HEADER_SIZE)
+
+    results: list[dict[str, int | str]] = []
+    for _ in range(string_count):
+        offset = bfile.tell()
+        data_stream = read_until_null(bfile)
+        text = decode_game_string(data_stream, context=f"FTXT offset 0x{offset:x}")
+        results.append({"offset": offset, "text": text})
+
+    return results
+
+
+def extract_quest_file(
+    file_path: str,
+    quest_type_flags_offset: int = 0x00,
+    quest_strings_offset: int = 0xE8,
+    text_pointers_count: int = 8
+) -> list[dict[str, int | str]]:
+    """
+    Extract text from a standalone quest .bin file.
+
+    Quest file layout:
+    - Header at 0x00 contains questTypeFlagsPtr (u32 at quest_type_flags_offset)
+    - Main quest properties at questTypeFlagsPtr contain QuestStringsPtr
+      (u32 at quest_strings_offset within the main quest props block)
+    - QuestText block: 8 consecutive u32 pointers to null-terminated Shift-JIS strings
+      (title, textMain, textSubA, textSubB, successCond, failCond, contractor, description)
+
+    :param file_path: Path to the quest .bin file (auto-decrypts/decompresses)
+    :param quest_type_flags_offset: Offset of questTypeFlagsPtr in the file header
+    :param quest_strings_offset: Offset of QuestStringsPtr within main quest properties
+    :param text_pointers_count: Number of string pointers in QuestText block (default 8)
+    :return: List of dicts with "offset" and "text" keys
+    """
+    file_data = load_file_data(file_path)
+    return extract_quest_file_data(
+        file_data, quest_type_flags_offset,
+        quest_strings_offset, text_pointers_count
+    )
+
+
+def extract_quest_file_data(
+    data: bytes,
+    quest_type_flags_offset: int = 0x00,
+    quest_strings_offset: int = 0xE8,
+    text_pointers_count: int = 8
+) -> list[dict[str, int | str]]:
+    """
+    Extract text from raw quest file bytes.
+
+    :param data: Raw quest file data
+    :param quest_type_flags_offset: Offset of questTypeFlagsPtr in the file header
+    :param quest_strings_offset: Offset of QuestStringsPtr within main quest properties
+    :param text_pointers_count: Number of string pointers in QuestText block (default 8)
+    :return: List of dicts with "offset" and "text" keys
+    """
+    bfile = BinaryFile.from_bytes(data)
+
+    # Read questTypeFlagsPtr from the file header
+    bfile.validate_offset(
+        quest_type_flags_offset + 3,
+        context="questTypeFlagsPtr location"
+    )
+    bfile.seek(quest_type_flags_offset)
+    quest_type_flags_ptr = bfile.read_int()
+
+    if quest_type_flags_ptr == 0:
+        return []
+
+    # Read QuestStringsPtr from main quest properties
+    strings_ptr_addr = quest_type_flags_ptr + quest_strings_offset
+    bfile.validate_offset(
+        strings_ptr_addr + 3,
+        context="QuestStringsPtr location"
+    )
+    bfile.seek(strings_ptr_addr)
+    quest_strings_ptr = bfile.read_int()
+
+    if quest_strings_ptr == 0:
+        return []
+
+    # Read the text pointer block
+    text_block_end = quest_strings_ptr + text_pointers_count * 4 - 1
+    bfile.validate_offset(
+        text_block_end,
+        context=f"QuestText block at 0x{quest_strings_ptr:x}"
+    )
+    bfile.seek(quest_strings_ptr)
+    str_ptrs = struct.unpack(
+        f"<{text_pointers_count}I",
+        bfile.read(text_pointers_count * 4)
+    )
+
+    # Read strings, grouping with <join> tags like quest table mode
+    results: list[dict[str, int | str]] = []
+    entry: dict[str, int | str] | None = None
+    for i, sp in enumerate(str_ptrs):
+        if sp == 0:
+            continue
+        bfile.validate_offset(sp, context=f"quest string ptr {i} at 0x{sp:x}")
+        bfile.seek(sp)
+        data_stream = read_until_null(bfile)
+        text = decode_game_string(data_stream, context=f"quest string 0x{sp:x}")
+        ptr_offset = quest_strings_ptr + i * 4
+        if entry is None:
+            entry = {"offset": ptr_offset, "text": text}
+        else:
+            entry["text"] += f'<join at="{ptr_offset}">{text}'
+    if entry is not None:
+        results.append(entry)
+
+    return results
+
+
+# Quest text field names for labeled CSV export
+QUEST_TEXT_LABELS = [
+    "title", "textMain", "textSubA", "textSubB",
+    "successCond", "failCond", "contractor", "description"
+]
 
 
 def extract_text_data(

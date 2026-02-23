@@ -5,6 +5,7 @@ import csv
 import logging
 import os
 import shutil
+import struct
 from typing import Optional
 
 from .binary_file import BinaryFile
@@ -109,6 +110,64 @@ def append_to_binary(
             bfile.write_int(new_pointer)
 
 
+def rebuild_ftxt(
+    source_file: str,
+    new_strings: list[tuple[int, str]],
+    output_path: str
+) -> str:
+    """
+    Rebuild an FTXT file with translated strings.
+
+    FTXT strings are sequential (not pointer-based), so we rebuild the
+    entire text block. Strings are identified by their byte offset in the
+    original file.
+
+    :param source_file: Path to the original FTXT file
+    :param new_strings: List of (offset, new_text) tuples from CSV
+    :param output_path: Path for the output file
+    :return: Path to the rebuilt file
+    """
+    from .common import (
+        load_file_data, is_ftxt_file, extract_ftxt_data,
+        read_until_null, decode_game_string, FTXT_HEADER_SIZE, FTXT_MAGIC
+    )
+
+    file_data = load_file_data(source_file)
+
+    if not is_ftxt_file(file_data):
+        raise ValueError(f"'{source_file}' is not an FTXT file.")
+
+    # Extract original strings with their offsets
+    original_entries = extract_ftxt_data(file_data)
+
+    # Build a mapping of offset → new text
+    translation_map = {offset: text for offset, text in new_strings}
+
+    # Rebuild text block with translations applied
+    new_text_block = bytearray()
+    for entry in original_entries:
+        orig_offset = entry["offset"]
+        if orig_offset in translation_map:
+            text = translation_map[orig_offset]
+        else:
+            text = entry["text"]
+        encoded = encode_game_string(text, context=f"FTXT offset 0x{orig_offset:x}")
+        new_text_block.extend(encoded + b"\x00")
+
+    # Rebuild file: header + new text block
+    header = bytearray(file_data[:FTXT_HEADER_SIZE])
+    # Update text block size in header
+    struct.pack_into("<I", header, 0x0C, len(new_text_block))
+
+    output_data = bytes(header) + bytes(new_text_block)
+
+    with open(output_path, "wb") as f:
+        f.write(output_data)
+
+    logger.info("Rebuilt FTXT file: %d strings, %d bytes", len(original_entries), len(output_data))
+    return output_path
+
+
 DEFAULT_OUTPUT_DIR = "output"
 
 
@@ -199,5 +258,66 @@ def import_from_csv(
             "Encrypted output with ECD (key index %d): %d bytes -> %d bytes",
             key_index, len(data), len(encrypted_data)
         )
+
+    return output_path
+
+
+def import_ftxt_from_csv(
+    input_file: str,
+    output_file: str,
+    output_path: Optional[str] = None,
+    compress: bool = False,
+    encrypt: bool = False,
+    key_index: int = DEFAULT_KEY_INDEX
+) -> Optional[str]:
+    """
+    Import translations from CSV into an FTXT file.
+
+    FTXT strings are sequential (not pointer-based), so the text block
+    is rebuilt entirely rather than using the append strategy.
+
+    :param input_file: Path to CSV file with translations
+    :param output_file: Path to source FTXT binary file
+    :param output_path: Path for the modified file. If None, auto-generated.
+    :param compress: If True, compress output with JKR HFI
+    :param encrypt: If True, encrypt output with ECD
+    :param key_index: ECD key index (0-5, default 4)
+    :return: Path to the modified file, or None if no changes
+    """
+    new_strings = get_new_strings(input_file)
+    logger.info("Found %d translations to write", len(new_strings))
+
+    if not new_strings:
+        logger.info("No translations to write, skipping FTXT modification")
+        return None
+
+    if output_path is None:
+        basename = os.path.splitext(os.path.basename(output_file))[0]
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}-modified.bin")
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    rebuild_ftxt(output_file, new_strings, output_path)
+
+    if compress:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        compressed = compress_jkr_hfi(data)
+        with open(output_path, "wb") as f:
+            f.write(compressed)
+        logger.info(
+            "Compressed FTXT output: %d -> %d bytes",
+            len(data), len(compressed)
+        )
+
+    if encrypt:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        encrypted_data = encode_ecd(data, key_index=key_index)
+        with open(output_path, "wb") as f:
+            f.write(encrypted_data)
+        logger.info("Encrypted FTXT output with ECD (key %d)", key_index)
 
     return output_path

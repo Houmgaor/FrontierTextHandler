@@ -2,11 +2,17 @@
 Definition of the FrontierTextHandler module.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
-from .export import extract_from_file, extract_all
+from .export import (
+    extract_from_file,
+    extract_all,
+    extract_ftxt_file,
+    extract_quest_files,
+    extract_single_quest_file,
+)
 from .transform import refrontier_to_csv
-from .import_data import import_from_csv, CSVParseError
+from .import_data import import_from_csv, import_ftxt_from_csv, CSVParseError
 from .common import (
     EncodingError,
     encode_game_string,
@@ -15,6 +21,12 @@ from .common import (
     load_file_data,
     read_extraction_config,
     extract_text_data,
+    is_ftxt_file,
+    extract_ftxt,
+    extract_ftxt_data,
+    extract_quest_file,
+    extract_quest_file_data,
+    QUEST_TEXT_LABELS,
 )
 from .binary_file import InvalidPointerError
 from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError

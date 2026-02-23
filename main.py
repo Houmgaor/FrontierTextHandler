@@ -92,6 +92,22 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="ECD key index to use for encryption (default: 4). All MHF files use key 4.",
     )
     parser.add_argument(
+        "--ftxt",
+        action="store_true",
+        help="Extract text from an FTXT standalone text file (magic 0x000B0000).",
+    )
+    parser.add_argument(
+        "--quest",
+        action="store_true",
+        help="Extract text from a standalone quest .bin file.",
+    )
+    parser.add_argument(
+        "--quest-dir",
+        type=str,
+        metavar="DIR",
+        help="Batch extract text from all quest .bin files in a directory.",
+    )
+    parser.add_argument(
         "--decrypt",
         type=str,
         metavar="FILE",
@@ -146,12 +162,32 @@ def main(args: argparse.Namespace) -> None:
             print("No files extracted. Check that data files exist in data/ directory.")
         return
 
+    if args.quest_dir:
+        # Batch quest extraction mode
+        from src.export import extract_quest_files
+        files = extract_quest_files(args.quest_dir)
+        if files:
+            print(f"Extracted {len(files)} quest files to output/")
+        else:
+            print("No quest files extracted.")
+        return
+
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(
             f"'{args.input_file}' does not exist. You need to import it first."
         )
 
-    if args.refrontier_to_csv:
+    if args.ftxt:
+        # FTXT extraction mode
+        from src.export import extract_ftxt_file
+        csv_path, ref_path = extract_ftxt_file(args.input_file)
+        print(f"Extracted FTXT to {csv_path}")
+    elif args.quest:
+        # Single quest file extraction mode
+        from src.export import extract_single_quest_file
+        csv_path, ref_path = extract_single_quest_file(args.input_file)
+        print(f"Extracted quest text to {csv_path}")
+    elif args.refrontier_to_csv:
         src.refrontier_to_csv(args.input_file, args.output_file)
     elif args.csv_to_bin:
         src.import_from_csv(
