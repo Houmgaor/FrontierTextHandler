@@ -2,6 +2,7 @@
 Import data from a CSV file to a binary file.
 """
 import csv
+import json
 import logging
 import os
 import re
@@ -79,6 +80,59 @@ def get_new_strings(input_file: str) -> list[tuple[int, str]]:
                 logger.warning("Line %d: %s", line_num, exc)
                 continue
     return new_strings
+
+
+def get_new_strings_from_json(input_file: str) -> list[tuple[int, str]]:
+    """
+    Get the new strings defined in a JSON file.
+
+    :param input_file: Input JSON file path.
+    :return: New strings defined in the file as list of (offset, string) tuples
+    :raises CSVParseError: If JSON format is invalid
+    """
+    with open(input_file, "r", encoding="utf-8") as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError as exc:
+            raise CSVParseError(f"Invalid JSON in '{input_file}': {exc}") from exc
+
+    if "strings" not in data:
+        raise CSVParseError(f"Missing 'strings' key in JSON file '{input_file}'")
+
+    new_strings: list[tuple[int, str]] = []
+    for i, entry in enumerate(data["strings"]):
+        if not isinstance(entry, dict):
+            logger.warning("Entry %d in '%s' is not an object, skipping", i, input_file)
+            continue
+        for key in ("location", "source", "target"):
+            if key not in entry:
+                logger.warning(
+                    "Entry %d in '%s' missing '%s' key, skipping", i, input_file, key
+                )
+                break
+        else:
+            # Skip if translation is same as source
+            if entry["source"] == entry["target"]:
+                continue
+            try:
+                index = parse_location(entry["location"])
+                new_strings.append((index, entry["target"]))
+            except CSVParseError as exc:
+                logger.warning("Entry %d: %s", i, exc)
+                continue
+    return new_strings
+
+
+def get_new_strings_auto(input_file: str) -> list[tuple[int, str]]:
+    """
+    Detect file format by extension and return new strings.
+
+    :param input_file: Input file path (CSV or JSON)
+    :return: New strings as list of (offset, string) tuples
+    """
+    if input_file.lower().endswith(".json"):
+        return get_new_strings_from_json(input_file)
+    return get_new_strings(input_file)
 
 
 def append_to_binary(
@@ -298,7 +352,7 @@ def import_from_csv(
     :param headers_path: Path to headers.json (default: headers.json)
     :return: Path to the modified binary file, or None if no changes
     """
-    new_strings = get_new_strings(input_file)
+    new_strings = get_new_strings_auto(input_file)
     logger.info("Found %d translations to write", len(new_strings))
 
     if not new_strings:
@@ -390,7 +444,7 @@ def import_ftxt_from_csv(
     :param key_index: ECD key index (0-5, default 4)
     :return: Path to the modified file, or None if no changes
     """
-    new_strings = get_new_strings(input_file)
+    new_strings = get_new_strings_auto(input_file)
     logger.info("Found %d translations to write", len(new_strings))
 
     if not new_strings:
@@ -570,7 +624,7 @@ def import_npc_dialogue_from_csv(
     :param key_index: ECD key index (0-5, default 4)
     :return: Path to the modified file, or None if no changes
     """
-    new_strings = get_new_strings(input_file)
+    new_strings = get_new_strings_auto(input_file)
     logger.info("Found %d NPC dialogue translations to write", len(new_strings))
 
     if not new_strings:

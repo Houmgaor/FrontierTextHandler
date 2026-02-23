@@ -216,17 +216,17 @@ def main(args: argparse.Namespace) -> None:
     elif args.npc:
         # Single NPC dialogue extraction mode
         from src.export import extract_npc_dialogue_file
-        csv_path, ref_path = extract_npc_dialogue_file(args.input_file)
+        csv_path, ref_path, json_path = extract_npc_dialogue_file(args.input_file)
         print(f"Extracted NPC dialogue to {csv_path}")
     elif args.ftxt:
         # FTXT extraction mode
         from src.export import extract_ftxt_file
-        csv_path, ref_path = extract_ftxt_file(args.input_file)
+        csv_path, ref_path, json_path = extract_ftxt_file(args.input_file)
         print(f"Extracted FTXT to {csv_path}")
     elif args.quest:
         # Single quest file extraction mode
         from src.export import extract_single_quest_file
-        csv_path, ref_path = extract_single_quest_file(args.input_file)
+        csv_path, ref_path, json_path = extract_single_quest_file(args.input_file)
         print(f"Extracted quest text to {csv_path}")
     elif args.refrontier_to_csv:
         src.refrontier_to_csv(args.input_file, args.output_file)

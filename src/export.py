@@ -2,6 +2,7 @@
 Export data from a binary file to another format (usually CSV).
 """
 import csv
+import json
 import logging
 import zlib
 import os
@@ -68,18 +69,58 @@ def export_for_refrontier(
     return lines
 
 
+def export_as_json(
+    data: Iterable[dict[str, int | str]],
+    output_file: str,
+    location_name: str = ""
+) -> int:
+    """
+    Export data as a JSON file with metadata.
+
+    :param data: Extracted strings, format is usually {"offset": offset, "text": string}
+    :param output_file: Output file path
+    :param location_name: File in which to find the source
+    :return: Number of entries written
+    """
+    from . import __version__
+
+    strings = []
+    for datum in data:
+        location = f"0x{datum['offset']:x}@{location_name}"
+        strings.append({
+            "location": location,
+            "source": datum["text"],
+            "target": datum["text"],
+        })
+
+    output = {
+        "metadata": {
+            "source_file": location_name,
+            "version": __version__,
+        },
+        "strings": strings,
+    }
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(output, f, ensure_ascii=False, indent=2)
+
+    count = len(strings)
+    logger.info("Wrote %d entries of JSON as %s", count, output_file)
+    return count
+
+
 def extract_ftxt_file(
     input_file: str,
     output_file: str = "",
     output_dir: str = "output"
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
     Extract text from an FTXT standalone text file.
 
     :param input_file: Path to the FTXT file
     :param output_file: Output file path (auto-generated if empty)
     :param output_dir: Directory for output files
-    :return: Tuple of (csv_path, refrontier_path)
+    :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = common.extract_ftxt(input_file)
 
@@ -95,11 +136,13 @@ def extract_ftxt_file(
         output_file = os.path.join(output_dir, f"ftxt-{basename}.csv")
 
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
+    json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(file_section, output_file, os.path.basename(input_file))
     export_for_refrontier(file_section, refrontier_path)
+    export_as_json(file_section, json_path, os.path.basename(input_file))
 
-    return output_file, refrontier_path
+    return output_file, refrontier_path, json_path
 
 
 def extract_quest_files(
@@ -165,7 +208,7 @@ def extract_single_quest_file(
     quest_type_flags_offset: int = 0x00,
     quest_strings_offset: int = 0xE8,
     text_pointers_count: int = 8
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
     Extract text from a single quest .bin file.
 
@@ -175,7 +218,7 @@ def extract_single_quest_file(
     :param quest_type_flags_offset: Offset of questTypeFlagsPtr in quest header
     :param quest_strings_offset: Offset of QuestStringsPtr in main quest props
     :param text_pointers_count: Number of string pointers per quest (default 8)
-    :return: Tuple of (csv_path, refrontier_path)
+    :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = common.extract_quest_file(
         input_file, quest_type_flags_offset,
@@ -193,25 +236,27 @@ def extract_single_quest_file(
         output_file = os.path.join(output_dir, f"quest-{basename}.csv")
 
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
+    json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(file_section, output_file, os.path.basename(input_file))
     export_for_refrontier(file_section, refrontier_path)
+    export_as_json(file_section, json_path, os.path.basename(input_file))
 
-    return output_file, refrontier_path
+    return output_file, refrontier_path, json_path
 
 
 def extract_npc_dialogue_file(
     input_file: str,
     output_file: str = "",
     output_dir: str = "output"
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
     Extract NPC dialogue text from a stage dialogue binary file.
 
     :param input_file: Path to the dialogue file
     :param output_file: Output file path (auto-generated if empty)
     :param output_dir: Directory for output files
-    :return: Tuple of (csv_path, refrontier_path)
+    :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = common.extract_npc_dialogue(input_file)
 
@@ -227,11 +272,13 @@ def extract_npc_dialogue_file(
         output_file = os.path.join(output_dir, f"npc-{basename}.csv")
 
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
+    json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(file_section, output_file, os.path.basename(input_file))
     export_for_refrontier(file_section, refrontier_path)
+    export_as_json(file_section, json_path, os.path.basename(input_file))
 
-    return output_file, refrontier_path
+    return output_file, refrontier_path, json_path
 
 
 def extract_npc_dialogue_files(
@@ -299,7 +346,7 @@ def extract_from_file(
     output_file: str,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     headers_path: str = common.DEFAULT_HEADERS_PATH
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
     Extract data from a single file.
 
@@ -308,7 +355,7 @@ def extract_from_file(
     :param output_file: Output file path (used as fallback if xpath not provided)
     :param output_dir: Directory for output files
     :param headers_path: Path to headers.json configuration file
-    :return: Tuple of (csv_path, refrontier_path) for the exported files
+    :return: Tuple of (csv_path, refrontier_path, json_path) for the exported files
     """
     # Read data using config-based extraction (supports all formats)
     config = common.read_extraction_config(xpath, headers_path)
@@ -331,11 +378,13 @@ def extract_from_file(
         export_name = output_file
 
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
+    json_path = os.path.splitext(export_name)[0] + ".json"
 
     export_as_csv(file_section, export_name, os.path.basename(input_file))
     export_for_refrontier(file_section, refrontier_path)
+    export_as_json(file_section, json_path, os.path.basename(input_file))
 
-    return export_name, refrontier_path
+    return export_name, refrontier_path, json_path
 
 
 def extract_all(
@@ -381,7 +430,7 @@ def extract_all(
             continue
 
         try:
-            csv_path, _ = extract_from_file(
+            csv_path, _, _ = extract_from_file(
                 input_file, xpath, "", output_dir, headers_path
             )
             generated_files.append(csv_path)

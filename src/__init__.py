@@ -5,6 +5,7 @@ Definition of the FrontierTextHandler module.
 __version__ = "1.1.0"
 
 from .export import (
+    export_as_json,
     extract_from_file,
     extract_all,
     extract_ftxt_file,
@@ -18,6 +19,8 @@ from .import_data import (
     import_from_csv,
     import_ftxt_from_csv,
     import_npc_dialogue_from_csv,
+    get_new_strings_from_json,
+    get_new_strings_auto,
     CSVParseError,
 )
 from .common import (

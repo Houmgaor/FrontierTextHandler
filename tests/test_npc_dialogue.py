@@ -240,7 +240,7 @@ class TestNpcDialogueCsvExport(unittest.TestCase):
             with open(input_path, "wb") as f:
                 f.write(data)
 
-            csv_path, ref_path = extract_npc_dialogue_file(
+            csv_path, ref_path, _ = extract_npc_dialogue_file(
                 input_path, output_dir=tmpdir
             )
             self.assertTrue(os.path.exists(csv_path))
@@ -421,7 +421,7 @@ class TestNpcDialogueFullRoundTrip(unittest.TestCase):
                 f.write(data)
 
             # Step 1: Extract to CSV
-            csv_path, _ = extract_npc_dialogue_file(
+            csv_path, _, _ = extract_npc_dialogue_file(
                 source_path, output_dir=tmpdir
             )
 
@@ -472,7 +472,7 @@ class TestNpcDialogueFullRoundTrip(unittest.TestCase):
                 f.write(data)
 
             # Extract
-            csv_path, _ = extract_npc_dialogue_file(
+            csv_path, _, _ = extract_npc_dialogue_file(
                 source_path, output_dir=tmpdir
             )
 
@@ -516,7 +516,7 @@ class TestNpcDialogueFullRoundTrip(unittest.TestCase):
                 f.write(data)
 
             # Extract (source == target, so no changes)
-            csv_path, _ = extract_npc_dialogue_file(
+            csv_path, _, _ = extract_npc_dialogue_file(
                 source_path, output_dir=tmpdir
             )
 

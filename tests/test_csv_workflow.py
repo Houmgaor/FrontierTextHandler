@@ -36,8 +36,11 @@ from src.common import (
     REFRONTIER_REPLACEMENTS,
     DEFAULT_HEADERS_PATH,
 )
-from src.export import export_as_csv, export_for_refrontier
-from src.import_data import parse_location, get_new_strings
+from src.export import export_as_csv, export_for_refrontier, export_as_json
+from src.import_data import (
+    parse_location, get_new_strings,
+    get_new_strings_from_json, get_new_strings_auto,
+)
 from src.transform import import_from_refrontier
 from src.binary_file import BinaryFile
 
@@ -2831,6 +2834,171 @@ class TestExtractTextDataFromBytes(unittest.TestCase):
             self.assertEqual(result_bytes, result_file)
         finally:
             os.unlink(temp_path)
+
+
+class TestJsonExportImport(unittest.TestCase):
+    """Tests for JSON export/import functionality."""
+
+    def setUp(self):
+        self.test_data = [
+            {"offset": 0x64, "text": "テスト"},
+            {"offset": 0x68, "text": "Hello"},
+            {"offset": 0x6C, "text": "データ"},
+        ]
+
+    def test_export_as_json(self):
+        """Test that export_as_json produces valid JSON with correct structure."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json_path = f.name
+
+        try:
+            count = export_as_json(self.test_data, json_path, "mhfdat.bin")
+            self.assertEqual(count, 3)
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                result = json.load(f)
+
+            # Check metadata
+            self.assertIn("metadata", result)
+            self.assertEqual(result["metadata"]["source_file"], "mhfdat.bin")
+            self.assertIn("version", result["metadata"])
+
+            # Check strings
+            self.assertIn("strings", result)
+            self.assertEqual(len(result["strings"]), 3)
+
+            entry = result["strings"][0]
+            self.assertEqual(entry["location"], "0x64@mhfdat.bin")
+            self.assertEqual(entry["source"], "テスト")
+            self.assertEqual(entry["target"], "テスト")
+
+            entry2 = result["strings"][1]
+            self.assertEqual(entry2["location"], "0x68@mhfdat.bin")
+            self.assertEqual(entry2["source"], "Hello")
+        finally:
+            os.unlink(json_path)
+
+    def test_get_new_strings_from_json(self):
+        """Test that JSON import correctly reads translated entries."""
+        json_data = {
+            "metadata": {"source_file": "mhfdat.bin", "version": "1.1.0"},
+            "strings": [
+                {"location": "0x64@mhfdat.bin", "source": "テスト", "target": "Test"},
+                {"location": "0x68@mhfdat.bin", "source": "Hello", "target": "Hello"},
+                {"location": "0x6C@mhfdat.bin", "source": "データ", "target": "Data"},
+            ],
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(json_data, f, ensure_ascii=False)
+            json_path = f.name
+
+        try:
+            result = get_new_strings_from_json(json_path)
+            # "Hello" -> "Hello" should be skipped (source == target)
+            self.assertEqual(len(result), 2)
+            self.assertEqual(result[0], (0x64, "Test"))
+            self.assertEqual(result[1], (0x6C, "Data"))
+        finally:
+            os.unlink(json_path)
+
+    def test_json_round_trip(self):
+        """Test export then import round-trip preserves data."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json_path = f.name
+
+        try:
+            # Export
+            export_as_json(self.test_data, json_path, "mhfdat.bin")
+
+            # Modify one target to simulate translation
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            data["strings"][0]["target"] = "Translated"
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+
+            # Import
+            result = get_new_strings_from_json(json_path)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0], (0x64, "Translated"))
+        finally:
+            os.unlink(json_path)
+
+    def test_get_new_strings_auto_csv(self):
+        """Test auto-detection routes .csv to CSV parser."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8", newline=""
+        ) as f:
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            writer.writerow(["0x64@mhfdat.bin", "Original", "Translated"])
+            csv_path = f.name
+
+        try:
+            result = get_new_strings_auto(csv_path)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0], (0x64, "Translated"))
+        finally:
+            os.unlink(csv_path)
+
+    def test_get_new_strings_auto_json(self):
+        """Test auto-detection routes .json to JSON parser."""
+        json_data = {
+            "metadata": {"source_file": "test.bin", "version": "1.1.0"},
+            "strings": [
+                {"location": "0x64@test.bin", "source": "Original", "target": "Translated"},
+            ],
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(json_data, f)
+            json_path = f.name
+
+        try:
+            result = get_new_strings_auto(json_path)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0], (0x64, "Translated"))
+        finally:
+            os.unlink(json_path)
+
+    def test_get_new_strings_from_json_invalid(self):
+        """Test JSON import with invalid data raises CSVParseError."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("not json")
+            json_path = f.name
+
+        try:
+            from src.import_data import CSVParseError
+            with self.assertRaises(CSVParseError):
+                get_new_strings_from_json(json_path)
+        finally:
+            os.unlink(json_path)
+
+    def test_get_new_strings_from_json_missing_strings_key(self):
+        """Test JSON import without 'strings' key raises CSVParseError."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump({"metadata": {}}, f)
+            json_path = f.name
+
+        try:
+            from src.import_data import CSVParseError
+            with self.assertRaises(CSVParseError):
+                get_new_strings_from_json(json_path)
+        finally:
+            os.unlink(json_path)
 
 
 if __name__ == "__main__":

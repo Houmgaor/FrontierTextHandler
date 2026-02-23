@@ -303,7 +303,7 @@ class TestExtractFtxtFile(unittest.TestCase):
             with open(input_path, "wb") as f:
                 f.write(data)
 
-            csv_path, ref_path = extract_ftxt_file(
+            csv_path, ref_path, _ = extract_ftxt_file(
                 input_path, output_dir=tmpdir
             )
 
@@ -383,7 +383,7 @@ class TestFtxtImport(unittest.TestCase):
                 f.write(data)
 
             # Extract
-            csv_path, _ = extract_ftxt_file(
+            csv_path, _, _ = extract_ftxt_file(
                 source_path, output_dir=tmpdir
             )
 
@@ -428,7 +428,7 @@ class TestFtxtImport(unittest.TestCase):
             with open(source_path, "wb") as f:
                 f.write(data)
 
-            csv_path, _ = extract_ftxt_file(
+            csv_path, _, _ = extract_ftxt_file(
                 source_path, output_dir=tmpdir
             )
 
@@ -561,7 +561,7 @@ class TestExtractSingleQuestFile(unittest.TestCase):
             with open(input_path, "wb") as f:
                 f.write(data)
 
-            csv_path, ref_path = extract_single_quest_file(
+            csv_path, ref_path, _ = extract_single_quest_file(
                 input_path, output_dir=tmpdir
             )
 
@@ -633,7 +633,7 @@ class TestQuestFileImport(unittest.TestCase):
                 f.write(data)
 
             # Extract to CSV
-            csv_path, _ = extract_single_quest_file(
+            csv_path, _, _ = extract_single_quest_file(
                 source_path, output_dir=tmpdir
             )
 
