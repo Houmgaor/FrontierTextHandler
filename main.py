@@ -132,6 +132,13 @@ def parse_inputs() -> argparse.ArgumentParser:
         "Works with CSV and binary files. Binary files require --xpath, --ftxt, --quest, or --npc.",
     )
     parser.add_argument(
+        "--merge",
+        type=str,
+        metavar="NEW_CSV",
+        help="Merge translations from input_file (old translated CSV/JSON) into NEW_CSV "
+        "(freshly extracted). Carries over translations where source is unchanged.",
+    )
+    parser.add_argument(
         "--validate",
         action="store_true",
         help="Validate a game file and report its structure (encryption, compression, format).",
@@ -193,6 +200,30 @@ def main(args: argparse.Namespace) -> None:
         strings_b = load_strings(file_b, mode=mode, xpath=args.xpath)
         result = diff_strings(strings_a, strings_b, file_a, file_b)
         print(format_diff(result))
+        return
+
+    if args.merge:
+        from src.merge import merge_translations, write_merged, format_merge_report
+
+        old_file = args.input_file
+        new_file = args.merge
+
+        for f in (old_file, new_file):
+            if not os.path.exists(f):
+                raise FileNotFoundError(f"'{f}' does not exist.")
+
+        # Determine output path
+        if args.output_file != "output/minimal.csv":
+            output_path = args.output_file
+        elif new_file.lower().endswith(".json"):
+            output_path = "output/merged.json"
+        else:
+            output_path = "output/merged.csv"
+
+        result, rows = merge_translations(old_file, new_file)
+        count = write_merged(rows, output_path, source_file=os.path.basename(new_file))
+        print(format_merge_report(result))
+        print(f"\nWrote {count} entries to {output_path}")
         return
 
     if args.decrypt:

@@ -4,6 +4,18 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-02-23
+
+### Added
+- **`--merge` command**: Carry over translations when game binaries are updated
+  - Merges an old translated CSV/JSON with a freshly extracted CSV/JSON
+  - Preserves translations where source strings are unchanged
+  - Flags entries where source text changed for manual review
+  - Reports new, removed, and modified strings
+  - Supports both CSV and JSON formats
+  - `merge.py`: `MergeResult`, `merge_translations`, `write_merged_csv`, `write_merged_json`, `format_merge_report`
+- **Test suite**: Tests for merge module in `tests/test_merge.py`
+
 ## [1.0.0] - 2026-02-16
 
 ### Added
