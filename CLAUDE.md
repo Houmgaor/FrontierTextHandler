@@ -36,6 +36,18 @@ python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin --compres
 python main.py --decrypt data/mhfdat.bin output/mhfdat-decrypted.bin
 python main.py --decrypt data/mhfdat.bin output/mhfdat-decrypted.bin --save-meta
 
+# Compare strings between two files
+python main.py file_a.csv --diff file_b.csv
+python main.py data/mhfdat.bin --diff data/mhfdat_v2.bin --xpath=dat/armors/head
+
+# Validate a game file's structure (encryption, compression, format)
+python main.py --validate data/mhfdat.bin
+
+# Merge translations from old CSV/JSON into freshly extracted CSV/JSON
+python main.py old_translated.csv --merge new_extracted.csv
+python main.py old_translated.json --merge new_extracted.json
+python main.py old_translated.csv --merge new_extracted.csv output/merged.csv
+
 # Convert ReFrontier TSV format to standard CSV
 python main.py --refrontier-to-csv input.csv output.csv
 
@@ -59,6 +71,8 @@ Encrypted (ECD) → Decrypted → Compressed (JPK) → Decompressed → Extract 
 - `import_data.py` - Parses edited CSV and appends new strings to binary, updating pointers
 - `binary_file.py` - Context manager for binary file I/O (supports in-memory data via `from_bytes()`)
 - `transform.py` - Format conversion between ReFrontier and standard CSV
+- `diff.py` - String comparison between two files (CSV or binary)
+- `merge.py` - Translation carryover between old translated and freshly extracted files
 - `crypto.py` - ECD/EXF encryption and decryption
 - `jkr_decompress.py` - JPK/JKR decompression (RW, LZ, HFI, HFIRW types)
 - `jkr_compress.py` - JPK/JKR compression (all 4 compression types)
