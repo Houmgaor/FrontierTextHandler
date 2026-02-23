@@ -125,6 +125,11 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Import NPC dialogue translations from CSV back to binary (full rebuild).",
     )
     parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Validate a game file and report its structure (encryption, compression, format).",
+    )
+    parser.add_argument(
         "--decrypt",
         type=str,
         metavar="FILE",
@@ -141,6 +146,19 @@ def parse_inputs() -> argparse.ArgumentParser:
 def main(args: argparse.Namespace) -> None:
     """Main function to read everything."""
     setup_logging(args.verbose)
+
+    if args.validate:
+        result = src.validate_file(args.input_file)
+        print(f"File: {result.file_path} ({result.file_size:,} bytes)")
+        if result.layers:
+            print("Layers:")
+            for i, layer in enumerate(result.layers, 1):
+                print(f"  {i}. {layer}")
+        if result.error:
+            print(f"  ERROR: {result.error}")
+        print(f"Format: {result.inner_format}")
+        print(f"Status: {'OK' if result.valid else 'INVALID'}")
+        return
 
     if args.decrypt:
         # Decrypt mode

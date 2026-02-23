@@ -7,11 +7,17 @@ import logging
 import re
 import struct
 import warnings
+from dataclasses import dataclass, field
 from typing import Iterator, Optional
 
 from .binary_file import BinaryFile, InvalidPointerError
-from .jkr_decompress import is_jkr_file, decompress_jkr, JKRError
-from .crypto import is_encrypted_file, decrypt, CryptoError
+from .jkr_decompress import (
+    is_jkr_file, decompress_jkr, JKRError, JKRHeader, CompressionType,
+)
+from .crypto import (
+    is_encrypted_file, is_ecd_file, is_exf_file,
+    decrypt, CryptoError, HEADER_SIZE as CRYPTO_HEADER_SIZE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1052,3 +1058,94 @@ def extract_text_data_from_bytes(
 
     else:
         raise ValueError(f"Unknown extraction config format: {list(config.keys())}")
+
+
+@dataclass
+class ValidationResult:
+    """Result of validating a game file."""
+    file_path: str
+    file_size: int
+    layers: list[str] = field(default_factory=list)
+    inner_format: str = "Raw binary data"
+    valid: bool = True
+    error: Optional[str] = None
+
+
+def validate_file(file_path: str) -> ValidationResult:
+    """
+    Validate a game file and report its structure.
+
+    Detects encryption (ECD/EXF), compression (JKR), and inner format
+    (FTXT or raw binary), attempting to decode each layer.
+
+    :param file_path: Path to the file to validate
+    :return: ValidationResult with layer info and validity status
+    """
+    import os
+
+    if not os.path.exists(file_path):
+        return ValidationResult(
+            file_path=file_path, file_size=0,
+            valid=False, error=f"File not found: {file_path}",
+        )
+
+    with open(file_path, "rb") as f:
+        data = f.read()
+
+    result = ValidationResult(file_path=file_path, file_size=len(data))
+
+    if len(data) == 0:
+        result.valid = False
+        result.error = "File is empty"
+        return result
+
+    # Layer 1: Encryption
+    if is_encrypted_file(data):
+        if is_ecd_file(data):
+            enc_type = "ECD"
+        else:
+            enc_type = "EXF"
+
+        key_index = struct.unpack_from("<H", data, 4)[0] if len(data) >= 6 else 0
+        result.layers.append(f"{enc_type} encrypted (key index {key_index})")
+
+        try:
+            data, _ = decrypt(data)
+        except (CryptoError, Exception) as exc:
+            result.valid = False
+            result.error = f"{enc_type} decryption failed: {exc}"
+            return result
+
+    # Layer 2: Compression
+    if is_jkr_file(data):
+        header = JKRHeader.from_bytes(data)
+        if header is not None:
+            try:
+                comp_name = CompressionType(header.compression_type).name
+            except ValueError:
+                comp_name = f"type {header.compression_type}"
+            result.layers.append(
+                f"JKR compressed ({comp_name}, "
+                f"decompressed: {header.decompressed_size:,} bytes)"
+            )
+        else:
+            result.layers.append("JKR compressed (unknown)")
+
+        try:
+            data = decompress_jkr(data)
+        except (JKRError, Exception) as exc:
+            result.valid = False
+            result.error = f"JKR decompression failed: {exc}"
+            return result
+
+    # Inner format detection
+    if is_ftxt_file(data):
+        if len(data) >= FTXT_HEADER_SIZE:
+            string_count = struct.unpack_from("<H", data, 0x0A)[0]
+            result.inner_format = f"FTXT ({string_count} strings)"
+        else:
+            result.inner_format = "FTXT (truncated header)"
+    else:
+        result.inner_format = "Raw binary data"
+
+    return result

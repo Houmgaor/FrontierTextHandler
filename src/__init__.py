@@ -40,6 +40,8 @@ from .common import (
     extract_npc_dialogue,
     extract_npc_dialogue_data,
     QUEST_TEXT_LABELS,
+    ValidationResult,
+    validate_file,
 )
 from .binary_file import InvalidPointerError
 from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError
