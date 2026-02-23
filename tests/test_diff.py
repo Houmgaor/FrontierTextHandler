@@ -1,9 +1,10 @@
 """
 Tests for the diff module.
 
-Tests string comparison between CSV files, binary files, and mixed formats.
+Tests string comparison between CSV files, binary files, JSON files, and mixed formats.
 """
 import csv
+import json
 import os
 import struct
 import tempfile
@@ -13,6 +14,7 @@ from src import (
     DiffResult,
     diff_strings,
     load_strings,
+    load_strings_from_json,
     format_diff,
     encode_game_string,
 )
@@ -31,6 +33,16 @@ def _write_csv(path: str, rows: list[list[str]]) -> None:
         writer.writerow(["location", "source", "target"])
         for row in rows:
             writer.writerow(row)
+
+
+def _write_json(path: str, entries: list[dict]) -> None:
+    """Write a JSON file with metadata + strings array."""
+    data = {
+        "metadata": {"source_file": "test.bin", "version": "1.0.0"},
+        "strings": entries,
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
 
 
 def _build_ftxt(strings: list[str]) -> bytes:
@@ -200,6 +212,77 @@ class TestLoadStringsFromCSV(unittest.TestCase):
             os.unlink(path)
 
 
+class TestLoadStringsFromJSON(unittest.TestCase):
+    """Tests for JSON string loading."""
+
+    def test_basic_json(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            _write_json(f.name, [
+                {"location": "0x100@mhfdat.bin", "source": "Hello", "target": "Bonjour"},
+                {"location": "0x104@mhfdat.bin", "source": "World", "target": "Monde"},
+            ])
+            path = f.name
+
+        try:
+            strings = load_strings_from_json(path)
+            self.assertEqual(strings["0x100"], "Bonjour")
+            self.assertEqual(strings["0x104"], "Monde")
+            self.assertEqual(len(strings), 2)
+        finally:
+            os.unlink(path)
+
+    def test_empty_json(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            _write_json(f.name, [])
+            path = f.name
+
+        try:
+            strings = load_strings_from_json(path)
+            self.assertEqual(len(strings), 0)
+        finally:
+            os.unlink(path)
+
+    def test_skips_invalid_entries(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            data = {
+                "metadata": {},
+                "strings": [
+                    {"location": "0x100@test.bin", "source": "A", "target": "B"},
+                    "not a dict",
+                    {"location": "0x104@test.bin", "source": "C"},  # missing target
+                    {"target": "D"},  # missing location
+                ],
+            }
+            json.dump(data, f)
+            path = f.name
+
+        try:
+            strings = load_strings_from_json(path)
+            self.assertEqual(len(strings), 1)
+            self.assertEqual(strings["0x100"], "B")
+        finally:
+            os.unlink(path)
+
+    def test_no_strings_key(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump({"metadata": {}}, f)
+            path = f.name
+
+        try:
+            strings = load_strings_from_json(path)
+            self.assertEqual(len(strings), 0)
+        finally:
+            os.unlink(path)
+
+
 class TestLoadStringsFromBinary(unittest.TestCase):
     """Tests for binary file string loading."""
 
@@ -238,6 +321,21 @@ class TestLoadStringsAutoDetect(unittest.TestCase):
             writer = csv.writer(f)
             writer.writerow(["location", "source", "target"])
             writer.writerow(["0x0@test.bin", "Text", "Texte"])
+            path = f.name
+
+        try:
+            strings = load_strings(path)
+            self.assertEqual(strings["0x0"], "Texte")
+        finally:
+            os.unlink(path)
+
+    def test_json_detected(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            _write_json(f.name, [
+                {"location": "0x0@test.bin", "source": "Text", "target": "Texte"},
+            ])
             path = f.name
 
         try:
@@ -323,6 +421,71 @@ class TestDiffCSVIntegration(unittest.TestCase):
             self.assertEqual(result.added[0], ("0x8", "Added"))
             self.assertEqual(len(result.removed), 1)
             self.assertEqual(result.removed[0], ("0x4", "Remove"))
+
+
+class TestDiffJSONIntegration(unittest.TestCase):
+    """Integration tests comparing two JSON files."""
+
+    def test_identical_jsons(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path_a = os.path.join(tmpdir, "a.json")
+            path_b = os.path.join(tmpdir, "b.json")
+            entries = [
+                {"location": "0x0@file.bin", "source": "Hello", "target": "Hello"},
+                {"location": "0x4@file.bin", "source": "World", "target": "World"},
+            ]
+            _write_json(path_a, entries)
+            _write_json(path_b, entries)
+
+            a = load_strings(path_a)
+            b = load_strings(path_b)
+            result = diff_strings(a, b, path_a, path_b)
+
+            self.assertEqual(len(result.modified), 0)
+            self.assertEqual(len(result.added), 0)
+            self.assertEqual(len(result.removed), 0)
+            self.assertEqual(result.unchanged, 2)
+
+    def test_modified_jsons(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path_a = os.path.join(tmpdir, "a.json")
+            path_b = os.path.join(tmpdir, "b.json")
+            _write_json(path_a, [
+                {"location": "0x0@file.bin", "source": "Hello", "target": "Hello"},
+                {"location": "0x4@file.bin", "source": "World", "target": "World"},
+            ])
+            _write_json(path_b, [
+                {"location": "0x0@file.bin", "source": "Hello", "target": "Bonjour"},
+                {"location": "0x4@file.bin", "source": "World", "target": "Monde"},
+            ])
+
+            a = load_strings(path_a)
+            b = load_strings(path_b)
+            result = diff_strings(a, b, path_a, path_b)
+
+            self.assertEqual(len(result.modified), 2)
+            self.assertEqual(result.modified[0], ("0x0", "Hello", "Bonjour"))
+
+    def test_csv_vs_json(self):
+        """Cross-format diff: CSV file A vs JSON file B."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path_a = os.path.join(tmpdir, "a.csv")
+            path_b = os.path.join(tmpdir, "b.json")
+            _write_csv(path_a, [
+                ["0x0@file.bin", "Hello", "Hello"],
+                ["0x4@file.bin", "World", "World"],
+            ])
+            _write_json(path_b, [
+                {"location": "0x0@file.bin", "source": "Hello", "target": "Bonjour"},
+                {"location": "0x4@file.bin", "source": "World", "target": "Monde"},
+            ])
+
+            a = load_strings(path_a)
+            b = load_strings(path_b)
+            result = diff_strings(a, b, path_a, path_b)
+
+            self.assertEqual(len(result.modified), 2)
+            self.assertEqual(result.unchanged, 0)
 
 
 class TestDiffFTXTIntegration(unittest.TestCase):

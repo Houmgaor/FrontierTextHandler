@@ -50,6 +50,7 @@ from .diff import (
     DiffResult,
     diff_strings,
     load_strings,
+    load_strings_from_json,
     format_diff,
 )
 from .merge import (

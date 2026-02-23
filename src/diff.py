@@ -1,7 +1,8 @@
 """
-Compare strings between two files (binary or CSV) and report differences.
+Compare strings between two files (binary, CSV, or JSON) and report differences.
 """
 import csv
+import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -63,6 +64,30 @@ def load_strings_from_csv(csv_path: str) -> dict[str, str]:
     return strings
 
 
+def load_strings_from_json(json_path: str) -> dict[str, str]:
+    """
+    Load strings from a JSON file.
+
+    Reads the 'target' column from each entry in the 'strings' array,
+    keyed by hex offset from 'location'.
+
+    :param json_path: Path to the JSON file
+    :return: Dict mapping hex offset to target text
+    """
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    strings: dict[str, str] = {}
+    for entry in data.get("strings", []):
+        if not isinstance(entry, dict):
+            continue
+        if "location" not in entry or "target" not in entry:
+            continue
+        key = _location_key(entry["location"])
+        strings[key] = entry["target"]
+    return strings
+
+
 def load_strings_from_binary(
     bin_path: str,
     mode: str,
@@ -110,6 +135,8 @@ def load_strings(
     """
     if file_path.lower().endswith(".csv"):
         return load_strings_from_csv(file_path)
+    elif file_path.lower().endswith(".json"):
+        return load_strings_from_json(file_path)
     else:
         if not mode:
             raise ValueError(
