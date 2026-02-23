@@ -47,10 +47,11 @@ def parse_inputs() -> argparse.ArgumentParser:
     parser.add_argument(
         "--xpath",
         type=str,
-        default="dat/armors/head",
+        default=None,
         required=False,
         help="Which data to get, as an xpath. "
-        + "For instance 'dat/armors/head' to read from mhfDAT.bin ARMORS HELMETS",
+        + "For instance 'dat/armors/head' to read from mhfDAT.bin ARMORS HELMETS. "
+        + "When used with --csv-to-bin, enables in-place section rebuild.",
     )
     parser.add_argument(
         "--refrontier-to-csv",
@@ -195,12 +196,14 @@ def main(args: argparse.Namespace) -> None:
             args.output_file,
             compress=args.compress,
             encrypt=args.encrypt,
-            key_index=args.key_index
+            key_index=args.key_index,
+            xpath=args.xpath,
         )
     else:
         # Default: read and save as CSV
+        xpath = args.xpath if args.xpath is not None else "dat/armors/head"
         src.extract_from_file(
-            args.input_file, args.xpath, args.output_file
+            args.input_file, xpath, args.output_file
         )
 
 

@@ -822,6 +822,24 @@ def extract_text_data(
     :return: List of dicts with "offset" and "text" keys
     """
     file_data = load_file_data(file_path)
+    return extract_text_data_from_bytes(file_data, config)
+
+
+def extract_text_data_from_bytes(
+    file_data: bytes,
+    config: dict
+) -> list[dict[str, int | str]]:
+    """
+    Extract text from raw binary data based on extraction config.
+
+    Same as :func:`extract_text_data` but takes raw bytes instead of a
+    file path. Useful when the data has already been loaded, decrypted,
+    or decompressed.
+
+    :param file_data: Raw binary data
+    :param config: Extraction config dict from headers.json
+    :return: List of dicts with "offset" and "text" keys
+    """
     bfile = BinaryFile.from_bytes(file_data)
 
     begin_pointer = int(config["begin_pointer"], 16)

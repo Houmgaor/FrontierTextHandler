@@ -2478,5 +2478,360 @@ class TestNewPacXpaths(unittest.TestCase):
         self.assertIn("pac/skills/description", result)
 
 
+class TestParseJoinedText(unittest.TestCase):
+    """Tests for parse_joined_text function."""
+
+    def test_no_joins(self):
+        """Test text without join tags returns single pair."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, "Hello World")
+        self.assertEqual(result, [(100, "Hello World")])
+
+    def test_single_join(self):
+        """Test text with one join tag."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, 'Part1<join at="104">Part2')
+        self.assertEqual(result, [(100, "Part1"), (104, "Part2")])
+
+    def test_multiple_joins(self):
+        """Test text with multiple join tags."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, 'A<join at="104">B<join at="108">C')
+        self.assertEqual(result, [(100, "A"), (104, "B"), (108, "C")])
+
+    def test_empty_string(self):
+        """Test empty string."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, "")
+        self.assertEqual(result, [(100, "")])
+
+    def test_empty_parts_in_join(self):
+        """Test join where first part is empty."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, '<join at="104">Only')
+        self.assertEqual(result, [(100, ""), (104, "Only")])
+
+
+class TestRebuildSection(unittest.TestCase):
+    """Tests for rebuild_section and in-place translation insertion."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.temp_dir)
+
+    def _create_pointer_pair_binary(self, strings: list[str]) -> tuple[bytes, dict]:
+        """
+        Create a binary with pointer-pair layout matching headers.json format.
+
+        Layout:
+        - 0x00-0x03: pointer to start of pointer table (begin_pointer dereference)
+        - 0x04-0x07: pointer to end of pointer table (next_field_pointer dereference)
+        - 0x08+: pointer table, then strings
+
+        Returns (binary_data, config).
+        """
+        header_size = 8
+        pointer_table_start = header_size
+        pointer_table_size = len(strings) * 4
+        strings_start = pointer_table_start + pointer_table_size
+
+        encoded = []
+        string_offsets = []
+        current = strings_start
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            string_offsets.append(current)
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray(header_size)
+        # begin_pointer at 0x00 → points to pointer_table_start
+        struct.pack_into("<I", data, 0x00, pointer_table_start)
+        # next_field_pointer at 0x04 → points to end of pointer table
+        struct.pack_into("<I", data, 0x04, pointer_table_start + pointer_table_size)
+
+        # Pointer table
+        for offset in string_offsets:
+            data.extend(struct.pack("<I", offset))
+        # Strings
+        for enc in encoded:
+            data.extend(enc)
+
+        config = {
+            "begin_pointer": "0x00",
+            "next_field_pointer": "0x04",
+        }
+        return bytes(data), config
+
+    def test_rebuild_with_translation(self):
+        """Test rebuild replaces translated strings and keeps originals."""
+        from src.import_data import rebuild_section
+
+        binary_data, config = self._create_pointer_pair_binary(
+            ["Hello", "World", "Test"]
+        )
+        # Pointer table starts at 0x08, so pointers are at 0x08, 0x0C, 0x10
+        # Translate only the first string (pointer at 0x08)
+        new_strings = [(0x08, "Bonjour")]
+        output_path = os.path.join(self.temp_dir, "rebuilt.bin")
+
+        rebuild_section(binary_data, config, new_strings, output_path)
+
+        with open(output_path, "rb") as f:
+            result = f.read()
+
+        # All 3 pointers should now point into the appended block
+        original_size = len(binary_data)
+        for ptr_offset in (0x08, 0x0C, 0x10):
+            ptr = struct.unpack("<I", result[ptr_offset:ptr_offset + 4])[0]
+            self.assertGreaterEqual(ptr, original_size,
+                                    f"Pointer at 0x{ptr_offset:x} should point to appended block")
+
+        # Verify string content
+        ptr0 = struct.unpack("<I", result[0x08:0x0C])[0]
+        end0 = result.index(b"\x00", ptr0)
+        self.assertEqual(result[ptr0:end0], encode_game_string("Bonjour"))
+
+        ptr1 = struct.unpack("<I", result[0x0C:0x10])[0]
+        end1 = result.index(b"\x00", ptr1)
+        self.assertEqual(result[ptr1:end1], encode_game_string("World"))
+
+        ptr2 = struct.unpack("<I", result[0x10:0x14])[0]
+        end2 = result.index(b"\x00", ptr2)
+        self.assertEqual(result[ptr2:end2], encode_game_string("Test"))
+
+    def test_rebuild_all_translated(self):
+        """Test rebuild when all strings are translated."""
+        from src.import_data import rebuild_section
+
+        binary_data, config = self._create_pointer_pair_binary(["A", "B"])
+        new_strings = [(0x08, "X"), (0x0C, "Y")]
+        output_path = os.path.join(self.temp_dir, "rebuilt.bin")
+
+        rebuild_section(binary_data, config, new_strings, output_path)
+
+        with open(output_path, "rb") as f:
+            result = f.read()
+
+        ptr0 = struct.unpack("<I", result[0x08:0x0C])[0]
+        end0 = result.index(b"\x00", ptr0)
+        self.assertEqual(result[ptr0:end0], encode_game_string("X"))
+
+        ptr1 = struct.unpack("<I", result[0x0C:0x10])[0]
+        end1 = result.index(b"\x00", ptr1)
+        self.assertEqual(result[ptr1:end1], encode_game_string("Y"))
+
+    def test_rebuild_with_joined_entries(self):
+        """Test rebuild with join tags in both original and translation."""
+        from src.import_data import rebuild_section
+
+        # Build binary with join pattern: [ptr1, ptr2, 0, ptr3]
+        # This creates 2 entries: first has join, second is standalone
+        header_size = 8
+        pointer_table_start = header_size
+        # 4 pointer slots (ptr, ptr, 0-separator, ptr)
+        pointer_table_size = 4 * 4
+        strings_start = pointer_table_start + pointer_table_size
+
+        s1 = encode_game_string("Part1") + b"\x00"
+        s2 = encode_game_string("Part2") + b"\x00"
+        s3 = encode_game_string("Standalone") + b"\x00"
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, pointer_table_start)
+        struct.pack_into("<I", data, 0x04, pointer_table_start + pointer_table_size)
+
+        # Pointer table: [ptr_to_s1, ptr_to_s2, 0, ptr_to_s3]
+        data.extend(struct.pack("<I", strings_start))
+        data.extend(struct.pack("<I", strings_start + len(s1)))
+        data.extend(struct.pack("<I", 0))  # separator
+        data.extend(struct.pack("<I", strings_start + len(s1) + len(s2)))
+        data.extend(s1 + s2 + s3)
+
+        binary_data = bytes(data)
+        config = {
+            "begin_pointer": "0x00",
+            "next_field_pointer": "0x04",
+        }
+
+        # Translate the joined entry (pointer at 0x08 = first ptr in table)
+        # The extracted text would be: 'Part1<join at="12">Part2'
+        # where 12 = 0x0C = second pointer offset
+        new_strings = [(0x08, f'Trad1<join at="12">Trad2')]
+        output_path = os.path.join(self.temp_dir, "rebuilt.bin")
+
+        rebuild_section(binary_data, config, new_strings, output_path)
+
+        with open(output_path, "rb") as f:
+            result = f.read()
+
+        # Pointer at 0x08 should point to "Trad1"
+        ptr0 = struct.unpack("<I", result[0x08:0x0C])[0]
+        end0 = result.index(b"\x00", ptr0)
+        self.assertEqual(result[ptr0:end0], encode_game_string("Trad1"))
+
+        # Pointer at 0x0C should point to "Trad2"
+        ptr1 = struct.unpack("<I", result[0x0C:0x10])[0]
+        end1 = result.index(b"\x00", ptr1)
+        self.assertEqual(result[ptr1:end1], encode_game_string("Trad2"))
+
+        # Pointer at 0x14 (standalone) should keep "Standalone"
+        ptr2 = struct.unpack("<I", result[0x14:0x18])[0]
+        end2 = result.index(b"\x00", ptr2)
+        self.assertEqual(result[ptr2:end2], encode_game_string("Standalone"))
+
+    def test_backward_compat_no_xpath(self):
+        """Test that import_from_csv without xpath still uses append strategy."""
+        from src.import_data import import_from_csv
+
+        strings = ["Hello", "World", "Test"]
+        # Simple pointer table binary (no header indirection)
+        pointer_table_size = len(strings) * 4
+        string_offsets = []
+        current_offset = pointer_table_size
+        encoded_strings = []
+        for s in strings:
+            encoded = encode_game_string(s) + b"\x00"
+            string_offsets.append(current_offset)
+            encoded_strings.append(encoded)
+            current_offset += len(encoded)
+
+        binary_data = b""
+        for offset in string_offsets:
+            binary_data += struct.pack("<I", offset)
+        for encoded in encoded_strings:
+            binary_data += encoded
+
+        binary_path = os.path.join(self.temp_dir, "test.bin")
+        with open(binary_path, "wb") as f:
+            f.write(binary_data)
+
+        csv_path = os.path.join(self.temp_dir, "translations.csv")
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            writer.writerow(["0x0@test.bin", "Hello", "Bonjour"])
+
+        output_path = os.path.join(self.temp_dir, "output.bin")
+        result = import_from_csv(csv_path, binary_path, output_path=output_path)
+
+        self.assertIsNotNone(result)
+        with open(output_path, "rb") as f:
+            output_data = f.read()
+
+        # Append strategy: only translated pointer changes, others keep original
+        pointer_0 = struct.unpack("<I", output_data[0:4])[0]
+        self.assertGreaterEqual(pointer_0, len(binary_data))
+        end = output_data.index(b"\x00", pointer_0)
+        self.assertEqual(output_data[pointer_0:end], encode_game_string("Bonjour"))
+
+        # Untranslated pointers should still point to original locations
+        pointer_1 = struct.unpack("<I", output_data[4:8])[0]
+        self.assertEqual(pointer_1, string_offsets[1])
+
+    def test_import_with_xpath_uses_rebuild(self):
+        """Test that import_from_csv with xpath uses rebuild_section."""
+        from src.import_data import import_from_csv
+
+        binary_data, config = self._create_pointer_pair_binary(
+            ["Hello", "World", "Test"]
+        )
+        binary_path = os.path.join(self.temp_dir, "test.bin")
+        with open(binary_path, "wb") as f:
+            f.write(binary_data)
+
+        # Create a matching headers.json
+        headers_path = os.path.join(self.temp_dir, "headers.json")
+        headers = {"test": {"section": config}}
+        with open(headers_path, "w") as f:
+            json.dump(headers, f)
+
+        csv_path = os.path.join(self.temp_dir, "translations.csv")
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["location", "source", "target"])
+            writer.writerow(["0x8@test.bin", "Hello", "Bonjour"])
+
+        output_path = os.path.join(self.temp_dir, "output.bin")
+        result = import_from_csv(
+            csv_path, binary_path, output_path=output_path,
+            xpath="test/section", headers_path=headers_path
+        )
+
+        self.assertIsNotNone(result)
+        with open(output_path, "rb") as f:
+            output_data = f.read()
+
+        # Rebuild strategy: ALL pointers updated to appended block
+        original_size = len(binary_data)
+        for ptr_offset in (0x08, 0x0C, 0x10):
+            ptr = struct.unpack("<I", output_data[ptr_offset:ptr_offset + 4])[0]
+            self.assertGreaterEqual(ptr, original_size)
+
+        # Verify translated string
+        ptr0 = struct.unpack("<I", output_data[0x08:0x0C])[0]
+        end0 = output_data.index(b"\x00", ptr0)
+        self.assertEqual(output_data[ptr0:end0], encode_game_string("Bonjour"))
+
+        # Verify untranslated strings preserved
+        ptr1 = struct.unpack("<I", output_data[0x0C:0x10])[0]
+        end1 = output_data.index(b"\x00", ptr1)
+        self.assertEqual(output_data[ptr1:end1], encode_game_string("World"))
+
+
+class TestExtractTextDataFromBytes(unittest.TestCase):
+    """Tests for extract_text_data_from_bytes function."""
+
+    def test_from_bytes_matches_from_file(self):
+        """Test that extract_text_data_from_bytes gives same result as extract_text_data."""
+        from src.common import extract_text_data_from_bytes
+
+        strings = ["Alpha", "Beta", "Gamma"]
+        header_size = 8
+        pointer_table_start = header_size
+        pointer_table_size = len(strings) * 4
+        strings_start = pointer_table_start + pointer_table_size
+
+        encoded = []
+        string_offsets = []
+        current = strings_start
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            string_offsets.append(current)
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, pointer_table_start)
+        struct.pack_into("<I", data, 0x04, pointer_table_start + pointer_table_size)
+        for offset in string_offsets:
+            data.extend(struct.pack("<I", offset))
+        for enc in encoded:
+            data.extend(enc)
+
+        binary_data = bytes(data)
+        config = {
+            "begin_pointer": "0x00",
+            "next_field_pointer": "0x04",
+        }
+
+        # Test from_bytes
+        result_bytes = extract_text_data_from_bytes(binary_data, config)
+
+        # Test from file
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary_data)
+            temp_path = f.name
+
+        try:
+            result_file = extract_text_data(temp_path, config)
+            self.assertEqual(result_bytes, result_file)
+        finally:
+            os.unlink(temp_path)
+
+
 if __name__ == "__main__":
     unittest.main()

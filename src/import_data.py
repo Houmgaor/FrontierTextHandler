@@ -4,6 +4,7 @@ Import data from a CSV file to a binary file.
 import csv
 import logging
 import os
+import re
 import shutil
 import struct
 from typing import Optional
@@ -110,6 +111,103 @@ def append_to_binary(
             bfile.write_int(new_pointer)
 
 
+_JOIN_TAG_RE = re.compile(r'<join at="(\d+)">')
+
+
+def parse_joined_text(offset: int, text: str) -> list[tuple[int, str]]:
+    """
+    Split a text with ``<join at="NNN">`` tags into per-pointer pairs.
+
+    A single CSV entry may map to multiple pointers when the extraction
+    grouped them with join tags.  This function expands them back.
+
+    :param offset: Pointer offset of the first string (from CSV location)
+    :param text: Text that may contain ``<join at="NNN">`` tags
+    :return: List of ``(pointer_offset, sub_text)`` tuples
+    """
+    parts = _JOIN_TAG_RE.split(text)
+    # parts[0] is the first text, then alternating (offset_str, text)
+    result = [(offset, parts[0])]
+    for i in range(1, len(parts), 2):
+        join_offset = int(parts[i])
+        join_text = parts[i + 1]
+        result.append((join_offset, join_text))
+    return result
+
+
+def rebuild_section(
+    file_data: bytes,
+    config: dict,
+    new_strings: list[tuple[int, str]],
+    output_path: str
+) -> str:
+    """
+    Rebuild a binary section with translations applied in-place.
+
+    Instead of appending translated strings to the end of the file and
+    leaving dead bytes behind, this function:
+
+    1. Extracts ALL strings from the section (translated and untranslated)
+    2. Writes them as a single contiguous block at EOF
+    3. Updates ALL pointers to reference the new locations
+
+    This produces a cleaner file with no orphaned string data.
+
+    :param file_data: Decrypted/decompressed binary data
+    :param config: Extraction config dict from headers.json
+    :param new_strings: Translations from CSV as ``(offset, text)`` tuples
+    :param output_path: Path for the output file
+    :return: Path to the rebuilt file
+    """
+    from .common import extract_text_data_from_bytes
+
+    # 1. Extract all entries from the section
+    all_entries = extract_text_data_from_bytes(file_data, config)
+
+    # 2. Build translation map: {pointer_offset: new_text}
+    #    Expand join tags so each sub-pointer maps independently
+    translation_map: dict[int, str] = {}
+    for offset, text in new_strings:
+        for ptr_offset, sub_text in parse_joined_text(offset, text):
+            translation_map[ptr_offset] = sub_text
+
+    # 3. Flatten all entries into (ptr_offset, text) pairs,
+    #    applying translations where available
+    all_pairs: list[tuple[int, str]] = []
+    for entry in all_entries:
+        for ptr_offset, sub_text in parse_joined_text(entry["offset"], entry["text"]):
+            if ptr_offset in translation_map:
+                all_pairs.append((ptr_offset, translation_map[ptr_offset]))
+            else:
+                all_pairs.append((ptr_offset, sub_text))
+
+    # 4. Write file: copy original data, then append contiguous string block
+    with open(output_path, "wb") as f:
+        f.write(file_data)
+
+    with BinaryFile(output_path, "r+b") as bfile:
+        bfile.seek(0, os.SEEK_END)
+        for ptr_offset, text in all_pairs:
+            new_pointer = bfile.tell()
+            encoded = encode_game_string(
+                text, context=f"rebuild offset 0x{ptr_offset:x}"
+            )
+            bfile.write(encoded + b"\x00")
+            # Save position, update pointer, restore position
+            current_pos = bfile.tell()
+            bfile.seek(ptr_offset)
+            bfile.write_int(new_pointer)
+            bfile.seek(current_pos)
+
+    translated_count = len(translation_map)
+    total_count = len(all_pairs)
+    logger.info(
+        "Rebuilt section: %d/%d strings translated, all %d pointers updated",
+        translated_count, total_count, total_count
+    )
+    return output_path
+
+
 def rebuild_ftxt(
     source_file: str,
     new_strings: list[tuple[int, str]],
@@ -177,10 +275,16 @@ def import_from_csv(
     output_path: Optional[str] = None,
     compress: bool = False,
     encrypt: bool = False,
-    key_index: int = DEFAULT_KEY_INDEX
+    key_index: int = DEFAULT_KEY_INDEX,
+    xpath: Optional[str] = None,
+    headers_path: str = common.DEFAULT_HEADERS_PATH
 ) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
+
+    When *xpath* is provided, uses :func:`rebuild_section` to rewrite
+    the entire string section in-place (all pointers updated, no dead
+    bytes).  Without *xpath*, falls back to the legacy append strategy.
 
     :param input_file: Path to CSV file with translations
     :param output_file: Path to source binary file
@@ -189,6 +293,9 @@ def import_from_csv(
     :param compress: If True, compress the output using JKR HFI compression
     :param encrypt: If True, encrypt the output using ECD encryption
     :param key_index: ECD key index to use (0-5). Default is 4.
+    :param xpath: Optional xpath to the section in headers.json.  When
+        provided, enables in-place rebuild instead of append.
+    :param headers_path: Path to headers.json (default: headers.json)
     :return: Path to the modified binary file, or None if no changes
     """
     new_strings = get_new_strings(input_file)
@@ -197,13 +304,6 @@ def import_from_csv(
     if not new_strings:
         logger.info("No translations to write, skipping binary modification")
         return None
-
-    pointers_to_update: list[int] = []
-
-    with BinaryFile(output_file) as bfile:
-        for candidate in new_strings:
-            bfile.seek(candidate[0])
-            pointers_to_update.append(candidate[0])
 
     if output_path is None:
         # Generate default output path
@@ -228,11 +328,17 @@ def import_from_csv(
         file_data = decompress_jkr(file_data)
         logger.info("Auto-decompressed source file")
 
-    with open(output_path, "wb") as f:
-        f.write(file_data)
-
-    append_to_binary(new_strings, tuple(pointers_to_update), output_path)
-    logger.info("Wrote output to %s", output_path)
+    if xpath is not None:
+        config = common.read_extraction_config(xpath, headers_path)
+        rebuild_section(file_data, config, new_strings, output_path)
+        logger.info("Rebuilt section '%s' in %s", xpath, output_path)
+    else:
+        # Legacy append strategy (backward compatible)
+        pointers_to_update = [offset for offset, _ in new_strings]
+        with open(output_path, "wb") as f:
+            f.write(file_data)
+        append_to_binary(new_strings, tuple(pointers_to_update), output_path)
+        logger.info("Wrote output to %s (append mode)", output_path)
 
     if compress:
         # Read the modified file and compress it

@@ -21,6 +21,7 @@ from .common import (
     load_file_data,
     read_extraction_config,
     extract_text_data,
+    extract_text_data_from_bytes,
     is_ftxt_file,
     extract_ftxt,
     extract_ftxt_data,
