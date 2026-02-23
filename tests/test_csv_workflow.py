@@ -24,6 +24,7 @@ from src.common import (
     read_json_data,
     read_until_null,
     read_file_section,
+    read_multi_pointer_entries,
     read_struct_strings,
     read_quest_table,
     read_extraction_config,
@@ -2152,6 +2153,329 @@ class TestNullTerminatedExtraction(unittest.TestCase):
             self.assertEqual(len(result), 0)
         finally:
             os.unlink(temp_path)
+
+
+class TestReadMultiPointerEntries(unittest.TestCase):
+    """Tests for read_multi_pointer_entries function."""
+
+    def _build_multi_pointer_binary(
+        self, entries: list[list[str | None]], pointers_per_entry: int
+    ) -> tuple[bytes, int]:
+        """
+        Build a binary with multi-pointer entries terminated by a null first pointer.
+
+        Returns (data, start_position) where start_position is offset of the entry array.
+        """
+        start_position = 0
+        total_entry_slots = len(entries) * pointers_per_entry
+        terminator_slots = pointers_per_entry
+        pointer_area_size = (total_entry_slots + terminator_slots) * 4
+        strings_start = start_position + pointer_area_size
+
+        encoded = []
+        string_offsets: dict[int, int] = {}
+        current = strings_start
+        flat_idx = 0
+        for entry in entries:
+            for s in entry:
+                if s is not None:
+                    enc = encode_game_string(s) + b"\x00"
+                    string_offsets[flat_idx] = current
+                    encoded.append(enc)
+                    current += len(enc)
+                flat_idx += 1
+
+        data = bytearray()
+        flat_idx = 0
+        for entry in entries:
+            for s in entry:
+                if s is not None:
+                    data.extend(struct.pack("<I", string_offsets[flat_idx]))
+                else:
+                    data.extend(struct.pack("<I", 0))
+                flat_idx += 1
+
+        # Terminator
+        for _ in range(pointers_per_entry):
+            data.extend(struct.pack("<I", 0))
+
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data), start_position
+
+    def test_basic_multi_pointer(self):
+        """Test basic multi-pointer entry reading."""
+        entries = [
+            ["Hello", "World"],
+            ["Foo", "Bar"],
+        ]
+        data, start = self._build_multi_pointer_binary(entries, 2)
+        bfile = BinaryFile.from_bytes(data)
+        result = read_multi_pointer_entries(bfile, start, 2)
+
+        self.assertEqual(len(result), 2)
+        self.assertIn("Hello", result[0]["text"])
+        self.assertIn("World", result[0]["text"])
+        self.assertIn("<join", result[0]["text"])
+        self.assertIn("Foo", result[1]["text"])
+        self.assertIn("Bar", result[1]["text"])
+
+    def test_null_internal_pointers(self):
+        """Test that null internal pointers are skipped without breaking grouping."""
+        entries = [
+            ["A", None, "C"],
+            ["D", "E", None],
+        ]
+        data, start = self._build_multi_pointer_binary(entries, 3)
+        bfile = BinaryFile.from_bytes(data)
+        result = read_multi_pointer_entries(bfile, start, 3)
+
+        self.assertEqual(len(result), 2)
+        # Entry 0: A and C joined
+        self.assertIn("A", result[0]["text"])
+        self.assertIn("C", result[0]["text"])
+        # Entry 1: D and E joined
+        self.assertIn("D", result[1]["text"])
+        self.assertIn("E", result[1]["text"])
+
+    def test_empty_array(self):
+        """Test immediate terminator returns empty list."""
+        # Just 3 zero pointers (terminator for pointers_per_entry=3)
+        data = b"\x00" * 12
+        bfile = BinaryFile.from_bytes(data)
+        result = read_multi_pointer_entries(bfile, 0, 3)
+        self.assertEqual(len(result), 0)
+
+    def test_single_pointer_per_entry(self):
+        """Test with 1 pointer per entry (degenerate case)."""
+        entries = [["Hello"], ["World"]]
+        data, start = self._build_multi_pointer_binary(entries, 1)
+        bfile = BinaryFile.from_bytes(data)
+        result = read_multi_pointer_entries(bfile, start, 1)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "Hello")
+        self.assertEqual(result[1]["text"], "World")
+
+    def test_grouping_correctness_vs_flat(self):
+        """Test that grouped mode correctly separates entries that flat mode would merge.
+
+        Given entries [ptr_a, ptr_b, ptr_c] and [ptr_d, 0, ptr_f]:
+        - Flat mode would see [ptr_a, ptr_b, ptr_c, ptr_d, 0, ptr_f] and group
+          as {ptr_a..ptr_d} and {ptr_f} (WRONG).
+        - Grouped mode should produce {A, B, C} and {D, F} (CORRECT).
+        """
+        entries = [
+            ["A", "B", "C"],
+            ["D", None, "F"],
+        ]
+        data, start = self._build_multi_pointer_binary(entries, 3)
+        bfile = BinaryFile.from_bytes(data)
+        result = read_multi_pointer_entries(bfile, start, 3)
+
+        self.assertEqual(len(result), 2)
+        # First entry should have exactly A, B, C
+        text0 = result[0]["text"]
+        self.assertTrue(text0.startswith("A"))
+        self.assertIn("B", text0)
+        self.assertIn("C", text0)
+        self.assertEqual(text0.count("<join"), 2)
+        # Second entry should have D and F
+        text1 = result[1]["text"]
+        self.assertTrue(text1.startswith("D"))
+        self.assertIn("F", text1)
+        self.assertEqual(text1.count("<join"), 1)
+        # D should NOT appear in first entry
+        self.assertNotIn("D", text0)
+
+
+class TestGroupedEntriesExtraction(unittest.TestCase):
+    """Tests for grouped_entries null-terminated extraction via extract_text_data."""
+
+    def _build_grouped_null_terminated_binary(
+        self, entries: list[list[str | None]], pointers_per_entry: int
+    ) -> bytes:
+        """
+        Build a binary with header pointer to grouped null-terminated entries.
+
+        Layout:
+        - 0x00-0x03: pointer to entry array (points to 0x04)
+        - 0x04+: entry array, terminator, then strings
+        """
+        header_size = 4
+        array_start = header_size
+        total_entry_slots = len(entries) * pointers_per_entry
+        terminator_slots = pointers_per_entry
+        pointer_area_size = (total_entry_slots + terminator_slots) * 4
+        strings_start = array_start + pointer_area_size
+
+        encoded = []
+        string_offsets: dict[int, int] = {}
+        current = strings_start
+        flat_idx = 0
+        for entry in entries:
+            for s in entry:
+                if s is not None:
+                    enc = encode_game_string(s) + b"\x00"
+                    string_offsets[flat_idx] = current
+                    encoded.append(enc)
+                    current += len(enc)
+                flat_idx += 1
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, array_start)
+
+        flat_idx = 0
+        for entry in entries:
+            for s in entry:
+                if s is not None:
+                    data.extend(struct.pack("<I", string_offsets[flat_idx]))
+                else:
+                    data.extend(struct.pack("<I", 0))
+                flat_idx += 1
+
+        # Terminator
+        for _ in range(pointers_per_entry):
+            data.extend(struct.pack("<I", 0))
+
+        for enc in encoded:
+            data.extend(enc)
+
+        return bytes(data)
+
+    def test_grouped_entries_extraction(self):
+        """Test grouped null-terminated extraction through extract_text_data."""
+        entries = [
+            ["Hello", "World", "Test"],
+            ["Foo", None, "Baz"],
+        ]
+        binary = self._build_grouped_null_terminated_binary(entries, 3)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(binary)
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "null_terminated": True,
+                "grouped_entries": True,
+                "pointers_per_entry": 3
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 2)
+            self.assertIn("Hello", result[0]["text"])
+            self.assertIn("World", result[0]["text"])
+            self.assertIn("Test", result[0]["text"])
+            self.assertIn("Foo", result[1]["text"])
+            self.assertIn("Baz", result[1]["text"])
+        finally:
+            os.unlink(temp_path)
+
+    def test_grouped_entries_empty(self):
+        """Test grouped extraction with immediate terminator."""
+        # Header + 2 zero pointers (terminator for pointers_per_entry=2)
+        data = bytearray(12)
+        struct.pack_into("<I", data, 0x00, 0x04)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "null_terminated": True,
+                "grouped_entries": True,
+                "pointers_per_entry": 2
+            }
+            result = extract_text_data(temp_path, config)
+            self.assertEqual(len(result), 0)
+        finally:
+            os.unlink(temp_path)
+
+    def test_legacy_null_terminated_unchanged(self):
+        """Test that existing null-terminated behavior (no grouped_entries) is unchanged."""
+        # Build a simple null-terminated single-pointer array
+        strings = ["Alpha", "Beta"]
+        header_size = 4
+        array_start = header_size
+        strings_start = array_start + 3 * 4  # 2 entries + terminator
+
+        encoded = []
+        offsets = []
+        current = strings_start
+        for s in strings:
+            enc = encode_game_string(s) + b"\x00"
+            offsets.append(current)
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, array_start)
+        for off in offsets:
+            data.extend(struct.pack("<I", off))
+        data.extend(struct.pack("<I", 0))  # terminator
+        for enc in encoded:
+            data.extend(enc)
+
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(bytes(data))
+            temp_path = f.name
+
+        try:
+            config = {
+                "begin_pointer": "0x00",
+                "null_terminated": True,
+                "pointers_per_entry": 1
+            }
+            result = extract_text_data(temp_path, config)
+
+            self.assertEqual(len(result), 2)
+            self.assertEqual(result[0]["text"], "Alpha")
+            self.assertEqual(result[1]["text"], "Beta")
+        finally:
+            os.unlink(temp_path)
+
+
+class TestNewPacXpaths(unittest.TestCase):
+    """Tests that new pac xpaths appear in headers.json."""
+
+    def test_pac_text_tables_in_xpaths(self):
+        """Test that all 22 new pac xpaths are discoverable."""
+        result = get_all_xpaths(DEFAULT_HEADERS_PATH)
+
+        # Null-terminated grouped tables (10)
+        for suffix in ["14", "18", "1c", "20", "24", "28", "2c", "34", "50", "54"]:
+            self.assertIn(f"pac/text_{suffix}", result)
+
+        # Count-based strided tables (10)
+        for suffix in ["40", "44", "60", "64", "68", "6c", "c8", "cc", "d0", "d4"]:
+            self.assertIn(f"pac/text_{suffix}", result)
+
+        # Two-field table (2)
+        self.assertIn("pac/text_94/field_0", result)
+        self.assertIn("pac/text_94/field_1", result)
+
+    def test_grouped_entries_leaf_detection(self):
+        """Test that grouped_entries configs are detected as leaves."""
+        config = {
+            "begin_pointer": "0x14",
+            "null_terminated": True,
+            "grouped_entries": True,
+            "pointers_per_entry": 3
+        }
+        self.assertTrue(_is_extraction_leaf(config))
+
+    def test_existing_pac_skills_unchanged(self):
+        """Test that existing pac/skills xpaths still work."""
+        result = get_all_xpaths(DEFAULT_HEADERS_PATH)
+        self.assertIn("pac/skills/name", result)
+        self.assertIn("pac/skills/effect", result)
+        self.assertIn("pac/skills/effect_z", result)
+        self.assertIn("pac/skills/description", result)
 
 
 if __name__ == "__main__":

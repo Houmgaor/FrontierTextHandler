@@ -125,7 +125,7 @@
     }
   },
   "pac": {
-    "_comment": "Skill data.",
+    "_comment": "mhfpac.bin string tables. Skills use pointer-pair mode; text_* tables use null-terminated grouped or count-based strided modes.",
     "skills": {
       "name": {
         "begin_pointer": "0xA20",
@@ -142,6 +142,164 @@
       "description": {
         "begin_pointer": "0xB8",
         "next_field_pointer": "0xC0"
+      }
+    },
+    "text_14": {
+      "begin_pointer": "0x14",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 3
+    },
+    "text_18": {
+      "begin_pointer": "0x18",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 4
+    },
+    "text_1c": {
+      "begin_pointer": "0x1C",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 5
+    },
+    "text_20": {
+      "begin_pointer": "0x20",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 3
+    },
+    "text_24": {
+      "begin_pointer": "0x24",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 19
+    },
+    "text_28": {
+      "begin_pointer": "0x28",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 8
+    },
+    "text_2c": {
+      "begin_pointer": "0x2C",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 10
+    },
+    "text_34": {
+      "begin_pointer": "0x34",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 4
+    },
+    "text_50": {
+      "begin_pointer": "0x50",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 2
+    },
+    "text_54": {
+      "begin_pointer": "0x54",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 2
+    },
+    "text_40": {
+      "begin_pointer": "0x40",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x04",
+      "count_type": "u16",
+      "entry_size": 8,
+      "field_offset": 4
+    },
+    "text_44": {
+      "begin_pointer": "0x44",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x06",
+      "count_type": "u16",
+      "entry_size": 8,
+      "field_offset": 4
+    },
+    "text_60": {
+      "begin_pointer": "0x60",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x22",
+      "count_type": "u16",
+      "entry_size": 16,
+      "field_offset": 0
+    },
+    "text_64": {
+      "begin_pointer": "0x64",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x24",
+      "count_type": "u16",
+      "entry_size": 16,
+      "field_offset": 0
+    },
+    "text_68": {
+      "begin_pointer": "0x68",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x26",
+      "count_type": "u16",
+      "entry_size": 16,
+      "field_offset": 0
+    },
+    "text_6c": {
+      "begin_pointer": "0x6C",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x28",
+      "count_type": "u16",
+      "entry_size": 16,
+      "field_offset": 0
+    },
+    "text_c8": {
+      "begin_pointer": "0xC8",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x52",
+      "count_type": "u16",
+      "entry_size": 12,
+      "field_offset": 0
+    },
+    "text_cc": {
+      "begin_pointer": "0xCC",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x54",
+      "count_type": "u16",
+      "entry_size": 12,
+      "field_offset": 0
+    },
+    "text_d0": {
+      "begin_pointer": "0xD0",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x5A",
+      "count_type": "u16",
+      "entry_size": 12,
+      "field_offset": 0
+    },
+    "text_d4": {
+      "begin_pointer": "0xD4",
+      "count_base_pointer": "0x10",
+      "count_offset": "0x5C",
+      "count_type": "u16",
+      "entry_size": 12,
+      "field_offset": 0
+    },
+    "text_94": {
+      "field_0": {
+        "begin_pointer": "0x94",
+        "count_base_pointer": "0x10",
+        "count_offset": "0x1C",
+        "count_type": "u16",
+        "entry_size": 16,
+        "field_offset": 4
+      },
+      "field_1": {
+        "begin_pointer": "0x94",
+        "count_base_pointer": "0x10",
+        "count_offset": "0x1C",
+        "count_type": "u16",
+        "entry_size": 16,
+        "field_offset": 8
       }
     }
   },

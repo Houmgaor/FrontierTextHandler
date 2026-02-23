@@ -110,6 +110,7 @@ def _is_extraction_leaf(value: dict) -> bool:
     - Struct-strided fields: ``entry_count`` + ``entry_size`` + ``field_offset``
     - Indirect count (flat or strided): ``count_base_pointer`` + ``count_offset``
     - Null-terminated: ``null_terminated``
+    - Null-terminated grouped: ``null_terminated`` + ``grouped_entries``
     - Quest table: ``quest_table``
     """
     if "begin_pointer" not in value:
@@ -381,6 +382,64 @@ def read_extraction_config(
             + ",".join(k for k in node.keys() if not k.startswith("_")) + "'."
         )
     return node
+
+
+def read_multi_pointer_entries(
+    bfile: BinaryFile,
+    start_position: int,
+    pointers_per_entry: int
+) -> list[dict[str, int | str]]:
+    """
+    Read null-terminated multi-pointer entries with correct grouping.
+
+    Each entry has a fixed number of string pointers.  Null internal
+    pointers are skipped (they don't carry a string), and the terminator
+    is an entry whose **first** pointer is 0.  Strings within the same
+    entry are joined with ``<join>`` tags.
+
+    This avoids the bug in :func:`read_file_section` where null internal
+    pointers would incorrectly split/merge entry boundaries.
+
+    :param bfile: Binary file to read from
+    :param start_position: File offset of the first entry
+    :param pointers_per_entry: Number of u32 pointers per entry
+    :return: List of dicts with "offset" and "text" keys
+    """
+    results: list[dict[str, int | str]] = []
+    pos = start_position
+
+    while True:
+        bfile.validate_offset(pos, context="multi-pointer entry scan")
+        bfile.seek(pos)
+        first_ptr = bfile.read_int()
+        if first_ptr == 0:
+            break
+
+        # Read all pointers for this entry
+        bfile.seek(pos)
+        raw = bfile.read(pointers_per_entry * 4)
+        ptrs = struct.unpack(f"<{pointers_per_entry}I", raw)
+
+        entry: dict[str, int | str] | None = None
+        for i, ptr in enumerate(ptrs):
+            if ptr == 0:
+                continue
+            bfile.validate_offset(ptr, context=f"string pointer in entry at 0x{pos:x}")
+            bfile.seek(ptr)
+            data_stream = read_until_null(bfile)
+            text = decode_game_string(data_stream, context=f"pointer 0x{ptr:x}")
+            ptr_offset = pos + i * 4
+            if entry is None:
+                entry = {"offset": ptr_offset, "text": text}
+            else:
+                entry["text"] += f'<join at="{ptr_offset}">{text}'
+
+        if entry is not None:
+            results.append(entry)
+
+        pos += pointers_per_entry * 4
+
+    return results
 
 
 def read_struct_strings(
@@ -840,7 +899,13 @@ def extract_text_data(
         bfile.seek(begin_pointer)
         start_position = bfile.read_int()
 
-        # Scan to find array length
+        if config.get("grouped_entries") and pointers_per_entry > 1:
+            # Grouped mode: read fixed-size entries with correct boundaries
+            return read_multi_pointer_entries(
+                bfile, start_position, pointers_per_entry
+            )
+
+        # Legacy mode: scan to find array length, use flat read_file_section
         pos = start_position
         while True:
             bfile.validate_offset(pos, context="null-terminated scan")
