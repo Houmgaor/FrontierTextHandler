@@ -6,7 +6,7 @@ It is roughly a Python rewrite of FrontierTextTool
 
 ## Requirements
 
-- **Python 3.7+** (uses dataclasses and modern type hints)
+- **Python 3.10+** (uses modern type hints such as `list[str]`)
 - No external dependencies (pure standard library)
 
 ## Install
@@ -43,7 +43,7 @@ To extract all available text sections at once:
 python main.py --extract-all
 ```
 
-This reads `headers.json` and extracts every defined section, creating separate CSV files in `output/`. The tool automatically maps xpaths to their corresponding files:
+This reads `headers.json` and extracts every defined section, creating CSV and JSON files in `output/`. The tool automatically maps xpaths to their corresponding files:
 - `dat/*` sections → `data/mhfdat.bin`
 - `pac/*` sections → `data/mhfpac.bin`
 - `inf/*` sections → `data/mhfinf.bin`
@@ -57,7 +57,7 @@ For instance to extract only the legs armor names from mhfdat.bin:
 python main.py --xpath=dat/armors/legs
 ```
 
-It will create a file ``output/dat-armors-legs.csv``.
+It will create a file ``output/dat-armors-legs.csv``. A JSON file (`output/dat-armors-legs.json`) is also produced alongside the CSV.
 
 ### Change the game files
 
@@ -70,7 +70,7 @@ The CSV file should follow this convention:
 3. The third column (target) is the new string value.
 
 To update the file, use `--csv-to-bin [input CSV] [output BIN file]`.
-It will only add strings if "target" is different from "source".
+JSON files are also accepted as input. It will only add strings if "target" is different from "source".
 For instance:
 
 ```commandline
@@ -94,6 +94,96 @@ This creates `output/mhfdat-modified.bin` with JKR compression applied. The comp
 python main.py --csv-to-bin output/translations.csv data/mhfdat.bin --compress --encrypt
 ```
 
+### In-place section rebuild
+
+When `--csv-to-bin` is combined with `--xpath`, only the target section is rewritten in the binary file. This is useful when you want to update a single section without touching the rest of the file:
+
+```bash
+python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin --xpath=dat/armors/legs
+```
+
+### Decrypt files
+
+Decrypt an ECD/EXF-encrypted file manually:
+
+```bash
+python main.py --decrypt data/mhfdat.bin output/mhfdat-decrypted.bin
+```
+
+Use `--save-meta` to preserve the encryption header in a `.meta` file, which allows re-encryption with the original parameters later:
+
+```bash
+python main.py --decrypt data/mhfdat.bin output/mhfdat-decrypted.bin --save-meta
+```
+
+### FTXT files
+
+Extract text from standalone FTXT text files (magic `0x000B0000`):
+
+```bash
+python main.py --ftxt data/some_ftxt_file.bin
+```
+
+### Quest files
+
+Extract text from quest `.bin` files:
+
+```bash
+# Single quest file
+python main.py --quest data/quest_file.bin
+
+# Batch extract all quest files in a directory
+python main.py --quest-dir data/quests/
+```
+
+### NPC dialogue
+
+Extract and reimport NPC dialogue from stage dialogue binary files:
+
+```bash
+# Extract from a single file
+python main.py --npc data/npc_dialogue.bin
+
+# Batch extract from a directory
+python main.py --npc-dir data/npc/
+
+# Import translations back to binary
+python main.py --npc-to-bin output/npc_dialogue.csv data/npc_dialogue.bin
+```
+
+### Validate files
+
+Inspect the structure of a game file (encryption layer, compression layer, format):
+
+```bash
+python main.py --validate data/mhfdat.bin
+```
+
+### Compare files
+
+Compare strings between two files. Works with CSV files and binary files:
+
+```bash
+# Compare two CSV files
+python main.py file_a.csv --diff file_b.csv
+
+# Compare two binary files (requires --xpath, --ftxt, --quest, or --npc)
+python main.py data/mhfdat.bin --diff data/mhfdat_v2.bin --xpath=dat/armors/head
+```
+
+### Merge translations
+
+Carry over translations from an old translated file into a freshly extracted file. Translations are matched by source string — if the source is unchanged, the translation is preserved:
+
+```bash
+# Merge CSV files (output written to third argument, or auto-named)
+python main.py old_translated.csv --merge new_extracted.csv
+python main.py old_translated.csv --merge new_extracted.csv output/merged.csv
+
+# Also works with JSON files
+python main.py old_translated.json --merge new_extracted.json
+```
+
 ### Compatibility with ReFrontier
 
 You can also convert any translation CSV to ReFrontier
@@ -102,7 +192,7 @@ You can also convert any translation CSV to ReFrontier
 python main.py --refrontier-to-csv
 ```
 
-Currently, you can extract all names and descriptions for: weapons, armors, items as well as skills.
+See `headers.json` for all available sections, or run `python main.py --extract-all` to extract everything at once.
 
 ## JPK Compression
 
@@ -145,6 +235,40 @@ Supported compression types:
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## ECD/EXF Encryption
+
+FrontierTextHandler includes built-in support for ECD and EXF encryption, the formats used by Monster Hunter Frontier for encrypted game files.
+
+### Automatic Decryption
+
+Encrypted files are automatically detected and decrypted when reading game data. No additional steps needed.
+
+### Python API
+
+You can also use the encryption functions directly in Python:
+
+```python
+from src import decrypt, encrypt, is_encrypted_file
+
+# Check if a file is encrypted and decrypt
+with open("file.bin", "rb") as f:
+    data = f.read()
+    if is_encrypted_file(data):
+        decrypted, header = decrypt(data)
+
+# Encrypt data (uses default key index 4)
+encrypted = encrypt(data)
+
+# Re-encrypt preserving original format
+encrypted = encrypt(data, meta=original_header)
+```
+
+Supported encryption formats:
+- **ECD** (`0x1A646365`): Primary format, LCG-based with nibble Feistel cipher
+- **EXF** (`0x1A667865`): Alternative format, 16-byte XOR key with position-dependent transform
+
+All known MHF files use key index 4 (the default). Use `--key-index` to specify a different key (0–5).
 
 ## Configuration: headers.json
 
