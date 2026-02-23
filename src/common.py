@@ -4,6 +4,7 @@ Core module functions.
 import codecs
 import json
 import logging
+import re
 import struct
 import warnings
 from typing import Iterator, Optional
@@ -799,6 +800,105 @@ QUEST_TEXT_LABELS = [
     "title", "textMain", "textSubA", "textSubB",
     "successCond", "failCond", "contractor", "description"
 ]
+
+
+def split_join_text(text: str) -> list[str]:
+    """
+    Split a text with ``<join at="...">`` tags into individual strings.
+
+    :param text: Text that may contain ``<join at="NNN">`` tags
+    :return: List of individual strings
+    """
+    parts = re.split(r'<join at="[^"]*">', text)
+    return parts
+
+
+def extract_npc_dialogue(file_path: str) -> list[dict[str, int | str]]:
+    """
+    Extract NPC dialogue text from a stage dialogue binary file.
+
+    Binary format:
+    - NPC table at offset 0: pairs of (npc_id: u32, pointer: u32)
+      terminated by (0xFFFFFFFF, 0xFFFFFFFF)
+    - Per-NPC dialogue block: header_size (u32) followed by
+      relative pointers (u32 each), then null-terminated Shift-JIS strings
+
+    :param file_path: Path to the dialogue file (auto-decrypts/decompresses)
+    :return: List of dicts with "offset" and "text" keys
+    """
+    file_data = load_file_data(file_path)
+    return extract_npc_dialogue_data(file_data)
+
+
+def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
+    """
+    Extract NPC dialogue text from raw bytes.
+
+    :param data: Raw dialogue binary data
+    :return: List of dicts with "offset" and "text" keys
+    """
+    if len(data) < 8:
+        return []
+
+    bfile = BinaryFile.from_bytes(data)
+
+    # Read NPC table: (npc_id, pointer) pairs until 0xFFFFFFFF terminator
+    npcs: list[tuple[int, int, int]] = []  # (npc_id, block_pointer, table_offset)
+    pos = 0
+    while pos + 8 <= len(data):
+        bfile.seek(pos)
+        npc_id = struct.unpack_from("<I", data, pos)[0]
+        block_ptr = struct.unpack_from("<I", data, pos + 4)[0]
+        if npc_id == 0xFFFFFFFF and block_ptr == 0xFFFFFFFF:
+            break
+        npcs.append((npc_id, block_ptr, pos))
+        pos += 8
+
+    if not npcs:
+        return []
+
+    results: list[dict[str, int | str]] = []
+    for npc_id, block_ptr, table_offset in npcs:
+        if block_ptr + 4 > len(data):
+            continue
+
+        # Read header_size at the start of the NPC block
+        header_size = struct.unpack_from("<I", data, block_ptr)[0]
+        if header_size == 0:
+            # No dialogues for this NPC
+            results.append({"offset": table_offset, "text": ""})
+            continue
+
+        num_dialogues = header_size // 4
+        pointers_start = block_ptr + 4  # skip header_size field
+
+        # Read relative pointers
+        dialogues: list[str] = []
+        for i in range(num_dialogues):
+            ptr_pos = pointers_start + i * 4
+            if ptr_pos + 4 > len(data):
+                break
+            rel_ptr = struct.unpack_from("<I", data, ptr_pos)[0]
+            abs_ptr = block_ptr + rel_ptr
+            if abs_ptr >= len(data):
+                break
+            bfile.seek(abs_ptr)
+            raw = read_until_null(bfile)
+            text = decode_game_string(raw, context=f"NPC {npc_id} dialogue {i}")
+            dialogues.append(text)
+
+        if not dialogues:
+            results.append({"offset": table_offset, "text": ""})
+            continue
+
+        # Join dialogues with <join> tags
+        combined = dialogues[0]
+        for i, dlg in enumerate(dialogues[1:], start=1):
+            ptr_offset = pointers_start + i * 4
+            combined += f'<join at="{ptr_offset}">{dlg}'
+        results.append({"offset": table_offset, "text": combined})
+
+    return results
 
 
 def extract_text_data(

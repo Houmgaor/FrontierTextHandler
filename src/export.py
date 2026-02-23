@@ -200,6 +200,87 @@ def extract_single_quest_file(
     return output_file, refrontier_path
 
 
+def extract_npc_dialogue_file(
+    input_file: str,
+    output_file: str = "",
+    output_dir: str = "output"
+) -> tuple[str, str]:
+    """
+    Extract NPC dialogue text from a stage dialogue binary file.
+
+    :param input_file: Path to the dialogue file
+    :param output_file: Output file path (auto-generated if empty)
+    :param output_dir: Directory for output files
+    :return: Tuple of (csv_path, refrontier_path)
+    """
+    file_section = common.extract_npc_dialogue(input_file)
+
+    if not file_section:
+        raise ValueError(f"No NPC dialogue found in '{input_file}'.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logger.info("Created new folder '%s'", output_dir)
+
+    if not output_file:
+        basename = os.path.splitext(os.path.basename(input_file))[0]
+        output_file = os.path.join(output_dir, f"npc-{basename}.csv")
+
+    refrontier_path = os.path.join(output_dir, "refrontier.csv")
+
+    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_for_refrontier(file_section, refrontier_path)
+
+    return output_file, refrontier_path
+
+
+def extract_npc_dialogue_files(
+    npc_dir: str,
+    output_dir: str = "output"
+) -> list[str]:
+    """
+    Batch extract NPC dialogue from all .bin files in a directory.
+
+    :param npc_dir: Directory containing stage dialogue .bin files
+    :param output_dir: Directory for output files
+    :return: List of generated CSV file paths
+    """
+    if not os.path.isdir(npc_dir):
+        raise FileNotFoundError(f"NPC dialogue directory '{npc_dir}' not found.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    generated = []
+    skipped = 0
+
+    for filename in sorted(os.listdir(npc_dir)):
+        if not filename.endswith(".bin"):
+            continue
+        filepath = os.path.join(npc_dir, filename)
+        try:
+            file_section = common.extract_npc_dialogue(filepath)
+            if not file_section:
+                logger.debug("No NPC dialogue in '%s', skipping", filename)
+                skipped += 1
+                continue
+
+            basename = os.path.splitext(filename)[0]
+            csv_path = os.path.join(output_dir, f"npc-{basename}.csv")
+            export_as_csv(file_section, csv_path, filename)
+            generated.append(csv_path)
+            logger.info("Extracted NPC dialogue '%s' to '%s'", filename, csv_path)
+        except (ValueError, common.EncodingError) as exc:
+            logger.warning("Failed to extract NPC dialogue '%s': %s", filename, exc)
+            skipped += 1
+
+    logger.info(
+        "NPC dialogue extraction complete: %d files, %d skipped",
+        len(generated), skipped
+    )
+    return generated
+
+
 DEFAULT_OUTPUT_DIR = "output"
 
 # Mapping of file type prefixes to their default input files

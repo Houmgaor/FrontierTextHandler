@@ -427,3 +427,183 @@ def import_ftxt_from_csv(
         logger.info("Encrypted FTXT output with ECD (key %d)", key_index)
 
     return output_path
+
+
+def rebuild_npc_dialogue(
+    source_file: str,
+    new_strings: list[tuple[int, str]],
+    output_path: str
+) -> str:
+    """
+    Rebuild an NPC dialogue binary with translated strings.
+
+    The NPC dialogue format uses internal relative pointers, so the entire
+    binary is rebuilt from scratch rather than appending.
+
+    :param source_file: Path to the original dialogue file
+    :param new_strings: List of (offset, new_text) tuples from CSV
+    :param output_path: Path for the output file
+    :return: Path to the rebuilt file
+    """
+    from .common import (
+        load_file_data, extract_npc_dialogue_data,
+        split_join_text, encode_game_string
+    )
+
+    file_data = load_file_data(source_file)
+    original_entries = extract_npc_dialogue_data(file_data)
+
+    # Build translation map: {table_offset: translated_text}
+    translation_map: dict[int, str] = {}
+    for offset, text in new_strings:
+        translation_map[offset] = text
+
+    # Parse the NPC table to get NPC IDs
+    npc_ids: list[int] = []
+    pos = 0
+    while pos + 8 <= len(file_data):
+        npc_id = struct.unpack_from("<I", file_data, pos)[0]
+        block_ptr = struct.unpack_from("<I", file_data, pos + 4)[0]
+        if npc_id == 0xFFFFFFFF and block_ptr == 0xFFFFFFFF:
+            break
+        npc_ids.append(npc_id)
+        pos += 8
+
+    # Reconstruct binary
+    # 1. NPC table: (npc_id, block_pointer) × N + terminator
+    num_npcs = len(npc_ids)
+    npc_table_size = (num_npcs + 1) * 8  # +1 for terminator
+    blocks_start = npc_table_size
+
+    # 2. Build per-NPC blocks with translated strings
+    npc_blocks: list[bytes] = []
+    for i, entry in enumerate(original_entries):
+        table_offset = entry["offset"]
+        if table_offset in translation_map:
+            text = translation_map[table_offset]
+        else:
+            text = entry["text"]
+
+        # Split join tags to get individual dialogue strings
+        dialogues = split_join_text(text)
+
+        if not dialogues or (len(dialogues) == 1 and dialogues[0] == ""):
+            # Empty NPC: just header_size = 0
+            npc_blocks.append(struct.pack("<I", 0))
+            continue
+
+        num_dialogues = len(dialogues)
+        header_size = num_dialogues * 4
+
+        # Encode strings
+        encoded_strings: list[bytes] = []
+        for dlg in dialogues:
+            encoded_strings.append(encode_game_string(dlg) + b"\x00")
+
+        # Calculate relative pointers from block start
+        # Block layout: header_size(4) + pointers(N*4) + strings
+        pointers_section_size = 4 + num_dialogues * 4
+        string_offset = pointers_section_size
+        relative_ptrs: list[int] = []
+        for enc in encoded_strings:
+            relative_ptrs.append(string_offset)
+            string_offset += len(enc)
+
+        # Build block
+        block = bytearray()
+        block.extend(struct.pack("<I", header_size))
+        for rp in relative_ptrs:
+            block.extend(struct.pack("<I", rp))
+        for enc in encoded_strings:
+            block.extend(enc)
+        npc_blocks.append(bytes(block))
+
+    # 3. Compute block offsets
+    block_offsets: list[int] = []
+    current_offset = blocks_start
+    for block in npc_blocks:
+        block_offsets.append(current_offset)
+        current_offset += len(block)
+
+    # 4. Write NPC table
+    output = bytearray()
+    for i, npc_id in enumerate(npc_ids):
+        output.extend(struct.pack("<I", npc_id))
+        output.extend(struct.pack("<I", block_offsets[i]))
+    # Terminator
+    output.extend(struct.pack("<I", 0xFFFFFFFF))
+    output.extend(struct.pack("<I", 0xFFFFFFFF))
+
+    # 5. Write blocks
+    for block in npc_blocks:
+        output.extend(block)
+
+    with open(output_path, "wb") as f:
+        f.write(bytes(output))
+
+    logger.info(
+        "Rebuilt NPC dialogue: %d NPCs, %d bytes",
+        num_npcs, len(output)
+    )
+    return output_path
+
+
+def import_npc_dialogue_from_csv(
+    input_file: str,
+    output_file: str,
+    output_path: Optional[str] = None,
+    compress: bool = False,
+    encrypt: bool = False,
+    key_index: int = DEFAULT_KEY_INDEX
+) -> Optional[str]:
+    """
+    Import translations from CSV into an NPC dialogue file.
+
+    NPC dialogue uses internal relative pointers, so the binary is
+    fully rebuilt rather than using the append strategy.
+
+    :param input_file: Path to CSV file with translations
+    :param output_file: Path to source NPC dialogue binary file
+    :param output_path: Path for the modified file. If None, auto-generated.
+    :param compress: If True, compress output with JKR HFI
+    :param encrypt: If True, encrypt output with ECD
+    :param key_index: ECD key index (0-5, default 4)
+    :return: Path to the modified file, or None if no changes
+    """
+    new_strings = get_new_strings(input_file)
+    logger.info("Found %d NPC dialogue translations to write", len(new_strings))
+
+    if not new_strings:
+        logger.info("No translations to write, skipping NPC dialogue modification")
+        return None
+
+    if output_path is None:
+        basename = os.path.splitext(os.path.basename(output_file))[0]
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}-modified.bin")
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    rebuild_npc_dialogue(output_file, new_strings, output_path)
+
+    if compress:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        compressed = compress_jkr_hfi(data)
+        with open(output_path, "wb") as f:
+            f.write(compressed)
+        logger.info(
+            "Compressed NPC dialogue output: %d -> %d bytes",
+            len(data), len(compressed)
+        )
+
+    if encrypt:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        encrypted_data = encode_ecd(data, key_index=key_index)
+        with open(output_path, "wb") as f:
+            f.write(encrypted_data)
+        logger.info("Encrypted NPC dialogue output with ECD (key %d)", key_index)
+
+    return output_path

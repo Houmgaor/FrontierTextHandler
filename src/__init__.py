@@ -10,9 +10,16 @@ from .export import (
     extract_ftxt_file,
     extract_quest_files,
     extract_single_quest_file,
+    extract_npc_dialogue_file,
+    extract_npc_dialogue_files,
 )
 from .transform import refrontier_to_csv
-from .import_data import import_from_csv, import_ftxt_from_csv, CSVParseError
+from .import_data import (
+    import_from_csv,
+    import_ftxt_from_csv,
+    import_npc_dialogue_from_csv,
+    CSVParseError,
+)
 from .common import (
     EncodingError,
     encode_game_string,
@@ -27,6 +34,8 @@ from .common import (
     extract_ftxt_data,
     extract_quest_file,
     extract_quest_file_data,
+    extract_npc_dialogue,
+    extract_npc_dialogue_data,
     QUEST_TEXT_LABELS,
 )
 from .binary_file import InvalidPointerError

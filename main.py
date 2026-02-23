@@ -109,6 +109,22 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Batch extract text from all quest .bin files in a directory.",
     )
     parser.add_argument(
+        "--npc",
+        action="store_true",
+        help="Extract NPC dialogue from a stage dialogue binary file.",
+    )
+    parser.add_argument(
+        "--npc-dir",
+        type=str,
+        metavar="DIR",
+        help="Batch extract NPC dialogue from all .bin files in a directory.",
+    )
+    parser.add_argument(
+        "--npc-to-bin",
+        action="store_true",
+        help="Import NPC dialogue translations from CSV back to binary (full rebuild).",
+    )
+    parser.add_argument(
         "--decrypt",
         type=str,
         metavar="FILE",
@@ -173,12 +189,36 @@ def main(args: argparse.Namespace) -> None:
             print("No quest files extracted.")
         return
 
+    if args.npc_dir:
+        # Batch NPC dialogue extraction mode
+        from src.export import extract_npc_dialogue_files
+        files = extract_npc_dialogue_files(args.npc_dir)
+        if files:
+            print(f"Extracted {len(files)} NPC dialogue files to output/")
+        else:
+            print("No NPC dialogue files extracted.")
+        return
+
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(
             f"'{args.input_file}' does not exist. You need to import it first."
         )
 
-    if args.ftxt:
+    if args.npc_to_bin:
+        # NPC dialogue import mode
+        src.import_npc_dialogue_from_csv(
+            args.input_file,
+            args.output_file,
+            compress=args.compress,
+            encrypt=args.encrypt,
+            key_index=args.key_index,
+        )
+    elif args.npc:
+        # Single NPC dialogue extraction mode
+        from src.export import extract_npc_dialogue_file
+        csv_path, ref_path = extract_npc_dialogue_file(args.input_file)
+        print(f"Extracted NPC dialogue to {csv_path}")
+    elif args.ftxt:
         # FTXT extraction mode
         from src.export import extract_ftxt_file
         csv_path, ref_path = extract_ftxt_file(args.input_file)
