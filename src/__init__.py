@@ -46,6 +46,12 @@ from .common import (
 from .binary_file import InvalidPointerError
 from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError
 from .jkr_compress import compress_jkr, compress_jkr_hfi, compress_jkr_raw
+from .diff import (
+    DiffResult,
+    diff_strings,
+    load_strings,
+    format_diff,
+)
 from .crypto import (
     CryptoError,
     is_ecd_file,

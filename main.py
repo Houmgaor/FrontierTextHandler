@@ -125,6 +125,13 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Import NPC dialogue translations from CSV back to binary (full rebuild).",
     )
     parser.add_argument(
+        "--diff",
+        type=str,
+        metavar="FILE_B",
+        help="Compare strings between input_file (A) and FILE_B (B). "
+        "Works with CSV and binary files. Binary files require --xpath, --ftxt, --quest, or --npc.",
+    )
+    parser.add_argument(
         "--validate",
         action="store_true",
         help="Validate a game file and report its structure (encryption, compression, format).",
@@ -158,6 +165,34 @@ def main(args: argparse.Namespace) -> None:
             print(f"  ERROR: {result.error}")
         print(f"Format: {result.inner_format}")
         print(f"Status: {'OK' if result.valid else 'INVALID'}")
+        return
+
+    if args.diff:
+        from src.diff import load_strings, diff_strings, format_diff
+
+        # Determine extraction mode from flags
+        if args.xpath:
+            mode = "xpath"
+        elif args.ftxt:
+            mode = "ftxt"
+        elif args.quest:
+            mode = "quest"
+        elif args.npc:
+            mode = "npc"
+        else:
+            mode = None  # CSV files don't need a mode
+
+        file_a = args.input_file
+        file_b = args.diff
+
+        for f in (file_a, file_b):
+            if not os.path.exists(f):
+                raise FileNotFoundError(f"'{f}' does not exist.")
+
+        strings_a = load_strings(file_a, mode=mode, xpath=args.xpath)
+        strings_b = load_strings(file_b, mode=mode, xpath=args.xpath)
+        result = diff_strings(strings_a, strings_b, file_a, file_b)
+        print(format_diff(result))
         return
 
     if args.decrypt:
