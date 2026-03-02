@@ -4,6 +4,18 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] - 2026-03-02
+
+### Added
+- **Scenario file support**: Extract and reimport text from MH Frontier's 145K+ story scenario `.bin` files
+  - `--scenario`: Extract text from a single scenario file (CSV + JSON output)
+  - `--scenario-dir DIR`: Batch extract from a directory of scenario files (CSV + JSON output)
+  - `--scenario-to-bin`: Import translations from CSV or JSON back to binary (in-place patch)
+  - `--diff --scenario`: Compare strings between two scenario binary files
+  - `scenario.py`: Container parser with auto-detection of sub-header vs inline chunk formats, JKR decompression for compressed chunks
+  - Handles all chunk types: quest name/description (chunk0), NPC dialog with `@RETURN`/`@MYNAME`/`~C05` markers (chunk1), JKR-compressed menu/title data (chunk2)
+- **Test suite**: 22 unit tests for scenario module in `tests/test_scenario.py`, including JSON round-trip
+
 ## [1.2.0] - 2026-02-23
 
 ### Added

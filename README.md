@@ -151,6 +151,21 @@ python main.py --npc-dir data/npc/
 python main.py --npc-to-bin output/npc_dialogue.csv data/npc_dialogue.bin
 ```
 
+### Scenario files
+
+Extract and reimport text from story scenario `.bin` files (Basic quests, Veteran quests, Diva Exchange, Diva Story). These files use a multi-chunk container format with quest names, NPC dialog (`@RETURN`, `@MYNAME`, `~C05` color codes), and JKR-compressed menu text.
+
+```bash
+# Extract from a single file (outputs CSV + JSON)
+python main.py --scenario data/scenarios/0_0_0_0_S17_T2_C0.bin
+
+# Batch extract from a directory
+python main.py --scenario-dir data/scenarios/
+
+# Import translations back to binary (accepts CSV or JSON)
+python main.py --scenario-to-bin output/scenario-0_0_0_0_S17_T2_C0.csv data/scenarios/0_0_0_0_S17_T2_C0.bin
+```
+
 ### Validate files
 
 Inspect the structure of a game file (encryption layer, compression layer, format):
@@ -167,7 +182,7 @@ Compare strings between two files. Works with CSV files and binary files:
 # Compare two CSV files
 python main.py file_a.csv --diff file_b.csv
 
-# Compare two binary files (requires --xpath, --ftxt, --quest, or --npc)
+# Compare two binary files (requires --xpath, --ftxt, --quest, --npc, or --scenario)
 python main.py data/mhfdat.bin --diff data/mhfdat_v2.bin --xpath=dat/armors/head
 ```
 
