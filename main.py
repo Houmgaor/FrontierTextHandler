@@ -138,7 +138,7 @@ def parse_inputs() -> argparse.ArgumentParser:
     parser.add_argument(
         "--scenario-to-bin",
         action="store_true",
-        help="Import scenario translations from CSV back to binary (in-place patch).",
+        help="Import scenario translations from CSV or JSON back to binary (in-place patch).",
     )
     parser.add_argument(
         "--diff",

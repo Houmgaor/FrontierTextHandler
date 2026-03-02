@@ -5,6 +5,7 @@ Tests extraction, round-trip import/export, and edge cases for
 scenario binary files containing story system text.
 """
 import csv
+import json
 import os
 import struct
 import tempfile
@@ -215,6 +216,33 @@ class TestScenarioCsvExport(unittest.TestCase):
                 rows = list(reader)
                 self.assertEqual(len(rows), 2)
 
+    def test_export_json(self):
+        """Test JSON export from a single scenario file."""
+        data = build_scenario_file(chunk0_strings=["Line1", "Line2"])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = os.path.join(tmpdir, "scenario.bin")
+            with open(input_path, "wb") as f:
+                f.write(data)
+
+            csv_path, ref_path, json_path = extract_scenario_file_export(
+                input_path, output_dir=tmpdir
+            )
+            self.assertTrue(os.path.exists(json_path))
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                json_data = json.load(f)
+
+            self.assertIn("metadata", json_data)
+            self.assertIn("strings", json_data)
+            self.assertEqual(len(json_data["strings"]), 2)
+            self.assertEqual(json_data["strings"][0]["source"], "Line1")
+            self.assertEqual(json_data["strings"][1]["source"], "Line2")
+            # source == target when freshly extracted
+            self.assertEqual(
+                json_data["strings"][0]["source"],
+                json_data["strings"][0]["target"],
+            )
+
     def test_batch_export(self):
         """Test batch extraction from directory."""
         data1 = build_scenario_file(chunk0_strings=["Hello"])
@@ -235,6 +263,29 @@ class TestScenarioCsvExport(unittest.TestCase):
             self.assertEqual(len(files), 2)
             for path in files:
                 self.assertTrue(os.path.exists(path))
+
+    def test_batch_export_generates_json(self):
+        """Test batch extraction also generates JSON files alongside CSV."""
+        data = build_scenario_file(chunk0_strings=["Hello"])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = os.path.join(tmpdir, "input")
+            output_dir = os.path.join(tmpdir, "output")
+            os.makedirs(input_dir)
+
+            with open(os.path.join(input_dir, "s1.bin"), "wb") as f:
+                f.write(data)
+
+            files = extract_scenario_files(input_dir, output_dir)
+            self.assertEqual(len(files), 1)
+
+            # Check that JSON was also generated
+            json_path = files[0].replace(".csv", ".json")
+            self.assertTrue(os.path.exists(json_path))
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                json_data = json.load(f)
+            self.assertEqual(len(json_data["strings"]), 1)
+            self.assertEqual(json_data["strings"][0]["source"], "Hello")
 
     def test_batch_export_missing_dir(self):
         """Test batch extraction raises on missing directory."""
@@ -358,6 +409,45 @@ class TestScenarioFullRoundTrip(unittest.TestCase):
             self.assertEqual(result[0]["text"], "New1")
             self.assertEqual(result[1]["text"], "Original2")
             self.assertEqual(result[2]["text"], "Dialog1")
+
+    def test_json_roundtrip(self):
+        """Test complete extract -> edit JSON -> import -> verify cycle."""
+        data = build_scenario_file(
+            chunk0_strings=["Original1", "Original2"],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = os.path.join(tmpdir, "source.bin")
+            with open(source_path, "wb") as f:
+                f.write(data)
+
+            # Step 1: Extract (generates CSV + JSON)
+            csv_path, _, json_path = extract_scenario_file_export(
+                source_path, output_dir=tmpdir
+            )
+
+            # Step 2: Edit JSON - change target for first entry
+            with open(json_path, "r", encoding="utf-8") as f:
+                json_data = json.load(f)
+
+            json_data["strings"][0]["target"] = "New1"
+
+            edited_json = os.path.join(tmpdir, "edited.json")
+            with open(edited_json, "w", encoding="utf-8") as f:
+                json.dump(json_data, f, ensure_ascii=False)
+
+            # Step 3: Import from JSON
+            output_path = import_scenario_from_csv(
+                edited_json, source_path,
+                output_path=os.path.join(tmpdir, "modified.bin"),
+            )
+            self.assertIsNotNone(output_path)
+
+            # Step 4: Re-extract and verify
+            result = extract_scenario_file(output_path)
+            self.assertEqual(len(result), 2)
+            self.assertEqual(result[0]["text"], "New1")
+            self.assertEqual(result[1]["text"], "Original2")
 
     def test_no_changes_returns_none(self):
         """Test import with no translations returns None."""

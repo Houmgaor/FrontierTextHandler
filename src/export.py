@@ -398,7 +398,9 @@ def extract_scenario_files(
 
             basename = os.path.splitext(filename)[0]
             csv_path = os.path.join(output_dir, f"scenario-{basename}.csv")
+            json_path = os.path.join(output_dir, f"scenario-{basename}.json")
             export_as_csv(file_section, csv_path, filename)
+            export_as_json(file_section, json_path, filename)
             generated.append(csv_path)
             logger.info("Extracted scenario '%s' to '%s'", filename, csv_path)
         except (ValueError, common.EncodingError) as exc:
