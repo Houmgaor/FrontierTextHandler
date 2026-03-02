@@ -13,12 +13,15 @@ from .export import (
     extract_single_quest_file,
     extract_npc_dialogue_file,
     extract_npc_dialogue_files,
+    extract_scenario_file as extract_scenario_file_export,
+    extract_scenario_files,
 )
 from .transform import refrontier_to_csv
 from .import_data import (
     import_from_csv,
     import_ftxt_from_csv,
     import_npc_dialogue_from_csv,
+    import_scenario_from_csv,
     get_new_strings_from_json,
     get_new_strings_auto,
     CSVParseError,
@@ -42,6 +45,10 @@ from .common import (
     QUEST_TEXT_LABELS,
     ValidationResult,
     validate_file,
+)
+from .scenario import (
+    extract_scenario_file,
+    extract_scenario_file_data,
 )
 from .binary_file import InvalidPointerError
 from .jkr_decompress import decompress_jkr, is_jkr_file, CompressionType, JKRError

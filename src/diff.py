@@ -16,6 +16,7 @@ from .common import (
     load_file_data,
     skip_csv_header,
 )
+from .scenario import extract_scenario_file
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,8 @@ def load_strings_from_binary(
         entries = extract_quest_file(bin_path)
     elif mode == "npc":
         entries = extract_npc_dialogue(bin_path)
+    elif mode == "scenario":
+        entries = extract_scenario_file(bin_path)
     else:
         raise ValueError(f"Unknown extraction mode: {mode}")
 

@@ -125,11 +125,27 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Import NPC dialogue translations from CSV back to binary (full rebuild).",
     )
     parser.add_argument(
+        "--scenario",
+        action="store_true",
+        help="Extract text from a scenario .bin file (story system).",
+    )
+    parser.add_argument(
+        "--scenario-dir",
+        type=str,
+        metavar="DIR",
+        help="Batch extract text from all scenario .bin files in a directory.",
+    )
+    parser.add_argument(
+        "--scenario-to-bin",
+        action="store_true",
+        help="Import scenario translations from CSV back to binary (in-place patch).",
+    )
+    parser.add_argument(
         "--diff",
         type=str,
         metavar="FILE_B",
         help="Compare strings between input_file (A) and FILE_B (B). "
-        "Works with CSV and binary files. Binary files require --xpath, --ftxt, --quest, or --npc.",
+        "Works with CSV and binary files. Binary files require --xpath, --ftxt, --quest, --npc, or --scenario.",
     )
     parser.add_argument(
         "--merge",
@@ -186,6 +202,8 @@ def main(args: argparse.Namespace) -> None:
             mode = "quest"
         elif args.npc:
             mode = "npc"
+        elif args.scenario:
+            mode = "scenario"
         else:
             mode = None  # CSV files don't need a mode
 
@@ -283,12 +301,36 @@ def main(args: argparse.Namespace) -> None:
             print("No NPC dialogue files extracted.")
         return
 
+    if args.scenario_dir:
+        # Batch scenario extraction mode
+        from src.export import extract_scenario_files
+        files = extract_scenario_files(args.scenario_dir)
+        if files:
+            print(f"Extracted {len(files)} scenario files to output/")
+        else:
+            print("No scenario files extracted.")
+        return
+
     if not os.path.exists(args.input_file):
         raise FileNotFoundError(
             f"'{args.input_file}' does not exist. You need to import it first."
         )
 
-    if args.npc_to_bin:
+    if args.scenario_to_bin:
+        # Scenario import mode
+        src.import_scenario_from_csv(
+            args.input_file,
+            args.output_file,
+            compress=args.compress,
+            encrypt=args.encrypt,
+            key_index=args.key_index,
+        )
+    elif args.scenario:
+        # Single scenario extraction mode
+        from src.export import extract_scenario_file
+        csv_path, ref_path, json_path = extract_scenario_file(args.input_file)
+        print(f"Extracted scenario text to {csv_path}")
+    elif args.npc_to_bin:
         # NPC dialogue import mode
         src.import_npc_dialogue_from_csv(
             args.input_file,

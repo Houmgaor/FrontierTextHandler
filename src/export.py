@@ -10,6 +10,7 @@ from typing import Iterable
 
 from . import common
 from .common import encode_game_string, GAME_ENCODING
+from .scenario import extract_scenario_file as _extract_scenario
 
 logger = logging.getLogger(__name__)
 
@@ -323,6 +324,89 @@ def extract_npc_dialogue_files(
 
     logger.info(
         "NPC dialogue extraction complete: %d files, %d skipped",
+        len(generated), skipped
+    )
+    return generated
+
+
+def extract_scenario_file(
+    input_file: str,
+    output_file: str = "",
+    output_dir: str = "output"
+) -> tuple[str, str, str]:
+    """
+    Extract text from a single scenario .bin file.
+
+    :param input_file: Path to the scenario file
+    :param output_file: Output file path (auto-generated if empty)
+    :param output_dir: Directory for output files
+    :return: Tuple of (csv_path, refrontier_path, json_path)
+    """
+    file_section = _extract_scenario(input_file)
+
+    if not file_section:
+        raise ValueError(f"No text found in scenario file '{input_file}'.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logger.info("Created new folder '%s'", output_dir)
+
+    if not output_file:
+        basename = os.path.splitext(os.path.basename(input_file))[0]
+        output_file = os.path.join(output_dir, f"scenario-{basename}.csv")
+
+    refrontier_path = os.path.join(output_dir, "refrontier.csv")
+    json_path = os.path.splitext(output_file)[0] + ".json"
+
+    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_for_refrontier(file_section, refrontier_path)
+    export_as_json(file_section, json_path, os.path.basename(input_file))
+
+    return output_file, refrontier_path, json_path
+
+
+def extract_scenario_files(
+    scenario_dir: str,
+    output_dir: str = "output"
+) -> list[str]:
+    """
+    Batch extract text from all scenario .bin files in a directory.
+
+    :param scenario_dir: Directory containing scenario .bin files
+    :param output_dir: Directory for output files
+    :return: List of generated CSV file paths
+    """
+    if not os.path.isdir(scenario_dir):
+        raise FileNotFoundError(f"Scenario directory '{scenario_dir}' not found.")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    generated = []
+    skipped = 0
+
+    for filename in sorted(os.listdir(scenario_dir)):
+        if not filename.endswith(".bin"):
+            continue
+        filepath = os.path.join(scenario_dir, filename)
+        try:
+            file_section = _extract_scenario(filepath)
+            if not file_section:
+                logger.debug("No text in scenario '%s', skipping", filename)
+                skipped += 1
+                continue
+
+            basename = os.path.splitext(filename)[0]
+            csv_path = os.path.join(output_dir, f"scenario-{basename}.csv")
+            export_as_csv(file_section, csv_path, filename)
+            generated.append(csv_path)
+            logger.info("Extracted scenario '%s' to '%s'", filename, csv_path)
+        except (ValueError, common.EncodingError) as exc:
+            logger.warning("Failed to extract scenario '%s': %s", filename, exc)
+            skipped += 1
+
+    logger.info(
+        "Scenario extraction complete: %d files, %d skipped",
         len(generated), skipped
     )
     return generated

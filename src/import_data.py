@@ -602,6 +602,143 @@ def rebuild_npc_dialogue(
     return output_path
 
 
+def rebuild_scenario_file(
+    source_file: str,
+    new_strings: list[tuple[int, str]],
+    output_path: str
+) -> str:
+    """
+    Rebuild a scenario file with translated strings.
+
+    Preserves the container structure (chunk sizes, metadata) and replaces
+    only the string bytes within each chunk.
+
+    :param source_file: Path to the original scenario file
+    :param new_strings: List of (offset, new_text) tuples from CSV
+    :param output_path: Path for the output file
+    :return: Path to the rebuilt file
+    """
+    from .common import load_file_data, encode_game_string
+    from .scenario import extract_scenario_file_data
+
+    file_data = load_file_data(source_file)
+    original_entries = extract_scenario_file_data(file_data)
+
+    # Build translation map
+    translation_map: dict[int, str] = {}
+    for offset, text in new_strings:
+        translation_map[offset] = text
+
+    # Rebuild: copy original file, then overwrite strings in-place
+    # Since strings are null-terminated and replacements may differ in length,
+    # we write the whole file then patch each string location
+    output_data = bytearray(file_data)
+
+    for entry in original_entries:
+        offset = entry["offset"]
+        if offset in translation_map:
+            new_text = translation_map[offset]
+        else:
+            new_text = entry["text"]
+
+        # Encode new string
+        encoded = encode_game_string(
+            new_text, context=f"scenario rebuild offset 0x{offset:x}"
+        )
+
+        old_text = entry["text"]
+        old_encoded = encode_game_string(
+            old_text, context=f"scenario original offset 0x{offset:x}"
+        )
+
+        if len(encoded) <= len(old_encoded):
+            # Fits in place: write + null-pad remainder
+            output_data[offset:offset + len(encoded)] = encoded
+            output_data[offset + len(encoded)] = 0x00
+            # Null-pad any extra bytes from old string
+            for i in range(len(encoded) + 1, len(old_encoded) + 1):
+                if offset + i < len(output_data):
+                    output_data[offset + i] = 0x00
+        else:
+            # Doesn't fit: write truncated to original length
+            # This is a limitation — scenario files have fixed chunk sizes
+            max_len = len(old_encoded)
+            output_data[offset:offset + max_len] = encoded[:max_len]
+            output_data[offset + max_len] = 0x00
+            logger.warning(
+                "String at 0x%x truncated: %d bytes -> %d bytes max",
+                offset, len(encoded), max_len
+            )
+
+    with open(output_path, "wb") as f:
+        f.write(bytes(output_data))
+
+    translated_count = sum(1 for e in original_entries if e["offset"] in translation_map)
+    logger.info(
+        "Rebuilt scenario file: %d/%d strings translated",
+        translated_count, len(original_entries)
+    )
+    return output_path
+
+
+def import_scenario_from_csv(
+    input_file: str,
+    output_file: str,
+    output_path: Optional[str] = None,
+    compress: bool = False,
+    encrypt: bool = False,
+    key_index: int = DEFAULT_KEY_INDEX
+) -> Optional[str]:
+    """
+    Import translations from CSV into a scenario file.
+
+    :param input_file: Path to CSV file with translations
+    :param output_file: Path to source scenario binary file
+    :param output_path: Path for the modified file. If None, auto-generated.
+    :param compress: If True, compress output with JKR HFI
+    :param encrypt: If True, encrypt output with ECD
+    :param key_index: ECD key index (0-5, default 4)
+    :return: Path to the modified file, or None if no changes
+    """
+    new_strings = get_new_strings_auto(input_file)
+    logger.info("Found %d scenario translations to write", len(new_strings))
+
+    if not new_strings:
+        logger.info("No translations to write, skipping scenario modification")
+        return None
+
+    if output_path is None:
+        basename = os.path.splitext(os.path.basename(output_file))[0]
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, f"{basename}-modified.bin")
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    rebuild_scenario_file(output_file, new_strings, output_path)
+
+    if compress:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        compressed = compress_jkr_hfi(data)
+        with open(output_path, "wb") as f:
+            f.write(compressed)
+        logger.info(
+            "Compressed scenario output: %d -> %d bytes",
+            len(data), len(compressed)
+        )
+
+    if encrypt:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        encrypted_data = encode_ecd(data, key_index=key_index)
+        with open(output_path, "wb") as f:
+            f.write(encrypted_data)
+        logger.info("Encrypted scenario output with ECD (key %d)", key_index)
+
+    return output_path
+
+
 def import_npc_dialogue_from_csv(
     input_file: str,
     output_file: str,
