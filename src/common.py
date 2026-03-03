@@ -381,12 +381,24 @@ def read_extraction_config(
     with open(headers_path, encoding="utf-8") as f:
         data = json.load(f)
     node = data
-    for part in path:
-        node = node[part]
+    try:
+        for part in path:
+            node = node[part]
+    except KeyError as exc:
+        raise KeyError(
+            f"xpath '{xpath}' not found in {headers_path}: "
+            f"key {exc} does not exist at path '{'/'.join(path[:path.index(str(exc.args[0]))])}'"
+        ) from exc
     if not isinstance(node, dict) or not _is_extraction_leaf(node):
+        available = ",".join(k for k in node.keys() if not k.startswith("_")) if isinstance(node, dict) else str(type(node).__name__)
         raise ValueError(
-            "Please specify more precise path. Options are: '"
-            + ",".join(k for k in node.keys() if not k.startswith("_")) + "'."
+            f"xpath '{xpath}' is not a valid extraction leaf in {headers_path}. "
+            f"Options are: '{available}'."
+        )
+    # Validate required key
+    if "begin_pointer" not in node:
+        raise ValueError(
+            f"xpath '{xpath}' is missing required key 'begin_pointer' in {headers_path}."
         )
     return node
 
@@ -746,10 +758,16 @@ def extract_quest_file_data(
     bfile = BinaryFile.from_bytes(data)
 
     # Read questTypeFlagsPtr from the file header
-    bfile.validate_offset(
-        quest_type_flags_offset + 3,
-        context="questTypeFlagsPtr location"
-    )
+    try:
+        bfile.validate_offset(
+            quest_type_flags_offset + 3,
+            context="questTypeFlagsPtr location"
+        )
+    except InvalidPointerError:
+        raise ValueError(
+            f"File too small ({len(data)} bytes) to be a quest file. "
+            "Quest files need at least a header with questTypeFlagsPtr."
+        )
     bfile.seek(quest_type_flags_offset)
     quest_type_flags_ptr = bfile.read_int()
 
@@ -758,10 +776,17 @@ def extract_quest_file_data(
 
     # Read QuestStringsPtr from main quest properties
     strings_ptr_addr = quest_type_flags_ptr + quest_strings_offset
-    bfile.validate_offset(
-        strings_ptr_addr + 3,
-        context="QuestStringsPtr location"
-    )
+    try:
+        bfile.validate_offset(
+            strings_ptr_addr + 3,
+            context="QuestStringsPtr location"
+        )
+    except InvalidPointerError:
+        raise ValueError(
+            f"Not a valid quest file: questTypeFlagsPtr (0x{quest_type_flags_ptr:x}) "
+            f"points outside the file ({len(data)} bytes). "
+            "Make sure this is a quest .bin file, not a different game data file."
+        )
     bfile.seek(strings_ptr_addr)
     quest_strings_ptr = bfile.read_int()
 
@@ -770,10 +795,17 @@ def extract_quest_file_data(
 
     # Read the text pointer block
     text_block_end = quest_strings_ptr + text_pointers_count * 4 - 1
-    bfile.validate_offset(
-        text_block_end,
-        context=f"QuestText block at 0x{quest_strings_ptr:x}"
-    )
+    try:
+        bfile.validate_offset(
+            text_block_end,
+            context=f"QuestText block at 0x{quest_strings_ptr:x}"
+        )
+    except InvalidPointerError:
+        raise ValueError(
+            f"Not a valid quest file: QuestStringsPtr (0x{quest_strings_ptr:x}) "
+            f"points outside the file ({len(data)} bytes). "
+            "Make sure this is a quest .bin file, not a different game data file."
+        )
     bfile.seek(quest_strings_ptr)
     str_ptrs = struct.unpack(
         f"<{text_pointers_count}I",
@@ -1111,7 +1143,7 @@ def validate_file(file_path: str) -> ValidationResult:
 
         try:
             data, _ = decrypt(data)
-        except (CryptoError, Exception) as exc:
+        except CryptoError as exc:
             result.valid = False
             result.error = f"{enc_type} decryption failed: {exc}"
             return result
@@ -1133,7 +1165,7 @@ def validate_file(file_path: str) -> ValidationResult:
 
         try:
             data = decompress_jkr(data)
-        except (JKRError, Exception) as exc:
+        except JKRError as exc:
             result.valid = False
             result.error = f"JKR decompression failed: {exc}"
             return result

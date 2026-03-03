@@ -50,6 +50,20 @@ def extract_scenario_file_data(data: bytes) -> list[dict[str, int | str]]:
     c0_size = struct.unpack_from(">I", data, 0)[0]
     c1_size = struct.unpack_from(">I", data, 4)[0]
 
+    # Validate chunk sizes don't exceed available data
+    if c0_size > len(data) - 8:
+        logger.warning(
+            "Scenario chunk0 size (%d) exceeds available data (%d bytes after header)",
+            c0_size, len(data) - 8,
+        )
+        return []
+    if c1_size > len(data) - 8 - c0_size:
+        logger.warning(
+            "Scenario chunk1 size (%d) exceeds available data (%d bytes remaining)",
+            c1_size, len(data) - 8 - c0_size,
+        )
+        c1_size = 0  # Skip chunk1 but continue with chunk0
+
     results: list[dict[str, int | str]] = []
 
     # Parse chunk0 (quest name/description)
@@ -221,9 +235,10 @@ def _parse_jkr_chunk(
     :return: List of dicts with "offset" and "text" keys
     """
     jkr_data = data[chunk_offset:chunk_offset + chunk_size]
+    from .jkr_decompress import JKRError
     try:
         decompressed = decompress_jkr(jkr_data)
-    except Exception as exc:
+    except JKRError as exc:
         logger.warning(
             "Failed to decompress JKR at offset 0x%x: %s", chunk_offset, exc
         )

@@ -374,13 +374,29 @@ def import_from_csv(
     with open(output_file, "rb") as f:
         file_data = f.read()
 
-    if is_encrypted_file(file_data):
+    was_encrypted = is_encrypted_file(file_data)
+    was_compressed = False
+
+    if was_encrypted:
         file_data, _ = decrypt(file_data)
         logger.info("Auto-decrypted source file")
 
     if is_jkr_file(file_data):
+        was_compressed = True
         file_data = decompress_jkr(file_data)
         logger.info("Auto-decompressed source file")
+
+    # Warn if source had layers that won't be restored
+    if was_encrypted and not encrypt:
+        logger.warning(
+            "Source file was encrypted but --encrypt was not specified. "
+            "Output will NOT be game-ready. Add --encrypt to produce a usable file."
+        )
+    if was_compressed and not compress:
+        logger.warning(
+            "Source file was compressed but --compress was not specified. "
+            "Output will NOT be game-ready. Add --compress to produce a usable file."
+        )
 
     if xpath is not None:
         config = common.read_extraction_config(xpath, headers_path)

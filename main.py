@@ -160,6 +160,11 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Validate a game file and report its structure (encryption, compression, format).",
     )
     parser.add_argument(
+        "--list-xpaths",
+        action="store_true",
+        help="List all available extraction paths from headers.json.",
+    )
+    parser.add_argument(
         "--decrypt",
         type=str,
         metavar="FILE",
@@ -176,6 +181,32 @@ def parse_inputs() -> argparse.ArgumentParser:
 def main(args: argparse.Namespace) -> None:
     """Main function to read everything."""
     setup_logging(args.verbose)
+
+    if args.list_xpaths:
+        from src.common import get_all_xpaths, read_extraction_config
+        xpaths = get_all_xpaths()
+        print(f"Available extraction paths ({len(xpaths)}):\n")
+        for xpath in xpaths:
+            config = read_extraction_config(xpath)
+            # Determine extraction mode
+            if config.get("quest_table"):
+                mode = "quest_table"
+            elif config.get("null_terminated"):
+                mode = "null_terminated"
+                if config.get("grouped_entries"):
+                    mode += "+grouped"
+            elif "count_base_pointer" in config and "entry_size" in config:
+                mode = "indirect_strided"
+            elif "count_base_pointer" in config:
+                mode = "indirect_flat"
+            elif "count_pointer" in config:
+                mode = "count_based"
+            elif "entry_count" in config:
+                mode = "struct_strided"
+            else:
+                mode = "pointer_pair"
+            print(f"  {xpath}  ({mode})")
+        return
 
     if args.validate:
         result = src.validate_file(args.input_file)
