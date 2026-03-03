@@ -146,6 +146,69 @@ def extract_ftxt_file(
     return output_file, refrontier_path, json_path
 
 
+def _batch_extract(
+    input_dir: str,
+    output_dir: str,
+    label: str,
+    prefix: str,
+    extract_fn,
+    export_json: bool = False,
+) -> list[str]:
+    """
+    Shared batch extraction helper.
+
+    Iterates over .bin files in *input_dir*, calls *extract_fn(filepath)*
+    for each, and exports the results.
+
+    :param input_dir: Directory containing .bin files
+    :param output_dir: Directory for output files
+    :param label: Human-readable label for log messages (e.g., "quest")
+    :param prefix: Filename prefix for output CSV (e.g., "quest")
+    :param extract_fn: Callable(filepath) → list[dict] of extracted entries
+    :param export_json: If True, also export a JSON file per input file
+    :return: List of generated CSV file paths
+    """
+    if not os.path.isdir(input_dir):
+        raise FileNotFoundError(
+            f"{label.capitalize()} directory '{input_dir}' not found."
+        )
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    generated = []
+    skipped = 0
+
+    for filename in sorted(os.listdir(input_dir)):
+        if not filename.endswith(".bin"):
+            continue
+        filepath = os.path.join(input_dir, filename)
+        try:
+            file_section = extract_fn(filepath)
+            if not file_section:
+                logger.debug("No text in %s '%s', skipping", label, filename)
+                skipped += 1
+                continue
+
+            basename = os.path.splitext(filename)[0]
+            csv_path = os.path.join(output_dir, f"{prefix}-{basename}.csv")
+            export_as_csv(file_section, csv_path, filename)
+            if export_json:
+                json_path = os.path.join(output_dir, f"{prefix}-{basename}.json")
+                export_as_json(file_section, json_path, filename)
+            generated.append(csv_path)
+            logger.info("Extracted %s '%s' to '%s'", label, filename, csv_path)
+        except (ValueError, common.EncodingError) as exc:
+            logger.warning("Failed to extract %s '%s': %s", label, filename, exc)
+            skipped += 1
+
+    logger.info(
+        "%s extraction complete: %d files, %d skipped",
+        label.capitalize(), len(generated), skipped
+    )
+    return generated
+
+
 def extract_quest_files(
     quest_dir: str,
     output_dir: str = "output",
@@ -163,43 +226,13 @@ def extract_quest_files(
     :param text_pointers_count: Number of string pointers per quest (default 8)
     :return: List of generated CSV file paths
     """
-    if not os.path.isdir(quest_dir):
-        raise FileNotFoundError(f"Quest directory '{quest_dir}' not found.")
+    def _extract(filepath):
+        return common.extract_quest_file(
+            filepath, quest_type_flags_offset,
+            quest_strings_offset, text_pointers_count
+        )
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    generated = []
-    skipped = 0
-
-    for filename in sorted(os.listdir(quest_dir)):
-        if not filename.endswith(".bin"):
-            continue
-        filepath = os.path.join(quest_dir, filename)
-        try:
-            file_section = common.extract_quest_file(
-                filepath, quest_type_flags_offset,
-                quest_strings_offset, text_pointers_count
-            )
-            if not file_section:
-                logger.debug("No text in quest file '%s', skipping", filename)
-                skipped += 1
-                continue
-
-            basename = os.path.splitext(filename)[0]
-            csv_path = os.path.join(output_dir, f"quest-{basename}.csv")
-            export_as_csv(file_section, csv_path, filename)
-            generated.append(csv_path)
-            logger.info("Extracted quest '%s' to '%s'", filename, csv_path)
-        except (ValueError, common.EncodingError) as exc:
-            logger.warning("Failed to extract quest '%s': %s", filename, exc)
-            skipped += 1
-
-    logger.info(
-        "Quest extraction complete: %d files, %d skipped",
-        len(generated), skipped
-    )
-    return generated
+    return _batch_extract(quest_dir, output_dir, "quest", "quest", _extract)
 
 
 def extract_single_quest_file(
@@ -293,40 +326,10 @@ def extract_npc_dialogue_files(
     :param output_dir: Directory for output files
     :return: List of generated CSV file paths
     """
-    if not os.path.isdir(npc_dir):
-        raise FileNotFoundError(f"NPC dialogue directory '{npc_dir}' not found.")
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    generated = []
-    skipped = 0
-
-    for filename in sorted(os.listdir(npc_dir)):
-        if not filename.endswith(".bin"):
-            continue
-        filepath = os.path.join(npc_dir, filename)
-        try:
-            file_section = common.extract_npc_dialogue(filepath)
-            if not file_section:
-                logger.debug("No NPC dialogue in '%s', skipping", filename)
-                skipped += 1
-                continue
-
-            basename = os.path.splitext(filename)[0]
-            csv_path = os.path.join(output_dir, f"npc-{basename}.csv")
-            export_as_csv(file_section, csv_path, filename)
-            generated.append(csv_path)
-            logger.info("Extracted NPC dialogue '%s' to '%s'", filename, csv_path)
-        except (ValueError, common.EncodingError) as exc:
-            logger.warning("Failed to extract NPC dialogue '%s': %s", filename, exc)
-            skipped += 1
-
-    logger.info(
-        "NPC dialogue extraction complete: %d files, %d skipped",
-        len(generated), skipped
+    return _batch_extract(
+        npc_dir, output_dir, "NPC dialogue", "npc",
+        common.extract_npc_dialogue,
     )
-    return generated
 
 
 def extract_scenario_file(
@@ -376,42 +379,10 @@ def extract_scenario_files(
     :param output_dir: Directory for output files
     :return: List of generated CSV file paths
     """
-    if not os.path.isdir(scenario_dir):
-        raise FileNotFoundError(f"Scenario directory '{scenario_dir}' not found.")
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    generated = []
-    skipped = 0
-
-    for filename in sorted(os.listdir(scenario_dir)):
-        if not filename.endswith(".bin"):
-            continue
-        filepath = os.path.join(scenario_dir, filename)
-        try:
-            file_section = _extract_scenario(filepath)
-            if not file_section:
-                logger.debug("No text in scenario '%s', skipping", filename)
-                skipped += 1
-                continue
-
-            basename = os.path.splitext(filename)[0]
-            csv_path = os.path.join(output_dir, f"scenario-{basename}.csv")
-            json_path = os.path.join(output_dir, f"scenario-{basename}.json")
-            export_as_csv(file_section, csv_path, filename)
-            export_as_json(file_section, json_path, filename)
-            generated.append(csv_path)
-            logger.info("Extracted scenario '%s' to '%s'", filename, csv_path)
-        except (ValueError, common.EncodingError) as exc:
-            logger.warning("Failed to extract scenario '%s': %s", filename, exc)
-            skipped += 1
-
-    logger.info(
-        "Scenario extraction complete: %d files, %d skipped",
-        len(generated), skipped
+    return _batch_extract(
+        scenario_dir, output_dir, "scenario", "scenario",
+        _extract_scenario, export_json=True,
     )
-    return generated
 
 
 DEFAULT_OUTPUT_DIR = "output"

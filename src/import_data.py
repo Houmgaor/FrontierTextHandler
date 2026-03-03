@@ -352,6 +352,18 @@ def import_from_csv(
     :param headers_path: Path to headers.json (default: headers.json)
     :return: Path to the modified binary file, or None if no changes
     """
+    # Validate xpath early to give a clear error instead of a confusing KeyError
+    if xpath is not None:
+        try:
+            common.read_extraction_config(xpath, headers_path)
+        except KeyError:
+            available = common.get_all_xpaths(headers_path)
+            raise ValueError(
+                f"xpath '{xpath}' not found in {headers_path}. "
+                f"Available xpaths: {', '.join(available[:10])}"
+                + (f" ... ({len(available)} total)" if len(available) > 10 else "")
+            )
+
     new_strings = get_new_strings_auto(input_file)
     logger.info("Found %d translations to write", len(new_strings))
 

@@ -16,11 +16,8 @@ import logging
 import struct
 
 from .binary_file import BinaryFile
-from .common import (
-    decode_game_string,
-    load_file_data,
-    read_until_null,
-)
+from .common import decode_game_string, load_file_data
+from .pointer_tables import read_until_null
 from .jkr_decompress import decompress_jkr, is_jkr_file
 
 logger = logging.getLogger(__name__)
@@ -87,9 +84,15 @@ def extract_scenario_file_data(data: bytes) -> list[dict[str, int | str]]:
         c2_size = struct.unpack_from(">I", data, c2_header_offset)[0]
         if c2_size > 0:
             c2_data_offset = c2_header_offset + 4
-            results.extend(
-                _parse_jkr_chunk(data, c2_data_offset, c2_size)
-            )
+            if c2_data_offset + c2_size > len(data):
+                logger.warning(
+                    "Scenario chunk2 size (%d) exceeds available data (%d bytes remaining)",
+                    c2_size, len(data) - c2_data_offset,
+                )
+            else:
+                results.extend(
+                    _parse_jkr_chunk(data, c2_data_offset, c2_size)
+                )
 
     return results
 
@@ -112,6 +115,14 @@ def _parse_subheader_chunk(
     :return: List of dicts with "offset" and "text" keys
     """
     if chunk_size < 8:
+        return []
+
+    # Validate chunk doesn't extend past data
+    if chunk_offset + chunk_size > len(data):
+        logger.warning(
+            "Sub-header chunk at 0x%x (size %d) extends past data (%d bytes)",
+            chunk_offset, chunk_size, len(data),
+        )
         return []
 
     # Read sub-header
@@ -143,6 +154,14 @@ def _parse_inline_chunk(
     :param chunk_size: Size of chunk data in bytes
     :return: List of dicts with "offset" and "text" keys
     """
+    # Validate chunk doesn't extend past data
+    if chunk_offset + chunk_size > len(data):
+        logger.warning(
+            "Inline chunk at 0x%x (size %d) extends past data (%d bytes)",
+            chunk_offset, chunk_size, len(data),
+        )
+        return []
+
     results: list[dict[str, int | str]] = []
     pos = chunk_offset
     chunk_end = chunk_offset + chunk_size
@@ -234,6 +253,14 @@ def _parse_jkr_chunk(
     :param chunk_size: Size of JKR data in bytes
     :return: List of dicts with "offset" and "text" keys
     """
+    # Validate chunk doesn't extend past data
+    if chunk_offset + chunk_size > len(data):
+        logger.warning(
+            "JKR chunk at 0x%x (size %d) extends past data (%d bytes)",
+            chunk_offset, chunk_size, len(data),
+        )
+        return []
+
     jkr_data = data[chunk_offset:chunk_offset + chunk_size]
     from .jkr_decompress import JKRError
     try:
@@ -241,6 +268,12 @@ def _parse_jkr_chunk(
     except JKRError as exc:
         logger.warning(
             "Failed to decompress JKR at offset 0x%x: %s", chunk_offset, exc
+        )
+        return []
+
+    if not decompressed:
+        logger.warning(
+            "JKR decompression at 0x%x produced empty data", chunk_offset
         )
         return []
 

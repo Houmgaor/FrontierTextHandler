@@ -11,8 +11,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 
-from .common import skip_csv_header
-from .diff import _location_key
+from .file_io import _location_key, iter_csv_rows, iter_json_rows, iter_rows
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +35,10 @@ def load_translations_from_csv(path: str) -> dict[str, tuple[str, str]]:
     :param path: Path to the CSV file
     :return: Dict mapping hex offset to (source, target) tuple
     """
-    translations: dict[str, tuple[str, str]] = {}
-    with open(path, "r", newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        skip_csv_header(reader, path)
-        for line in reader:
-            if not line or len(line) < 3:
-                continue
-            key = _location_key(line[0])
-            translations[key] = (line[1], line[2])
-    return translations
+    return {
+        _location_key(row["location"]): (row["source"], row["target"])
+        for row in iter_csv_rows(path)
+    }
 
 
 def load_translations_from_json(path: str) -> dict[str, tuple[str, str]]:
@@ -55,18 +48,10 @@ def load_translations_from_json(path: str) -> dict[str, tuple[str, str]]:
     :param path: Path to the JSON file
     :return: Dict mapping hex offset to (source, target) tuple
     """
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    translations: dict[str, tuple[str, str]] = {}
-    for entry in data.get("strings", []):
-        if not isinstance(entry, dict):
-            continue
-        if "location" not in entry or "source" not in entry or "target" not in entry:
-            continue
-        key = _location_key(entry["location"])
-        translations[key] = (entry["source"], entry["target"])
-    return translations
+    return {
+        _location_key(row["location"]): (row["source"], row["target"])
+        for row in iter_json_rows(path)
+    }
 
 
 def load_translations(path: str) -> dict[str, tuple[str, str]]:
@@ -167,35 +152,7 @@ def _load_ordered_rows(path: str) -> list[dict]:
     :param path: Path to the file
     :return: List of dicts with location/source/target keys
     """
-    if path.lower().endswith(".json"):
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        rows = []
-        for entry in data.get("strings", []):
-            if not isinstance(entry, dict):
-                continue
-            if "location" not in entry or "source" not in entry or "target" not in entry:
-                continue
-            rows.append({
-                "location": entry["location"],
-                "source": entry["source"],
-                "target": entry["target"],
-            })
-        return rows
-    else:
-        rows = []
-        with open(path, "r", newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            skip_csv_header(reader, path)
-            for line in reader:
-                if not line or len(line) < 3:
-                    continue
-                rows.append({
-                    "location": line[0],
-                    "source": line[1],
-                    "target": line[2],
-                })
-        return rows
+    return list(iter_rows(path))
 
 
 def write_merged_csv(rows: list[dict], output_path: str) -> int:

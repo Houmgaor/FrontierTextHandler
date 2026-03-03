@@ -873,5 +873,155 @@ class TestExtractFtxt(unittest.TestCase):
         self.assertEqual(results[0]["text"], "Encrypted")
 
 
+class TestReadNextString(unittest.TestCase):
+    """Test read_next_string."""
+
+    def test_basic(self):
+        from src.common import read_next_string
+        # Build: [pointer to string] + [null-terminated string]
+        string = "Hello".encode(GAME_ENCODING) + b"\x00"
+        data = struct.pack("<I", 4) + string
+        bfile = BinaryFile.from_bytes(data)
+        result = read_next_string(bfile)
+        self.assertEqual(result, "Hello")
+
+    def test_japanese(self):
+        from src.common import read_next_string
+        text = "テスト"
+        string = text.encode(GAME_ENCODING) + b"\x00"
+        data = struct.pack("<I", 4) + string
+        bfile = BinaryFile.from_bytes(data)
+        result = read_next_string(bfile)
+        self.assertEqual(result, text)
+
+    def test_out_of_bounds_raises(self):
+        from src.common import read_next_string
+        data = struct.pack("<I", 0xFFFFFF)
+        bfile = BinaryFile.from_bytes(data)
+        with self.assertRaises(InvalidPointerError):
+            read_next_string(bfile)
+
+
+class TestReadJsonData(unittest.TestCase):
+    """Test read_json_data."""
+
+    def setUp(self):
+        self.headers = {
+            "dat": {
+                "armors": {
+                    "head": {
+                        "begin_pointer": "0x10",
+                        "next_field_pointer": "0x14",
+                        "crop_end": 4,
+                    }
+                }
+            }
+        }
+        fd, self.path = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w") as f:
+            json.dump(self.headers, f)
+        self.addCleanup(os.unlink, self.path)
+
+    def test_basic_read(self):
+        from src.common import read_json_data
+        begin, end, crop = read_json_data("dat/armors/head", self.path)
+        self.assertEqual(begin, 0x10)
+        self.assertEqual(end, 0x14)
+        self.assertEqual(crop, 4)
+
+    def test_no_crop_end(self):
+        from src.common import read_json_data
+        headers = {
+            "dat": {
+                "test": {
+                    "begin_pointer": "0x20",
+                    "next_field_pointer": "0x24",
+                }
+            }
+        }
+        fd, path = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w") as f:
+            json.dump(headers, f)
+        self.addCleanup(os.unlink, path)
+
+        begin, end, crop = read_json_data("dat/test", path)
+        self.assertEqual(begin, 0x20)
+        self.assertEqual(end, 0x24)
+        self.assertEqual(crop, 0)
+
+    def test_imprecise_path_raises(self):
+        from src.common import read_json_data
+        with self.assertRaises(ValueError):
+            read_json_data("dat/armors", self.path)
+
+
+class TestValidateConfigHexFields(unittest.TestCase):
+    """Test _validate_config_hex_fields (via read_extraction_config)."""
+
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".json")
+        self.addCleanup(os.unlink, self.path)
+
+    def test_valid_config_passes(self):
+        headers = {
+            "dat": {
+                "test": {
+                    "begin_pointer": "0x10",
+                    "next_field_pointer": "0x14",
+                }
+            }
+        }
+        with open(self.path, "w") as f:
+            json.dump(headers, f)
+        config = read_extraction_config("dat/test", self.path)
+        self.assertEqual(config["begin_pointer"], "0x10")
+
+    def test_non_hex_string_raises(self):
+        headers = {
+            "dat": {
+                "test": {
+                    "begin_pointer": "not_hex",
+                    "next_field_pointer": "0x14",
+                }
+            }
+        }
+        with open(self.path, "w") as f:
+            json.dump(headers, f)
+        with self.assertRaises(ValueError) as ctx:
+            read_extraction_config("dat/test", self.path)
+        self.assertIn("not a valid hex string", str(ctx.exception))
+
+    def test_non_string_type_raises(self):
+        headers = {
+            "dat": {
+                "test": {
+                    "begin_pointer": 16,
+                    "next_field_pointer": "0x14",
+                }
+            }
+        }
+        with open(self.path, "w") as f:
+            json.dump(headers, f)
+        with self.assertRaises(ValueError) as ctx:
+            read_extraction_config("dat/test", self.path)
+        self.assertIn("must be a hex string", str(ctx.exception))
+
+
+class TestExtractTextDataFromBytesValidation(unittest.TestCase):
+    """Test extract_text_data_from_bytes config validation."""
+
+    def test_non_dict_config_raises(self):
+        from src.common import extract_text_data_from_bytes
+        with self.assertRaises(ValueError) as ctx:
+            extract_text_data_from_bytes(b"\x00" * 16, "not_a_dict")
+        self.assertIn("must be a dict", str(ctx.exception))
+
+    def test_missing_begin_pointer_raises(self):
+        from src.common import extract_text_data_from_bytes
+        with self.assertRaises(ValueError) as ctx:
+            extract_text_data_from_bytes(b"\x00" * 16, {"next_field_pointer": "0x4"})
+        self.assertIn("begin_pointer", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

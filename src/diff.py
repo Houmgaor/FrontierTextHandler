@@ -1,8 +1,6 @@
 """
 Compare strings between two files (binary, CSV, or JSON) and report differences.
 """
-import csv
-import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -14,8 +12,8 @@ from .common import (
     extract_npc_dialogue,
     read_extraction_config,
     load_file_data,
-    skip_csv_header,
 )
+from .file_io import _location_key, iter_csv_rows, iter_json_rows
 from .scenario import extract_scenario_file
 
 logger = logging.getLogger(__name__)
@@ -32,18 +30,6 @@ class DiffResult:
     unchanged: int = 0
 
 
-def _location_key(location: str) -> str:
-    """
-    Extract the hex offset from a location string, stripping the @filename part.
-
-    :param location: Location string like "0x1234@mhfdat.bin" or just "0x1234"
-    :return: Hex offset string like "0x1234"
-    """
-    if "@" in location:
-        return location[:location.index("@")]
-    return location
-
-
 def load_strings_from_csv(csv_path: str) -> dict[str, str]:
     """
     Load strings from a CSV file.
@@ -53,16 +39,10 @@ def load_strings_from_csv(csv_path: str) -> dict[str, str]:
     :param csv_path: Path to the CSV file
     :return: Dict mapping hex offset to target text
     """
-    strings: dict[str, str] = {}
-    with open(csv_path, "r", newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        skip_csv_header(reader, csv_path)
-        for line in reader:
-            if not line or len(line) < 3:
-                continue
-            key = _location_key(line[0])
-            strings[key] = line[2]
-    return strings
+    return {
+        _location_key(row["location"]): row["target"]
+        for row in iter_csv_rows(csv_path)
+    }
 
 
 def load_strings_from_json(json_path: str) -> dict[str, str]:
@@ -75,18 +55,10 @@ def load_strings_from_json(json_path: str) -> dict[str, str]:
     :param json_path: Path to the JSON file
     :return: Dict mapping hex offset to target text
     """
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    strings: dict[str, str] = {}
-    for entry in data.get("strings", []):
-        if not isinstance(entry, dict):
-            continue
-        if "location" not in entry or "target" not in entry:
-            continue
-        key = _location_key(entry["location"])
-        strings[key] = entry["target"]
-    return strings
+    return {
+        _location_key(row["location"]): row["target"]
+        for row in iter_json_rows(json_path)
+    }
 
 
 def load_strings_from_binary(

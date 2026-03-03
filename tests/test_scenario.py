@@ -512,5 +512,153 @@ class TestScenarioFullRoundTrip(unittest.TestCase):
             self.assertEqual(result[1]["text"], "Item2")
 
 
+class TestParseSubheaderChunk(unittest.TestCase):
+    """Direct tests for scenario._parse_subheader_chunk."""
+
+    def test_basic(self):
+        from src.scenario import _parse_subheader_chunk
+        chunk_data = _build_subheader_chunk(["Hello", "World"], metadata_size=4)
+        # Embed in larger data with offset
+        data = b"\x00\x00" + chunk_data
+        result = _parse_subheader_chunk(data, 2, len(chunk_data))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "Hello")
+        self.assertEqual(result[1]["text"], "World")
+
+    def test_too_small(self):
+        from src.scenario import _parse_subheader_chunk
+        result = _parse_subheader_chunk(b"\x00" * 10, 0, 4)
+        self.assertEqual(result, [])
+
+    def test_strings_offset_past_chunk(self):
+        from src.scenario import _parse_subheader_chunk
+        # Sub-header with metadata_total so large that strings_offset >= chunk_end
+        sub_header = struct.pack("<BBHBBBB", 1, 0, 16, 1, 0, 200, 0)
+        data = sub_header + b"\x00" * 8
+        result = _parse_subheader_chunk(data, 0, 16)
+        self.assertEqual(result, [])
+
+    def test_out_of_bounds(self):
+        from src.scenario import _parse_subheader_chunk
+        result = _parse_subheader_chunk(b"\x00" * 4, 0, 16)
+        self.assertEqual(result, [])
+
+
+class TestParseInlineChunk(unittest.TestCase):
+    """Direct tests for scenario._parse_inline_chunk."""
+
+    def test_basic(self):
+        from src.scenario import _parse_inline_chunk
+        chunk_data = _build_inline_chunk(["Test1", "Test2"])
+        data = b"\x00" + chunk_data
+        result = _parse_inline_chunk(data, 1, len(chunk_data))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "Test1")
+        self.assertEqual(result[1]["text"], "Test2")
+
+    def test_empty_chunk(self):
+        from src.scenario import _parse_inline_chunk
+        result = _parse_inline_chunk(b"\x00\x00\x00", 0, 3)
+        self.assertEqual(result, [])
+
+    def test_out_of_bounds(self):
+        from src.scenario import _parse_inline_chunk
+        result = _parse_inline_chunk(b"\x00" * 2, 0, 10)
+        self.assertEqual(result, [])
+
+
+class TestParseChunk0(unittest.TestCase):
+    """Direct tests for scenario._parse_chunk0."""
+
+    def test_detects_subheader(self):
+        from src.scenario import _parse_chunk0
+        chunk_data = _build_subheader_chunk(["Sub"], metadata_size=4)
+        result = _parse_chunk0(chunk_data, 0, len(chunk_data))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], "Sub")
+
+    def test_detects_inline(self):
+        from src.scenario import _parse_chunk0
+        chunk_data = _build_inline_chunk(["Inline"])
+        result = _parse_chunk0(chunk_data, 0, len(chunk_data))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], "Inline")
+
+    def test_too_small(self):
+        from src.scenario import _parse_chunk0
+        result = _parse_chunk0(b"\x00", 0, 1)
+        self.assertEqual(result, [])
+
+
+class TestParseChunk1(unittest.TestCase):
+    """Direct tests for scenario._parse_chunk1."""
+
+    def test_delegates_to_subheader(self):
+        from src.scenario import _parse_chunk1
+        chunk_data = _build_subheader_chunk(["Dialog"], metadata_size=8)
+        result = _parse_chunk1(chunk_data, 0, len(chunk_data))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], "Dialog")
+
+
+class TestParseJkrChunk(unittest.TestCase):
+    """Direct tests for scenario._parse_jkr_chunk."""
+
+    def test_basic_decompression(self):
+        from src.scenario import _parse_jkr_chunk
+        # Build a simple string, compress it
+        text = "Test"
+        raw = encode_game_string(text) + b"\x00"
+        compressed = compress_jkr_hfi(raw)
+        # Embed in data
+        data = compressed
+        result = _parse_jkr_chunk(data, 0, len(data))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], text)
+
+    def test_invalid_jkr_returns_empty(self):
+        from src.scenario import _parse_jkr_chunk
+        # Data that starts with JKR magic but is invalid
+        bad_data = b"\x1a\x52\x4b\x4a\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        result = _parse_jkr_chunk(bad_data, 0, len(bad_data))
+        self.assertEqual(result, [])
+
+    def test_out_of_bounds(self):
+        from src.scenario import _parse_jkr_chunk
+        result = _parse_jkr_chunk(b"\x00" * 4, 0, 20)
+        self.assertEqual(result, [])
+
+
+class TestScanNullTerminatedStrings(unittest.TestCase):
+    """Direct tests for scenario._scan_null_terminated_strings."""
+
+    def test_basic(self):
+        from src.scenario import _scan_null_terminated_strings
+        text = encode_game_string("Hello") + b"\x00" + encode_game_string("World") + b"\x00"
+        result = _scan_null_terminated_strings(text, 0, len(text))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "Hello")
+        self.assertEqual(result[1]["text"], "World")
+
+    def test_max_count(self):
+        from src.scenario import _scan_null_terminated_strings
+        text = encode_game_string("A") + b"\x00" + encode_game_string("B") + b"\x00"
+        result = _scan_null_terminated_strings(text, 0, len(text), max_count=1)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], "A")
+
+    def test_ff_sentinel(self):
+        from src.scenario import _scan_null_terminated_strings
+        text = encode_game_string("A") + b"\x00\xff" + encode_game_string("B") + b"\x00"
+        result = _scan_null_terminated_strings(text, 0, len(text))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], "A")
+
+    def test_empty_data(self):
+        from src.scenario import _scan_null_terminated_strings
+        result = _scan_null_terminated_strings(b"\x00\x00", 0, 2)
+        self.assertEqual(result, [])
+
+
 if __name__ == "__main__":
     unittest.main()
