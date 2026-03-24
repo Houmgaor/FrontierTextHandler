@@ -375,9 +375,12 @@ def apply_translations_from_release_json(
 
     if lang not in data:
         available = list(data.keys())
+        if not available:
+            logger.info("No translations in %s (file may be empty)", json_file)
+            return {}
         raise ValueError(
             f"Language '{lang}' not found in {json_file}. "
-            f"Available: {', '.join(available) or '(none)'}"
+            f"Available: {', '.join(available)}"
         )
 
     # Collect (offset, text) pairs grouped by target game file.

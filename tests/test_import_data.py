@@ -391,7 +391,7 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
         self.assertEqual(raw_bytes.decode(GAME_ENCODING), "Un")
 
     def test_missing_language_raises(self):
-        """ValueError when the requested language isn't in the JSON."""
+        """ValueError when the requested language isn't in the JSON but others exist."""
         from src.import_data import apply_translations_from_release_json
 
         json_path = self._write_release_json("fr", {
@@ -404,6 +404,20 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             )
         self.assertIn("de", str(ctx.exception))
         self.assertIn("fr", str(ctx.exception))
+
+    def test_empty_json_returns_empty(self):
+        """Empty JSON (no languages at all) returns empty results, not an error."""
+        from src.import_data import apply_translations_from_release_json
+
+        path = os.path.join(self.tmpdir, "empty.json")
+        with open(path, "w") as f:
+            json.dump({}, f)
+
+        results = apply_translations_from_release_json(
+            path, lang="fr", game_dir=self.tmpdir,
+            compress=False, encrypt=False,
+        )
+        self.assertEqual(results, {})
 
     def test_missing_game_file_skipped(self):
         """Missing game files are skipped with a warning, not an error."""
