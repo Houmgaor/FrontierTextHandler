@@ -24,6 +24,8 @@ from .import_data import (
     import_scenario_from_csv,
     get_new_strings_from_json,
     get_new_strings_auto,
+    apply_translations_from_release_json,
+    XPATH_PREFIX_TO_GAME_FILE,
     CSVParseError,
 )
 from .common import (

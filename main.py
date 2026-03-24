@@ -171,6 +171,29 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Decrypt an ECD/EXF file and write to output. Use with output_file argument.",
     )
     parser.add_argument(
+        "--apply-translations",
+        action="store_true",
+        help=(
+            "Apply a MHFrontier-Translation release JSON (input_file) to the game "
+            "directory given by --game-dir.  Requires --lang and --game-dir. "
+            "Use --compress and --encrypt to produce game-ready files."
+        ),
+    )
+    parser.add_argument(
+        "--lang",
+        type=str,
+        default="fr",
+        metavar="CODE",
+        help="Language code to apply with --apply-translations (default: fr).",
+    )
+    parser.add_argument(
+        "--game-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help="Root directory of the game installation (required by --apply-translations).",
+    )
+    parser.add_argument(
         "--save-meta",
         action="store_true",
         help="Save .meta file when decrypting (preserves header for re-encryption).",
@@ -387,6 +410,25 @@ def main(args: argparse.Namespace) -> None:
         print(f"Extracted quest text to {csv_path}")
     elif args.refrontier_to_csv:
         src.refrontier_to_csv(args.input_file, args.output_file)
+    elif args.apply_translations:
+        if not args.game_dir:
+            raise SystemExit("--apply-translations requires --game-dir <path>")
+        from src.import_data import apply_translations_from_release_json
+        results = apply_translations_from_release_json(
+            json_file=args.input_file,
+            lang=args.lang,
+            game_dir=args.game_dir,
+            compress=args.compress,
+            encrypt=args.encrypt,
+            key_index=args.key_index,
+        )
+        if results:
+            total = sum(results.values())
+            print(f"\n✓ Applied {total} string(s) across {len(results)} file(s):")
+            for rel_path, count in sorted(results.items()):
+                print(f"  {count:>6}  {rel_path}")
+        else:
+            print("No translations applied (no matching game files found or no translated strings).")
     elif args.csv_to_bin:
         src.import_from_csv(
             args.input_file,

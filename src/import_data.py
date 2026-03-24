@@ -322,6 +322,156 @@ def rebuild_ftxt(
 
 DEFAULT_OUTPUT_DIR = "output"
 
+# Maps the first component of a translation xpath to the game binary path
+# relative to the game root directory (all binaries live under dat/).
+XPATH_PREFIX_TO_GAME_FILE: dict[str, str] = {
+    "dat": os.path.join("dat", "mhfdat.bin"),
+    "pac": os.path.join("dat", "mhfpac.bin"),
+    "inf": os.path.join("dat", "mhfinf.bin"),
+    "jmp": os.path.join("dat", "mhfjmp.bin"),
+    "nav": os.path.join("dat", "mhfnav.bin"),
+}
+
+
+def apply_translations_from_release_json(
+    json_file: str,
+    lang: str,
+    game_dir: str,
+    compress: bool = True,
+    encrypt: bool = True,
+    key_index: int = DEFAULT_KEY_INDEX,
+) -> dict[str, int]:
+    """
+    Apply translations from a MHFrontier-Translation release JSON to game files.
+
+    The release JSON has the structure produced by ``export_json.py``::
+
+        {lang: {xpath: [{location, source, target}]}}
+
+    For each game binary that has at least one translated string this function:
+
+    1. Reads the binary from *game_dir* (auto-decrypts / decompresses).
+    2. Appends all translated strings and updates the in-file pointers.
+    3. Writes the result back, optionally re-compressing and re-encrypting.
+
+    Only strings where *target* is non-empty and differs from *source* are
+    applied.  Sections whose game binary is missing from *game_dir* are skipped
+    with a warning.
+
+    :param json_file: Path to the release JSON (e.g. ``translations-translated.json``).
+    :param lang: Language code to apply (e.g. ``"fr"``).
+    :param game_dir: Root directory of the game installation.
+    :param compress: Re-compress with JKR HFI after patching.
+    :param encrypt: Re-encrypt with ECD after patching.
+    :param key_index: ECD key index (default 4, used by all MHF files).
+    :return: Mapping of game-file relative path → number of strings applied.
+    :raises ValueError: If *lang* is not present in the JSON.
+    """
+    import json as _json
+    import tempfile
+
+    with open(json_file, "r", encoding="utf-8") as f:
+        data = _json.load(f)
+
+    if lang not in data:
+        available = list(data.keys())
+        raise ValueError(
+            f"Language '{lang}' not found in {json_file}. "
+            f"Available: {', '.join(available) or '(none)'}"
+        )
+
+    # Collect (offset, text) pairs grouped by target game file.
+    by_file: dict[str, list[tuple[int, str]]] = {}
+    for xpath, strings in data[lang].items():
+        prefix = xpath.split("/")[0]
+        rel_path = XPATH_PREFIX_TO_GAME_FILE.get(prefix)
+        if rel_path is None:
+            logger.warning("Unknown xpath prefix '%s', skipping section '%s'", prefix, xpath)
+            continue
+        pairs = by_file.setdefault(rel_path, [])
+        for entry in strings:
+            if not isinstance(entry, dict):
+                continue
+            target = entry.get("target") or ""
+            source = entry.get("source") or ""
+            if not target or target == source:
+                continue
+            location = entry.get("location") or ""
+            try:
+                offset = parse_location(location)
+                pairs.append((offset, target))
+            except CSVParseError as exc:
+                logger.warning("Skipping entry in '%s': %s", xpath, exc)
+
+    results: dict[str, int] = {}
+
+    for rel_path, all_strings in by_file.items():
+        if not all_strings:
+            continue
+
+        game_path = os.path.join(game_dir, rel_path)
+        if not os.path.exists(game_path):
+            logger.warning("Game file not found, skipping: %s", game_path)
+            continue
+
+        logger.info("Applying %d translation(s) to %s", len(all_strings), rel_path)
+
+        with open(game_path, "rb") as fh:
+            file_data = fh.read()
+
+        was_encrypted = is_encrypted_file(file_data)
+        was_compressed = False
+
+        if was_encrypted:
+            file_data, _ = decrypt(file_data)
+            logger.info("  Auto-decrypted %s", rel_path)
+
+        if is_jkr_file(file_data):
+            was_compressed = True
+            file_data = decompress_jkr(file_data)
+            logger.info("  Auto-decompressed %s", rel_path)
+
+        if was_encrypted and not encrypt:
+            logger.warning(
+                "  %s was encrypted but --encrypt not set — output will NOT be game-ready",
+                rel_path,
+            )
+        if was_compressed and not compress:
+            logger.warning(
+                "  %s was compressed but --compress not set — output will NOT be game-ready",
+                rel_path,
+            )
+
+        # Write decrypted/decompressed data to a temp file, apply translations,
+        # then read back for the compress/encrypt pass.
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
+            tmp.write(file_data)
+            tmp_path = tmp.name
+
+        try:
+            pointers = tuple(offset for offset, _ in all_strings)
+            append_to_binary(all_strings, pointers, tmp_path)
+            with open(tmp_path, "rb") as fh:
+                result_data = fh.read()
+        finally:
+            os.unlink(tmp_path)
+
+        if compress:
+            result_data = compress_jkr_hfi(result_data)
+            logger.info("  Compressed %s", rel_path)
+
+        if encrypt:
+            result_data = encode_ecd(result_data, key_index=key_index)
+            logger.info("  Encrypted %s (key %d)", rel_path, key_index)
+
+        with open(game_path, "wb") as fh:
+            fh.write(result_data)
+
+        results[rel_path] = len(all_strings)
+        logger.info("  ✓ %d string(s) applied → %s", len(all_strings), game_path)
+
+    return results
+
 
 def import_from_csv(
     input_file: str,

@@ -23,7 +23,10 @@ python main.py --xpath=dat/armors/legs
 python main.py --xpath=dat/weapons/melee/name
 python main.py --xpath=pac/skills/description
 
-# Insert translations back to binary
+# Apply a MHFrontier-Translation release JSON to a game installation
+python main.py translations-translated.json --apply-translations --lang fr --game-dir ~/mhf --compress --encrypt
+
+# Insert translations back to binary (single section)
 python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin
 
 # Insert with compression (JKR HFI)

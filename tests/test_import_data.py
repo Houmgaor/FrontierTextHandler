@@ -217,5 +217,257 @@ class TestImportFromCsvXpathValidation(unittest.TestCase):
         self.assertIn("not found", str(ctx.exception))
 
 
+class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
+    """Test apply_translations_from_release_json — the full JSON→game-file chain."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmpdir))
+
+    def _build_game_binary(self, strings: list[str]) -> bytes:
+        """Build a minimal pointer-table binary.
+
+        Layout:
+          [begin_ptr 4B][next_ptr 4B]  ← two pointers forming the header
+          [ptr0 4B][ptr1 4B]…           ← pointer table (one per string)
+          [str0\0][str1\0]…             ← null-terminated Shift-JIS strings
+
+        begin_ptr points to the start of the pointer table (offset 8).
+        next_ptr points to the first byte after the pointer table.
+        Each ptrN points to its string.
+        """
+        header_size = 8
+        table_size = len(strings) * 4
+        table_start = header_size
+        strings_start = header_size + table_size
+
+        encoded = []
+        offsets = []
+        pos = strings_start
+        for s in strings:
+            offsets.append(pos)
+            enc = s.encode(GAME_ENCODING) + b"\x00"
+            encoded.append(enc)
+            pos += len(enc)
+
+        data = bytearray()
+        # Header: pointers to table boundaries
+        data.extend(struct.pack("<I", table_start))
+        data.extend(struct.pack("<I", strings_start))
+        # Pointer table
+        for off in offsets:
+            data.extend(struct.pack("<I", off))
+        # Strings
+        for enc in encoded:
+            data.extend(enc)
+        return bytes(data)
+
+    def _write_release_json(self, lang: str, sections: dict) -> str:
+        """Write a release-format JSON and return the path.
+
+        sections: {xpath: [(ptr_offset, source, target)]}
+        """
+        data = {}
+        for xpath, entries in sections.items():
+            data.setdefault(lang, {})[xpath] = [
+                {
+                    "location": f"0x{ptr_off:x}@game.bin",
+                    "source": src,
+                    "target": tgt,
+                }
+                for ptr_off, src, tgt in entries
+            ]
+        path = os.path.join(self.tmpdir, "translations-translated.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        return path
+
+    def test_apply_plain_binary(self):
+        """Apply translations to an unencrypted, uncompressed game binary."""
+        from src.import_data import apply_translations_from_release_json
+
+        original_strings = ["Helmet", "Sword", "Shield"]
+        raw = self._build_game_binary(original_strings)
+
+        # Place the binary in a fake game directory at dat/mhfdat.bin
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        # Pointer table starts at offset 8.  First pointer is at 8, second at 12.
+        json_path = self._write_release_json("fr", {
+            "dat/armors/head": [
+                (8, "Helmet", "Casque"),
+                (12, "Sword", "Epée"),
+            ],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+        )
+
+        self.assertIn(os.path.join("dat", "mhfdat.bin"), results)
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
+
+        # Read back and verify the pointers now reference the translated strings
+        with open(bin_path, "rb") as f:
+            patched = f.read()
+
+        bfile = BinaryFile.from_bytes(patched)
+        for ptr_off, expected in [(8, "Casque"), (12, "Epée")]:
+            bfile.seek(ptr_off)
+            str_off = struct.unpack("<I", bfile.read(4))[0]
+            bfile.seek(str_off)
+            raw_bytes = bytearray()
+            b = bfile.read(1)
+            while b != b"\x00" and b != b"":
+                raw_bytes.extend(b)
+                b = bfile.read(1)
+            self.assertEqual(raw_bytes.decode(GAME_ENCODING), expected)
+
+        # Third pointer (offset 16) should still point to the original "Shield"
+        bfile.seek(16)
+        str_off = struct.unpack("<I", bfile.read(4))[0]
+        bfile.seek(str_off)
+        raw_bytes = bytearray()
+        b = bfile.read(1)
+        while b != b"\x00" and b != b"":
+            raw_bytes.extend(b)
+            b = bfile.read(1)
+        self.assertEqual(raw_bytes.decode(GAME_ENCODING), "Shield")
+
+    def test_apply_encrypted_compressed_roundtrip(self):
+        """Apply translations to an encrypted+compressed binary and verify."""
+        from src.import_data import apply_translations_from_release_json
+        from src.jkr_compress import compress_jkr_hfi
+        from src.jkr_decompress import decompress_jkr, is_jkr_file
+        from src.crypto import encode_ecd, is_encrypted_file, decrypt
+
+        raw = self._build_game_binary(["Alpha", "Beta"])
+        # Wrap in compression + encryption (as found in the real game)
+        compressed = compress_jkr_hfi(raw)
+        encrypted = encode_ecd(compressed)
+
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(encrypted)
+
+        json_path = self._write_release_json("fr", {
+            "dat/test_section": [(8, "Alpha", "Un")],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=True, encrypt=True,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 1)
+
+        # The output file should be encrypted and compressed again
+        with open(bin_path, "rb") as f:
+            output = f.read()
+
+        self.assertTrue(is_encrypted_file(output))
+        decrypted, _ = decrypt(output)
+        self.assertTrue(is_jkr_file(decrypted))
+        decompressed = decompress_jkr(decrypted)
+
+        # Verify the translated string is present
+        bfile = BinaryFile.from_bytes(decompressed)
+        bfile.seek(8)
+        str_off = struct.unpack("<I", bfile.read(4))[0]
+        bfile.seek(str_off)
+        raw_bytes = bytearray()
+        b = bfile.read(1)
+        while b != b"\x00" and b != b"":
+            raw_bytes.extend(b)
+            b = bfile.read(1)
+        self.assertEqual(raw_bytes.decode(GAME_ENCODING), "Un")
+
+    def test_missing_language_raises(self):
+        """ValueError when the requested language isn't in the JSON."""
+        from src.import_data import apply_translations_from_release_json
+
+        json_path = self._write_release_json("fr", {
+            "dat/x": [(8, "a", "b")],
+        })
+        with self.assertRaises(ValueError) as ctx:
+            apply_translations_from_release_json(
+                json_path, lang="de", game_dir=self.tmpdir,
+                compress=False, encrypt=False,
+            )
+        self.assertIn("de", str(ctx.exception))
+        self.assertIn("fr", str(ctx.exception))
+
+    def test_missing_game_file_skipped(self):
+        """Missing game files are skipped with a warning, not an error."""
+        from src.import_data import apply_translations_from_release_json
+
+        game_dir = os.path.join(self.tmpdir, "empty_game")
+        os.makedirs(game_dir)
+
+        json_path = self._write_release_json("fr", {
+            "dat/armors/head": [(8, "a", "b")],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+        )
+        self.assertEqual(results, {})
+
+    def test_skips_empty_target(self):
+        """Entries with empty target are not applied."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["Hello"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        json_path = self._write_release_json("fr", {
+            "dat/section": [(8, "Hello", "")],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+        )
+        self.assertEqual(results, {})
+
+    def test_multiple_sections_same_file(self):
+        """Translations from multiple xpaths targeting the same binary are merged."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["One", "Two", "Three"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        # Two different xpath sections, both targeting mhfdat.bin
+        json_path = self._write_release_json("fr", {
+            "dat/section_a": [(8, "One", "Un")],
+            "dat/section_b": [(12, "Two", "Deux")],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
