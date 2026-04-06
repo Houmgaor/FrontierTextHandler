@@ -569,6 +569,40 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             b = bfile.read(1)
         self.assertEqual(buf.decode(GAME_ENCODING), "Sword")
 
+    def test_apply_gzip_compressed_release_json(self):
+        """A gzip-compressed release JSON is auto-detected and applied."""
+        import gzip as _gzip
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["Helmet", "Sword", "Shield"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w", encoding="utf-8") as f:
+            json.dump({"dat": {"armors": {"head": {
+                "begin_pointer": "0x0",
+                "next_field_pointer": "0x4",
+            }}}}, f)
+
+        payload = {"fr": {"dat/armors/head": [
+            {"index": 0, "source": "Helmet", "target": "Casque"},
+        ]}}
+        gz_path = os.path.join(self.tmpdir, "translations.json.gz")
+        with _gzip.open(gz_path, "wb") as f:
+            f.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+
+        results = apply_translations_from_release_json(
+            gz_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+            headers_path=headers_path,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 1)
+
     def test_apply_mixed_index_and_location(self):
         """A section may mix `index` entries with legacy `location` entries."""
         from src.import_data import apply_translations_from_release_json

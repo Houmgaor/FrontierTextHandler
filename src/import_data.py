@@ -275,7 +275,30 @@ def resolve_indexes_to_offsets(
                 f"with {len(entries)} entries. The section may have shrunk; "
                 f"re-extract and merge translations to update the file."
             )
-        resolved.append((entries[index]["offset"], text))
+        live_entry = entries[index]
+        # Grouped entries carry <join at="N"> markers whose absolute
+        # offsets were captured at extraction time and are stale once the
+        # binary is repacked. Rewrite them against the live pointer table
+        # by positional matching with the live entry's sub-pointers.
+        if "<join" in text or "<join" in str(live_entry["text"]):
+            live_pairs = parse_joined_text(
+                int(live_entry["offset"]), str(live_entry["text"])
+            )
+            parts = _JOIN_TAG_RE.split(text)
+            # parts: [text0, off1, text1, off2, text2, ...]
+            sub_texts = [parts[0]] + [parts[i + 1] for i in range(1, len(parts), 2)]
+            if len(sub_texts) != len(live_pairs):
+                raise ValueError(
+                    f"Translation index {index}: grouped entry has "
+                    f"{len(sub_texts)} sub-strings but the live section "
+                    f"has {len(live_pairs)}. Re-extract and merge."
+                )
+            rebuilt = sub_texts[0]
+            for (live_off, _), sub in zip(live_pairs[1:], sub_texts[1:]):
+                rebuilt += f'<join at="{live_off}">{sub}'
+            resolved.append((int(live_entry["offset"]), rebuilt))
+        else:
+            resolved.append((int(live_entry["offset"]), text))
     return resolved
 
 
@@ -543,11 +566,15 @@ def apply_translations_from_release_json(
     :return: Mapping of game-file relative path → number of strings applied.
     :raises ValueError: If *lang* is not present in the JSON.
     """
+    import gzip
     import json as _json
     import tempfile
 
-    with open(json_file, "r", encoding="utf-8") as f:
-        data = _json.load(f)
+    with open(json_file, "rb") as f:
+        raw = f.read()
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    data = _json.loads(raw.decode("utf-8"))
 
     if lang not in data:
         available = list(data.keys())

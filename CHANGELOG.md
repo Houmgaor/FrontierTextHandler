@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`apply_translations_from_release_json` auto-detects gzip**: Release JSONs compressed with gzip (magic bytes `1f 8b`) are transparently decompressed before parsing. Plain JSON still works unchanged. Matches MHFrontier-Translation 0.2.0+ which ships gzip-compressed releases.
 - **`apply_translations_from_release_json` accepts index-keyed entries**: Release JSON entries may now use `{"index": N, "source": ..., "target": ...}` instead of the legacy `{"location": "0xNNN@file.bin", ...}` shape. Indexed entries are resolved against the live pointer table for their xpath after the binary is decrypted/decompressed. Sections may mix both formats. The legacy `location` shape still works unchanged. Adds an optional `headers_path` parameter so the resolver can be pointed at a custom config (mainly useful for tests).
 
 ## [1.5.0] - 2026-04-06
