@@ -186,11 +186,32 @@
       "grouped_entries": true,
       "pointers_per_entry": 10
     },
+    "text_30": {
+      "begin_pointer": "0x30",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 92
+    },
     "text_34": {
       "begin_pointer": "0x34",
       "null_terminated": true,
       "grouped_entries": true,
       "pointers_per_entry": 4
+    },
+    "text_48": {
+      "_comment": "Skill tree / decoration name pairs: fixed 423 entries, 2 s32p each (8 bytes per entry).",
+      "field_0": {
+        "begin_pointer": "0x48",
+        "entry_count": 423,
+        "entry_size": 8,
+        "field_offset": 0
+      },
+      "field_1": {
+        "begin_pointer": "0x48",
+        "entry_count": 423,
+        "entry_size": 8,
+        "field_offset": 4
+      }
     },
     "text_50": {
       "begin_pointer": "0x50",

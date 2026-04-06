@@ -72,38 +72,37 @@ Decompile pattern: `patterns/mhf-patterns/mhfpac/decompile.hexpat`
 | `pac/skills/effect` | 0xA1C | Activated skill names | pointer-pair (end: 0xBC0) |
 | `pac/skills/effect_z` | 0xFBC | Zenith skill names | pointer-pair (end: 0xFB0) |
 | `pac/skills/description` | 0x0B8 | Skill descriptions | pointer-pair (end: 0x0C0) |
+| `pac/text_14` | 0x14 | UI labels group A ("Status", …) — 4×3 = 12 strings | null-terminated grouped (pointers_per_entry: 3) |
+| `pac/text_18` | 0x18 | UI labels group B ("Discard", …) — 6×4 = 24 strings | null-terminated grouped (pointers_per_entry: 4) |
+| `pac/text_1c` | 0x1C | UI labels group C — 12×5 = 60 strings | null-terminated grouped (pointers_per_entry: 5) |
+| `pac/text_20` | 0x20 | UI labels group D — 3×3 = 9 strings | null-terminated grouped (pointers_per_entry: 3) |
+| `pac/text_24` | 0x24 | Quest/status screen labels ("Quest Name:", …) — 25×19 = 475 strings | null-terminated grouped (pointers_per_entry: 19) |
+| `pac/text_28` | 0x28 | Menu labels A ("Item", …) — 2×8 = 16 strings | null-terminated grouped (pointers_per_entry: 8) |
+| `pac/text_2c` | 0x2C | Menu labels B — 5×10 = 50 strings | null-terminated grouped (pointers_per_entry: 10) |
+| `pac/text_30` | 0x30 | Settings/options labels ("Hide HUD", …) — 2×92 = 184 strings | null-terminated grouped (pointers_per_entry: 92) |
+| `pac/text_34` | 0x34 | Toggle labels ("ON", …) — 92×4 = 368 strings | null-terminated grouped (pointers_per_entry: 4) |
+| `pac/text_40` | 0x40 | Loading screen text — 607 strings | indirect-count strided (nums+0x04, size 8, field 4) |
+| `pac/text_44` | 0x44 | Felyne Elder dialogue — 106 strings | indirect-count strided (nums+0x06, size 8, field 4) |
+| `pac/text_48/field_0` | 0x48 | Skill tree / decoration names (first of pair) — 423 strings | struct-strided (fixed 423, size 8, field 0) |
+| `pac/text_48/field_1` | 0x48 | Skill tree / decoration names (second of pair) — 423 strings | struct-strided (fixed 423, size 8, field 4) |
+| `pac/text_50` | 0x50 | Additional skill names A — 50×2 = 100 strings | null-terminated grouped (pointers_per_entry: 2) |
+| `pac/text_54` | 0x54 | Additional skill names B — 50×2 = 100 strings | null-terminated grouped (pointers_per_entry: 2) |
+| `pac/text_60` | 0x60 | Controller labels: Frontier Type — 7 strings | indirect-count strided (nums+0x22, size 16, field 0) |
+| `pac/text_64` | 0x64 | Controller labels: Attack Type — 4 strings | indirect-count strided (nums+0x24, size 16, field 0) |
+| `pac/text_68` | 0x68 | Controller labels: Classic Type — 3 strings | indirect-count strided (nums+0x26, size 16, field 0) |
+| `pac/text_6c` | 0x6C | Controller labels: Common Actions — 18 strings | indirect-count strided (nums+0x28, size 16, field 0) |
+| `pac/text_94/field_0` | 0x94 | Character customization label — 153 strings | indirect-count strided (nums+0x1C, size 16, field 4) |
+| `pac/text_94/field_1` | 0x94 | Character customization detail — 153 strings | indirect-count strided (nums+0x1C, size 16, field 8) |
+| `pac/text_c8` | 0xC8 | Partner dialogue A (Felyne shop) — 22 strings | indirect-count strided (nums+0x52, size 12, field 0) |
+| `pac/text_cc` | 0xCC | Partner dialogue B (quest departure) — 11 strings | indirect-count strided (nums+0x54, size 12, field 0) |
+| `pac/text_d0` | 0xD0 | Partner dialogue C (NPC speech) — 13 strings | indirect-count strided (nums+0x5A, size 12, field 0) |
+| `pac/text_d4` | 0xD4 | Partner dialogue D (Felyne speech) — 24 strings | indirect-count strided (nums+0x5C, size 12, field 0) |
 
-### Not yet extracted
+All documented text fields in mhfpac.bin are now extracted. Grouped sections (`text_14`..`text_54`) emit multi-string CSV rows joined with `<join at="N">` tags and require `--xpath=pac/text_XX` on `csv-to-bin` so `rebuild_section` is used.
 
-Important context: mhfpac uses a `nums` table (pointer at 0x10) similar to mhfdat's `important_nums`. Counts for many sections are stored as `u16` values at offsets within that table. The decompile pattern references these as `hd_dll_afaf5e + offset`.
+### Verified string counts (from `data/mhfpac.bin`, decrypted size 2,259,385 B)
 
-| Pointer | Content | Est. count | Structure | Difficulty |
-|---------|---------|-----------|-----------|------------|
-| 0x14 | UI labels group A (e.g. "Status") | variable | `s32pxT<3>` — 3 string pointers per entry, null-terminated array | MEDIUM — grouped strings, null-terminated |
-| 0x18 | UI labels group B (e.g. "Discard") | variable | `s32pxT<4>` — 4 strings per entry | MEDIUM |
-| 0x1C | UI labels group C | variable | `s32pxT<5>` — 5 strings per entry | MEDIUM |
-| 0x20 | UI labels group D | variable | `s32pxT<3>` — 3 strings per entry | MEDIUM |
-| 0x24 | Quest/status screen labels ("Quest Name:", etc.) | variable | `s32pxT<19>` — 19 strings per entry | MEDIUM |
-| 0x28 | Menu labels A ("Item", etc.) | variable | `s32pxT<8>` — 8 strings per entry | MEDIUM |
-| 0x2C | Menu labels B | variable | `s32pxT<10>` — 10 strings per entry | MEDIUM |
-| 0x30 | Settings/options labels ("Hide HUD", etc.) | variable | `s32pxT<92>` — 92 strings per entry (marked TODO in pattern) | HARD — very large groups, pattern notes inaccuracy |
-| 0x34 | Toggle labels ("ON", etc.) | variable | `s32pxT<4>` — 4 strings per entry | MEDIUM |
-| 0x40 | Loading screen text ("Loading World Select.") | small | `struct { padding[4]; s32p; }` — 8 bytes per entry | MEDIUM — strided with padding |
-| 0x44 | Felyne Elder dialogue | small | Same structure as 0x40 | MEDIUM |
-| 0x48 | Skill tree / decoration name pairs | 423 (0x1A7) | `s32pxT<2>` — 2 strings per entry, fixed count | MEDIUM — could use flat pointer-pair if paired |
-| 0x50 | Additional skill names A | variable | `s32pxT<2>` — null-terminated | MEDIUM |
-| 0x54 | Additional skill names B | variable | `s32pxT<2>` — null-terminated | MEDIUM |
-| 0x60 | Controller labels: Frontier Type | counted | `varPaddT<s32p, 0xC>` — s32p + 12 bytes padding (16 per entry). Count from nums+0x22. | MEDIUM — strided extraction |
-| 0x64 | Controller labels: Attack Type | counted | Same structure. Count from nums+0x24. | MEDIUM |
-| 0x68 | Controller labels: Classic Type | counted | Same structure. Count from nums+0x26. | MEDIUM |
-| 0x6C | Controller labels: Common Actions | counted | Same structure. Count from nums+0x28. | MEDIUM |
-| 0x94 | Character customization ("Change hair color", etc.) | counted | `struct { padding[4]; s32p; s32p; padding[4]; }` — 16 bytes per entry, 2 strings. Count from nums+0x1C. | MEDIUM — strided with 2 fields |
-| 0xC8 | Partner dialogue A (Felyne shop) | counted | `varPaddT<s32p, 0x8>` — s32p + 8 bytes padding (12 per entry). Count from nums+0x52. | MEDIUM — strided |
-| 0xCC | Partner dialogue B (quest departure) | counted | Same structure. Count from nums+0x54. | MEDIUM |
-| 0xD0 | Partner dialogue C (NPC speech) | counted | Same structure. Count from nums+0x5A. | MEDIUM |
-| 0xD4 | Partner dialogue D (Felyne speech) | counted | Same structure. Count from nums+0x5C. | MEDIUM |
-
-Note on `s32pxT<N>`: These are groups of N consecutive `s32p` pointers treated as one logical entry. The null-terminated variants (`while(read_signed($,4)!=0)`) scan until a zero pointer marks the end. These can be treated as flat pointer tables if we don't need to preserve the grouping, since `read_file_section` already handles contiguous pointer arrays.
+Total newly surfaced strings: **~3,365** across 25 xpaths (previously only 4 skill sections were extracted).
 
 ---
 
@@ -198,14 +197,12 @@ These files contain readable text but have **no ImHex patterns or format documen
 | mhfdat.bin — descriptions | all (melee, ranged, equipment, monster, item source) | 0 | - |
 | mhfdat.bin — misc | rank labels, HH guides/tutorials | 0 | - |
 | mhfpac.bin — skills | ~hundreds | 0 | - |
-| mhfpac.bin — UI/dialogue | 0 | ~hundreds (menus, labels, NPC dialogue) | `s32pxT<N>` grouped strings, padded structs |
+| mhfpac.bin — UI/dialogue | ~3,365 | 0 | - |
 | mhfjmp.bin | 53 | 0 | - |
 | mhfinf.bin — quests | **~22,700** | 0 | - |
 | Undocumented files | 0 | ~2,450 (mhfgao, mhfsqd, mhfrcc, mhfmsx) | No format documentation |
-| **Total remaining** | | **~2,500+** | |
+| **Total remaining** | | **~2,450** | |
 
 ### Recommended next steps (by effort/impact ratio)
 
-1. **mhfpac.bin UI labels** (0x14-0x34) — treat `s32pxT<N>` as flat pointer tables using null-terminated mode
-2. **mhfpac.bin strided sections** (0x40-0xD4) — use indirect-count strided mode
-3. **Undocumented files** — require reverse engineering before implementation
+1. **Undocumented files** (mhfgao, mhfsqd, mhfrcc, mhfmsx) — require reverse engineering before implementation
