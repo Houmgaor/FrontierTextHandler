@@ -374,6 +374,27 @@
       "begin_pointer": "0x1C",
       "null_terminated": true
     },
+    "weapon_names": {
+      "_comment": "Felyne weapon names. 257 fixed entries. First three are English fallbacks ('None', 'Cat Bone Pick', 'Cat Paw Punch') pointing into the English text region at 0x34000+.",
+      "begin_pointer": "0x28",
+      "entry_count": 257,
+      "entry_size": 4,
+      "field_offset": 0
+    },
+    "armor_desc": {
+      "_comment": "Felyne armor descriptions. Flat s32p array, 3 strings per description followed by a 0 terminator (4 ptrs per group). Row 0 is an English 'Nothing equipped.' fallback with only 1 non-null ptr.",
+      "begin_pointer": "0x20",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 4
+    },
+    "weapon_desc": {
+      "_comment": "Felyne weapon descriptions. Same layout as armor_desc (s32p groups of 4, 3 strings + 0 terminator per description).",
+      "begin_pointer": "0x2C",
+      "null_terminated": true,
+      "grouped_entries": true,
+      "pointers_per_entry": 4
+    },
     "dialogue_type_0": {
       "_comment": "Felyne partner dialogue template, personality type 0 (40 lines, enthusiastic/cat-fighter).",
       "begin_pointer": "0x90",

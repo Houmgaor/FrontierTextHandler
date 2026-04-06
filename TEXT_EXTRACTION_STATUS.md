@@ -174,6 +174,9 @@ Pattern: none. Header layout reverse-engineered by scanning header pointers for 
 |-------|---------|---------|------|
 | `gao/armor_helm` | 0x18 | Felyne head armor names (ネコヘルム) — 257 entries | struct-strided (fixed 257, size 4, field 0) |
 | `gao/armor_mail` | 0x1C | Felyne body armor names (ネコメイル) — 257 entries | null-terminated |
+| `gao/weapon_names` | 0x28 | Felyne weapon names — 257 entries (first 3 are English fallbacks) | struct-strided (fixed 257, size 4, field 0) |
+| `gao/armor_desc` | 0x20 | Felyne armor descriptions — 514 entries, 3 lines/entry joined with `<join>` | null-terminated grouped (pointers_per_entry: 4) |
+| `gao/weapon_desc` | 0x2C | Felyne weapon descriptions — 257 entries, 3 lines/entry joined with `<join>` | null-terminated grouped (pointers_per_entry: 4) |
 | `gao/dialogue_type_0` | 0x90 | Felyne partner dialogue template, personality 0 — 40 lines | null-terminated |
 | `gao/dialogue_type_1` | 0x94 | Felyne partner dialogue template, personality 1 — 40 lines | null-terminated |
 | `gao/dialogue_type_2` | 0x98 | Felyne partner dialogue template, personality 2 — 40 lines | null-terminated |
@@ -183,23 +186,22 @@ Pattern: none. Header layout reverse-engineered by scanning header pointers for 
 | `gao/dialogue_type_6` | 0xA8 | Felyne partner dialogue template, personality 6 — 40 lines | null-terminated |
 | `gao/dialogue_type_7` | 0xAC | Felyne partner dialogue template, personality 7 — 40 lines | null-terminated |
 
-**834 strings** extracted across 10 header-rooted pointer tables. The 8 dialogue templates are indexed by Felyne personality type and each contain 40 parallel lines (greetings, quest departure, reactions, etc.).
+**1,862 strings** extracted across 13 header-rooted tables: 2×257 armor names, 257 weapon names, 514 armor descriptions, 257 weapon descriptions, and 8×40 Felyne partner dialogue templates (one per personality archetype).
 
-Note: `armor_helm` uses fixed entry_count because a literal ASCII build-date string ("YYYY/MM/DD") is stored between the table end and its 0 terminator, which breaks null-terminated scanning. The other 9 tables have clean 0-terminators.
+Layout notes:
+- `armor_helm` and `weapon_names` use fixed entry_count because an ASCII build-date string ("YYYY/MM/DD") is stored between the table end and its 0 terminator, which breaks null-terminated scanning.
+- `armor_desc` and `weapon_desc` use a flat s32p array where each description is 3 string pointers followed by a 0 terminator (4 ptrs per group). Row 0 of each table is an English fallback ("Nothing equipped." / "None") pointing into a second English text region at `0x34000`-`0x35765`.
+- Two distinct text regions exist: Japanese at `0x0001A0`-`0x00C62F` (~1,559 unique strings) and English at `0x034000`-`0x035765`.
 
 ### Not yet extracted
 
-Several larger tables exist but are reached indirectly through meta-tables at 0xC640/0xC660/0xC680 that store (begin, end) pointer pairs — these need struct-level reverse engineering of the meta-table layout:
-
 | Pointer | Evidence | Est. strings | Notes |
 |---------|----------|-------------|-------|
-| 0x020 | header → 0x30CC0, first entry "Nothing equipped." | ~670 | Felyne equipment descriptions (sparse, many zero-ptr holes) |
-| 0x028 | header → 0x22A80, entries like "レイアネコレイピア" | ~97 | Felyne weapon names |
-| 0x02C | header → 0x26320, first entry "Nothing equipped." | ~1032 | Felyne weapon descriptions (sparse) |
-| 0x040 | header → 0x21FE0, Felyne quest intro lines | ~68 | Partner situational dialogue |
-| orphan 0x13EC8 | 54 Felyne skill descriptions | 54 | No header xref found; likely indexed via 0x0CC/0x0D4/0x0DC triplets |
+| 0x040 | header → 0x21FE0, Felyne situational dialogue | ~68 | Non-uniform struct layout; needs field-level RE |
+| nested 0xCC/0xD4/0xDC | count=8 at 0x0C8/0x0D0/0x0D8, then multi-level (count, ptr) trees | ~200? | Multi-level nested pointer tree; needs recursive walker |
+| orphan 0x13EC8 | 54 Felyne skill descriptions | 54 | No xref anywhere in file (neither aligned nor unaligned) — possibly reached via computed offset in game code |
 
-Remaining unextracted text in mhfgao.bin: **~1,900 strings** (estimate, needs validated struct layout before safe round-trip is possible).
+Remaining unextracted text in mhfgao.bin: **~320 strings** (estimated).
 
 ---
 
@@ -241,11 +243,11 @@ These files contain readable text but have **no ImHex patterns or format documen
 | mhfpac.bin — UI/dialogue | ~3,365 | 0 | - |
 | mhfjmp.bin | 53 | 0 | - |
 | mhfinf.bin — quests | **~22,700** | 0 | - |
-| mhfgao.bin — Felyne | 834 (armor + dialogue) | ~1,900 (equipment descriptions, weapons, orphan tables) | Meta-table (0xC640-0xC680) struct RE |
+| mhfgao.bin — Felyne | 1,862 (armor/weapon names+descs, dialogue) | ~320 (situational dialogue, nested skill trees, orphan 0x13EC8) | Multi-level pointer tree walker |
 | Undocumented files | 0 | ~260 (mhfsqd, mhfrcc, mhfmsx) | No format documentation |
-| **Total remaining** | | **~2,160** | |
+| **Total remaining** | | **~580** | |
 
 ### Recommended next steps (by effort/impact ratio)
 
-1. **mhfgao.bin remainder** — RE the meta-tables at 0xC640/0xC660/0xC680 to surface equipment description and weapon tables (~1,900 strings)
+1. **mhfgao.bin nested tables** — implement a recursive (count, ptr) tree walker for the structures at header 0x0C8/0x0D0/0x0D8 to surface the remaining Felyne skill descriptions
 2. **Undocumented files** (mhfsqd, mhfrcc, mhfmsx) — require reverse engineering before implementation
