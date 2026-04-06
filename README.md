@@ -121,16 +121,29 @@ python main.py --xpath=dat/armors/head --with-index
 python main.py --extract-all --with-index
 ```
 
-The resulting CSV looks like:
+The resulting CSV is three columns — no offset, no filename:
 
 ```csv
-index,location,source,target
-0,0x4a8f2c@mhfdat.bin,オリジナル,Traduction
-1,0x4a8f3a@mhfdat.bin,...,...
+index,source,target
+0,オリジナル,Traduction
+1,...,...
 ```
 
-The legacy `location` column is still written alongside `index`, so index-keyed
-files remain readable by older tools and by the offset-based importer code path.
+JSON output uses the same shape and records the source binary and xpath in
+metadata instead of repeating them on every row:
+
+```json
+{
+  "metadata": {
+    "source_file": "mhfdat.bin",
+    "xpath": "dat/armors/head",
+    "version": "1.4.0"
+  },
+  "strings": [
+    {"index": 0, "source": "オリジナル", "target": "Traduction"}
+  ]
+}
+```
 
 When importing an index-keyed file, the importer auto-detects the format and
 **requires `--xpath`** to resolve indexes against the live pointer table:

@@ -27,30 +27,30 @@ def export_as_csv(
     :param data: Extracted strings, format is usually {"offset": offset, "text": string}
     :param output_file: Output file path
     :param location_name: File in which to find the source
-    :param with_index: If True, include a stable per-section ``index`` column
-        (slot number in the pointer table). This is the future primary key
-        for translations — robust against string-length changes that shift
-        offsets. The legacy ``location`` column is still written for now so
-        existing tooling keeps working.
+    :param with_index: If True, write the new index-keyed format
+        ``index,source,target`` — three columns, no offset/filename. The
+        index is the slot in the section's pointer table and is stable
+        across upstream string-length changes. If False, write the legacy
+        ``location,source,target`` format for backward compatibility.
     :return: Number of lines written
     """
     lines = 0
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         if with_index:
-            writer.writerow(["index", "location", "source", "target"])
+            writer.writerow(["index", "source", "target"])
+            for index, datum in enumerate(data):
+                writer.writerow([index, datum["text"], datum["text"]])
+                lines += 1
         else:
             writer.writerow(["location", "source", "target"])
-        for index, datum in enumerate(data):
-            row = [
-                f"0x{datum['offset']:x}@{location_name}",
-                datum["text"],
-                datum["text"],
-            ]
-            if with_index:
-                row.insert(0, index)
-            writer.writerow(row)
-            lines += 1
+            for datum in data:
+                writer.writerow([
+                    f"0x{datum['offset']:x}@{location_name}",
+                    datum["text"],
+                    datum["text"],
+                ])
+                lines += 1
     logger.info("Wrote %d lines of translation CSV as %s", lines, output_file)
     return lines
 
@@ -89,6 +89,7 @@ def export_as_json(
     output_file: str,
     location_name: str = "",
     with_index: bool = False,
+    xpath: str = "",
 ) -> int:
     """
     Export data as a JSON file with metadata.
@@ -96,27 +97,40 @@ def export_as_json(
     :param data: Extracted strings, format is usually {"offset": offset, "text": string}
     :param output_file: Output file path
     :param location_name: File in which to find the source
+    :param with_index: If True, write the new index-keyed format. Entries
+        are ``{index, source, target}`` and the source binary / xpath live
+        in ``metadata`` instead of being repeated per-row. If False, write
+        the legacy ``{location, source, target}`` entries.
+    :param xpath: Section xpath to record in metadata (index-keyed mode only).
     :return: Number of entries written
     """
     from . import __version__
 
     strings = []
-    for index, datum in enumerate(data):
-        location = f"0x{datum['offset']:x}@{location_name}"
-        entry = {
-            "location": location,
-            "source": datum["text"],
-            "target": datum["text"],
-        }
-        if with_index:
-            entry = {"index": index, **entry}
-        strings.append(entry)
+    if with_index:
+        for index, datum in enumerate(data):
+            strings.append({
+                "index": index,
+                "source": datum["text"],
+                "target": datum["text"],
+            })
+    else:
+        for datum in data:
+            strings.append({
+                "location": f"0x{datum['offset']:x}@{location_name}",
+                "source": datum["text"],
+                "target": datum["text"],
+            })
+
+    metadata = {
+        "source_file": location_name,
+        "version": __version__,
+    }
+    if with_index and xpath:
+        metadata["xpath"] = xpath
 
     output = {
-        "metadata": {
-            "source_file": location_name,
-            "version": __version__,
-        },
+        "metadata": metadata,
         "strings": strings,
     }
 
@@ -467,7 +481,7 @@ def extract_from_file(
     export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
-        with_index=with_index,
+        with_index=with_index, xpath=xpath,
     )
 
     return export_name, refrontier_path, json_path

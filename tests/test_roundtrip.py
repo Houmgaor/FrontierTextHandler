@@ -180,16 +180,17 @@ class TestIndexedRoundTrip(unittest.TestCase):
         self.addCleanup(os.unlink, csv_path)
         export_as_csv(results, csv_path, "test.bin", with_index=True)
 
-        # Header must include index column
+        # New format: three columns, no offset/filename
         with open(csv_path, encoding="utf-8") as f:
-            self.assertEqual(next(csv.reader(f))[0], "index")
+            header = next(csv.reader(f))
+        self.assertEqual(header, ["index", "source", "target"])
 
         self.assertEqual(detect_translation_format(csv_path), "index")
 
         # Edit: translate slot 1 to a much longer string
         with open(csv_path, encoding="utf-8") as f:
             rows = list(csv.reader(f))
-        rows[2][3] = "Bee" * 50  # target column
+        rows[2][2] = "Bee" * 50  # target column
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerows(rows)
 

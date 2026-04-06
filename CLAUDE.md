@@ -104,14 +104,16 @@ location,source,target
 **New (opt-in via `--with-index`), index-keyed:**
 
 ```csv
-index,location,source,target
-0,0x64@mhfdat.bin,Original Japanese,New Translation
+index,source,target
+0,Original Japanese,New Translation
 ```
 
 - `index`: Stable slot number in the section's pointer table. Survives
   string-length changes that would shift raw offsets.
-- `location`/`source`/`target`: same as legacy. `location` is preserved
-  alongside `index` so files remain readable by older tools.
+- `source` / `target`: same as legacy.
+- No `location` column. The source binary and xpath are recoverable from
+  the CSV filename / `--xpath` at import time. JSON output records them
+  in the `metadata` block (`source_file`, `xpath`).
 
 The importer auto-detects which format a CSV/JSON uses. Index-keyed imports
 **require `--xpath`** to resolve indexes against the live pointer table.

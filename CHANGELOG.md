@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **`--with-index` flag (opt-in)**: Extract CSV/JSON with a stable per-section `index` column (slot number in the pointer table) alongside the legacy `location` column. Index keys survive upstream string-length changes that would shift raw byte offsets, making re-extracted files easier to merge with existing translations. The importer auto-detects index-keyed files and resolves indexes against the live pointer table — index-keyed imports require `--xpath`. The legacy offset-only format remains the default for backward compatibility, and the ReFrontier-compatible TSV output is unchanged. Intended to become the long-term default once validated against real translation projects.
+- **`--with-index` flag (opt-in)**: Extract CSV/JSON keyed by a stable per-section `index` (slot number in the pointer table) instead of by raw byte offset. Index keys survive upstream string-length changes that would shift offsets, making re-extracted files easier to merge with existing translations. The new CSV is just three columns — `index,source,target` — with no offset/filename noise on every row; JSON records the source binary and xpath in `metadata` instead. The importer auto-detects index-keyed files and resolves indexes against the live pointer table; index-keyed imports require `--xpath`. The legacy offset-keyed format remains the default for backward compatibility, and the ReFrontier-compatible TSV output is unchanged. Intended to become the long-term default once validated against real translation projects.
 
 ## [1.4.0] - 2026-04-06
 
