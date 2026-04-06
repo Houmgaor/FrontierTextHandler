@@ -154,6 +154,14 @@ one game version to a different version, or to a binary that already
 has translations applied). The warning does not abort the import; the
 user can still proceed if they know what they're doing.
 
+> **Note: CSV vs JSON asymmetry.** The fingerprint check fires for JSON
+> imports only — CSV files deliberately stay minimal (`index,source,target`
+> with no metadata) so they render cleanly in spreadsheets and on GitHub.
+> If you want fingerprint protection, import the JSON sidecar that
+> `--with-index` writes alongside every CSV; if you only need the
+> human-friendly format, the CSV is enough but you lose the cross-version
+> safety net. The xpath inference (from filename) still works for both.
+
 When importing an index-keyed file, the importer auto-detects the format and
 infers the section xpath from (1) the JSON `metadata.xpath` field or (2) the
 CSV/JSON filename — `dat-armors-head.csv` resolves to `dat/armors/head` if that
