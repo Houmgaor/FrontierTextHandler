@@ -4,7 +4,7 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.4.0] - 2026-04-06
 
 ### Added
 - **mhfgao.bin extraction**: Full Felyne partner data coverage — 2,122 strings across 16 sections
