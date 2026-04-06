@@ -558,3 +558,7 @@ Hunter wiki.
 
 - [var-username/Monster-Hunter-Frontier-Patterns](https://github.com/var-username/Monster-Hunter-Frontier-Patterns):
 great reference for this project.
+- [Mogapedia/MHFrontier-Translation](https://github.com/Mogapedia/MHFrontier-Translation):
+community translation files (release JSONs consumable via `--apply-translations`).
+- [Mogapedia/mhf-outpost](https://github.com/Mogapedia/mhf-outpost):
+end-user GUI launcher that installs translations automatically.
