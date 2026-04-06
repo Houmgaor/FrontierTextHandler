@@ -194,6 +194,48 @@ def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
     return pairs
 
 
+def infer_xpath(
+    input_file: str,
+    headers_path: str = common.DEFAULT_HEADERS_PATH,
+) -> Optional[str]:
+    """
+    Infer the section xpath for an index-keyed translation file.
+
+    Sources, in order of preference:
+
+    1. ``metadata.xpath`` in a JSON file (set by ``export_as_json`` when
+       writing index-keyed output).
+    2. The CSV/JSON filename: ``dat-armors-head.csv`` → ``dat/armors/head``
+       if that xpath exists in *headers_path*.
+
+    :param input_file: Path to the index-keyed CSV or JSON file
+    :param headers_path: Path to headers.json (for filename validation)
+    :return: An xpath string, or ``None`` if no source could be inferred
+    """
+    # 1. JSON metadata
+    if input_file.lower().endswith(".json"):
+        try:
+            with open(input_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            xpath = (data.get("metadata") or {}).get("xpath")
+            if isinstance(xpath, str) and xpath:
+                return xpath
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # 2. Filename-derived: <prefix>-<a>-<b>-...-<z>.{csv,json} → prefix/a/b/.../z
+    basename = os.path.splitext(os.path.basename(input_file))[0]
+    if "-" in basename:
+        candidate = basename.replace("-", "/")
+        try:
+            available = set(common.get_all_xpaths(headers_path))
+        except (FileNotFoundError, KeyError):
+            return None
+        if candidate in available:
+            return candidate
+    return None
+
+
 def resolve_indexes_to_offsets(
     indexed: list[tuple[int, str]],
     file_data: bytes,
@@ -625,11 +667,15 @@ def import_from_csv(
     fmt = detect_translation_format(input_file)
     if fmt == "index":
         if xpath is None:
-            raise ValueError(
-                f"'{input_file}' uses index-based locations and requires "
-                "--xpath=<section> to resolve indexes against the live "
-                "pointer table."
-            )
+            inferred = infer_xpath(input_file, headers_path)
+            if inferred is None:
+                raise ValueError(
+                    f"'{input_file}' uses index-based locations and no "
+                    "xpath could be inferred from its metadata or filename. "
+                    "Pass --xpath=<section> explicitly."
+                )
+            xpath = inferred
+            logger.info("Inferred xpath '%s' from %s", xpath, input_file)
         indexed_strings = get_new_strings_indexed(input_file)
         logger.info(
             "Found %d translations to write (index-based)", len(indexed_strings)

@@ -115,8 +115,10 @@ index,source,target
   the CSV filename / `--xpath` at import time. JSON output records them
   in the `metadata` block (`source_file`, `xpath`).
 
-The importer auto-detects which format a CSV/JSON uses. Index-keyed imports
-**require `--xpath`** to resolve indexes against the live pointer table.
+The importer auto-detects which format a CSV/JSON uses. For index-keyed
+imports, the section xpath is inferred from the JSON `metadata.xpath` field
+or from the CSV/JSON filename (e.g. `dat-armors-head.csv` → `dat/armors/head`),
+so `--xpath` only needs to be passed explicitly to override the inference.
 Index-keying is the intended long-term default; the legacy format will remain
 supported for backward compatibility. The ReFrontier-compatible TSV format
 (`export_for_refrontier`) is unchanged and stays offset-keyed.

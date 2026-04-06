@@ -211,6 +211,85 @@ class TestIndexedRoundTrip(unittest.TestCase):
         self.assertEqual(resolved[0][1], "Bee" * 50)
 
 
+    def test_indexed_extract_is_deterministic_no_op(self):
+        """Extract → import (no edits) → re-extract is a true no-op.
+
+        Locks in:
+          * extracting the same binary twice yields byte-identical CSV
+          * importing an unedited index-keyed CSV does not modify the binary
+        """
+        from src.import_data import import_from_csv
+
+        original = ["alpha", "bravo", "charlie"]
+        data, config = self._build_binary(original)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_path = os.path.join(tmp, "test.bin")
+            with open(bin_path, "wb") as f:
+                f.write(data)
+
+            csv1 = os.path.join(tmp, "first.csv")
+            csv2 = os.path.join(tmp, "second.csv")
+            export_as_csv(
+                extract_text_data_from_bytes(data, config),
+                csv1, "test.bin", with_index=True,
+            )
+            export_as_csv(
+                extract_text_data_from_bytes(data, config),
+                csv2, "test.bin", with_index=True,
+            )
+            with open(csv1, "rb") as f:
+                bytes1 = f.read()
+            with open(csv2, "rb") as f:
+                bytes2 = f.read()
+            self.assertEqual(bytes1, bytes2, "extraction must be deterministic")
+
+            # Import unedited CSV: should be a no-op (returns None, no output).
+            # We pass the live config via a temporary headers.json so xpath
+            # validation succeeds without touching the real file.
+            import json as _json
+            headers_path = os.path.join(tmp, "headers.json")
+            with open(headers_path, "w", encoding="utf-8") as f:
+                _json.dump({"test": {"section": config}}, f)
+
+            result = import_from_csv(
+                csv1, bin_path, output_path=os.path.join(tmp, "out.bin"),
+                xpath="test/section", headers_path=headers_path,
+            )
+            self.assertIsNone(result, "no-op import should not write a file")
+
+    def test_xpath_inferred_from_json_metadata(self):
+        """Index-keyed JSON with metadata.xpath needs no --xpath at import."""
+        from src.import_data import infer_xpath
+        with tempfile.TemporaryDirectory() as tmp:
+            json_path = os.path.join(tmp, "anything.json")
+            import json as _json
+            with open(json_path, "w", encoding="utf-8") as f:
+                _json.dump({
+                    "metadata": {"source_file": "x.bin", "xpath": "dat/armors/head"},
+                    "strings": [{"index": 0, "source": "a", "target": "a"}],
+                }, f)
+            self.assertEqual(infer_xpath(json_path), "dat/armors/head")
+
+    def test_xpath_inferred_from_csv_filename(self):
+        """`dat-armors-head.csv` resolves to xpath `dat/armors/head`."""
+        from src.import_data import infer_xpath
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = os.path.join(tmp, "dat-armors-head.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write("index,source,target\n0,a,a\n")
+            # Real headers.json contains dat/armors/head
+            self.assertEqual(infer_xpath(csv_path), "dat/armors/head")
+
+    def test_xpath_inference_returns_none_when_unknown(self):
+        from src.import_data import infer_xpath
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = os.path.join(tmp, "totally-bogus-name.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write("index,source,target\n")
+            self.assertIsNone(infer_xpath(csv_path))
+
+
 class TestFtxtRoundTrip(unittest.TestCase):
     """Test extract → CSV → import → re-extract for FTXT files."""
 

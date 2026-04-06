@@ -146,12 +146,17 @@ metadata instead of repeating them on every row:
 ```
 
 When importing an index-keyed file, the importer auto-detects the format and
-**requires `--xpath`** to resolve indexes against the live pointer table:
+infers the section xpath from (1) the JSON `metadata.xpath` field or (2) the
+CSV/JSON filename — `dat-armors-head.csv` resolves to `dat/armors/head` if that
+xpath exists in `headers.json`. So this just works:
 
 ```bash
 python main.py --csv-to-bin output/dat-armors-head.csv data/mhfdat.bin \
-    --xpath=dat/armors/head --compress --encrypt
+    --compress --encrypt
 ```
+
+Pass `--xpath` explicitly only if the file has been renamed or you want to
+override the inference.
 
 This is opt-in for now and the legacy offset-only format remains the default.
 Index keys are intended to become the long-term default once the workflow has
