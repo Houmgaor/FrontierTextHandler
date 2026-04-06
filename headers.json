@@ -448,6 +448,12 @@
       "entry_count": 9,
       "entry_size": 4,
       "field_offset": 0
+    },
+    "situational_dialogue": {
+      "_comment": "Situational Felyne dialogue region at 0x21fe0..0x22880 (header 0x40 -> base, header 0x48 -> end). Mixed struct with 4-byte slots interleaved as: string pointers, mid-character substring references (runtime composition engine), numeric IDs / bitfields, and padding. Extracted via scan_region mode which walks every 4-byte aligned slot and rejects pointers whose target's preceding byte is a Shift-JIS lead byte (mid-character). Substring references remain in the file and continue to resolve to the original Japanese bytes at runtime (worst-case visual: partial replay in JP while full line is translated).",
+      "begin_pointer": "0x40",
+      "next_field_pointer": "0x48",
+      "scan_region": true
     }
   },
   "sqd": {

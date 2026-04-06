@@ -187,8 +187,9 @@ Pattern: none. Header layout reverse-engineered by scanning header pointers for 
 | `gao/dialogue_type_7` | 0xAC | Felyne partner dialogue template, personality 7 — 40 lines | null-terminated |
 | `gao/skill_text` | 0x124 | Felyne skill descriptions + English skill names — 238 entries: [0..1] EN headers ("None", "Disables wind pressure."), [2..55] 54 JP skill effect descriptions (previously the "orphan 0x13EC8" region — reachable here as entries [2..55]), [56..237] 182 EN skill names | struct-strided (fixed 238, size 4, field 0) |
 | `gao/skill_names_zenith` | 0x12C | English Zenith/Myriad Felyne skill names — 9 entries (Status Immunity, No Stamin Depletion, Elemental Attack Up, Affinity Up, Divine Protection, Goddess' Embrace, …) | struct-strided (fixed 9, size 4, field 0) |
+| `gao/situational_dialogue` | 0x40 | Situational Felyne dialogue region `0x21fe0..0x22880` — 13 unique full dialogues (monster-sighting, quest-finish, Gania cat-head, end-of-day monologue, Rurufuru helm flavor, horn-buff effect, …) — extracted via scan_region mode after filtering mid-character composition-engine fragments | scan_region (pointer-pair bounds, min_length 4) |
 
-**2,109 strings** extracted across 15 header-rooted tables: 2×257 armor names, 257 weapon names, 514 armor descriptions, 257 weapon descriptions, 8×40 Felyne partner dialogue templates, 238 Felyne skill description / English name entries at 0x124, and 9 Zenith Felyne skill names at 0x12C.
+**2,122 strings** extracted across 16 header-rooted tables: 2×257 armor names, 257 weapon names, 514 armor descriptions, 257 weapon descriptions, 8×40 Felyne partner dialogue templates, 238 Felyne skill description / English name entries at 0x124, 9 Zenith Felyne skill names at 0x12C, and 13 situational dialogue entries at 0x40.
 
 Layout notes:
 - `armor_helm` and `weapon_names` use fixed entry_count because an ASCII build-date string ("YYYY/MM/DD") is stored between the table end and its 0 terminator, which breaks null-terminated scanning.
@@ -199,11 +200,11 @@ Layout notes:
 
 | Pointer | Evidence | Est. strings | Notes |
 |---------|----------|-------------|-------|
-| 0x040 | header → 0x21FE0, situational/event dialogue indirection table | ~20 readable | Extremely sparse 64+ word region mostly filled with null entries interleaved with string pointers that land **mid Shift-JIS character** (e.g. `0x2102 → 'W！\n…'`, `0x230A → 'ｯ型が崩れるのが…'`). Evidence that the game composes dialogue at runtime from sub-string fragments rather than storing complete pointers. Needs struct field-level RE plus a template/composition engine to reconstitute full sentences; not extractable as flat s32p. |
+| 0x040 | header → 0x21FE0, situational dialogue region | — | **Resolved via scan_region mode (2026-04-06).** The 552 u32 slots in the region split into 154 null / 188 OOB (numeric IDs, not pointers) / 55 clean-start pointers (18 unique) / 143 mid-character fragment pointers (37 unique). Fragments are runtime composition-engine references whose byte offsets depend on the exact Shift-JIS layout of the original text and would break under translation. The new `scan_region` extraction mode walks every 4-byte aligned slot in `[begin, end)`, rejects OOB values and pointers whose target is preceded by a Shift-JIS lead byte, and emits the 13 translator-usable full dialogues (after min_length=4 to drop 2–3 byte numeric coincidences). Fragment pointers remain in the file and continue to resolve to the original Japanese bytes at runtime; worst-case visual effect is a partial replay in JP while the full line is shown in the translation. |
 | nested 0xCC/0xD4/0xDC | `count=8` at 0x0C8/0x0D0/0x0D8, then 3-level `(count, ptr)` trees at 0x19380 / 0x15F80 / 0x15140 | ~16 unique fragments (not ~250) | Tree walk confirmed: outer array of 8 × (u32 count, u32 ptr) → middle array of *count* × (u32 count, u32 ptr) → leaf array of *count* × s32p. Walking all three trees yields only ~16 unique readable strings, and the rest of the leaf pointers land mid Shift-JIS character (same compositional tokenization as 0x040). Interpretation: these are the per-skill **effect formula tables** that the game uses to build the skill description shown in `gao/skill_text` at runtime — each leaf entry glues a fragment like `耐性値が上昇する。` to a numeric prefix to produce "X resistance rises." etc. The translator-usable strings are already captured via `gao/skill_text`; these tables carry no additional unique translatable content. Implementing a recursive walker is feasible but not worthwhile for translation output. |
 | orphan 0x13EC8 | 54 Felyne JP skill effect descriptions | — | **Resolved.** Not actually orphan: header pointer `0x124 → 0x13EC0` references a 238-entry s32p table that contains these 54 JP descriptions as entries [2..55]. Now fully extracted via `gao/skill_text`. |
 
-Remaining unextracted text in mhfgao.bin: **~20 readable fragments in the 0x040 situational-dialogue region**, blocked on field-level RE of the composition engine. The 0xCC/0xD4/0xDC nested trees carry no additional translatable strings beyond fragment tokens already represented by `gao/skill_text`.
+Remaining unextracted text in mhfgao.bin: **~0**. The 0x040 situational dialogue is now covered by `gao/situational_dialogue` (13 entries), and the 0xCC/0xD4/0xDC nested trees carry no additional translatable strings beyond fragment tokens already represented by `gao/skill_text`.
 
 ---
 
@@ -299,7 +300,7 @@ Any additional localized strings referenced from sibling struct tables elsewhere
 | mhfpac.bin — UI/dialogue | ~3,365 | 0 | - |
 | mhfjmp.bin | 53 | 0 | - |
 | mhfinf.bin — quests | **~22,700** | 0 | - |
-| mhfgao.bin — Felyne | 2,109 (armor/weapon names+descs, dialogue, skill descriptions/names) | ~20 readable fragments in 0x040 situational dialogue | Needs composition-engine RE (string fragments land mid Shift-JIS character) |
+| mhfgao.bin — Felyne | 2,122 (armor/weapon names+descs, dialogue, skill descriptions/names, situational dialogue via scan_region) | 0 | - |
 | mhfsqd.bin — Squad | 190 (NPC names, skills, labels) | ~0 (earlier ~33 estimate was IDs/padding, not strings) | None actionable |
 | mhfrcc.bin — Reception | 28 (7 EN titles + 7 JP/EN descriptions + Guild Conquest + templates via multi-field events_full) | 0 | - |
 | mhfmsx.bin — Mezeporta Festa | 10 (item names + effects) | 0 confirmed beyond placeholders | - |

@@ -19,9 +19,12 @@ __all__ = [
     "read_multi_pointer_entries",
     "read_struct_strings",
     "read_quest_table",
+    "scan_region_for_strings",
     "extract_text_data",
     "extract_text_data_from_bytes",
 ]
+
+
 
 
 def read_until_null(bfile: BinaryFile) -> bytes:
@@ -274,6 +277,111 @@ def read_struct_strings(
     return results
 
 
+def scan_region_for_strings(
+    bfile: BinaryFile,
+    region_start: int,
+    region_end: int,
+    min_length: int = 4,
+    max_length: int = 400,
+    dedupe: bool = True,
+) -> list[dict[str, int | str]]:
+    """
+    Walk every 4-byte aligned slot in [region_start, region_end) and
+    emit entries for slots that look like valid string pointers into
+    a clean (character-boundary) Shift-JIS string start.
+
+    Used for mixed struct regions where string pointers are interleaved
+    with numeric fields and substring references (e.g. mhfgao.bin
+    situational dialogue area at header 0x040). Pointers that land mid
+    character — where the byte immediately preceding the target is a
+    Shift-JIS lead byte — are classified as composition-engine fragments
+    and skipped, because their offsets depend on the exact byte layout
+    of the original Japanese encoding and would break after translation.
+
+    :param bfile: Binary file to read from
+    :param region_start: Inclusive start offset of the region to scan
+    :param region_end: Exclusive end offset of the region
+    :param min_length: Reject strings shorter than this (bytes)
+    :param max_length: Reject strings longer than this (bytes)
+    :param dedupe: If True, each unique target pointer is emitted once
+        (at its first occurrence). Disable to surface every pointer slot.
+    :return: List of dicts with "offset" (the pointer slot location,
+        not the string target) and "text" keys
+    """
+    if region_end <= region_start:
+        return []
+    bfile.validate_offset(region_start, context="scan_region start")
+    bfile.validate_offset(region_end - 1, context="scan_region end")
+
+    file_size = bfile.size
+    bfile.seek(region_start)
+    data = bfile.read(region_end - region_start)
+
+    results: list[dict[str, int | str]] = []
+    seen_targets: set[int] = set()
+
+    for slot_rel in range(0, len(data) - 3, 4):
+        pointer = struct.unpack_from("<I", data, slot_rel)[0]
+        slot_offset = region_start + slot_rel
+
+        # Filter 1: null / OOB (IDs, flags, counters)
+        if pointer == 0 or pointer >= file_size:
+            continue
+
+        # Filter 2: mid-multi-byte-character fragment. If the byte
+        # preceding the target is a Shift-JIS lead byte (0x81-0x9F or
+        # 0xE0-0xFC), the pointer lands on a trail byte — i.e. inside
+        # a multi-byte character. These are runtime composition-engine
+        # substring references whose offsets depend on the exact byte
+        # layout of the original Japanese encoding and would break
+        # after translation. (Note: this does NOT filter out "semantic"
+        # tail fragments that happen to land on a char boundary — those
+        # are indistinguishable from real strings at the byte level.)
+        if pointer > 0:
+            bfile.seek(pointer - 1)
+            prev_byte = bfile.read(1)[0]
+            if (0x81 <= prev_byte <= 0x9F) or (0xE0 <= prev_byte <= 0xFC):
+                continue
+
+        # Filter 3: read null-terminated span
+        bfile.seek(pointer)
+        raw = read_until_null(bfile)
+        if len(raw) < min_length or len(raw) > max_length:
+            continue
+
+        # Filter 4: must decode cleanly as Shift-JIS from the start
+        try:
+            text = decode_game_string(
+                raw, context=f"scan_region slot {slot_offset:#x}"
+            )
+        except (UnicodeDecodeError, ValueError):
+            continue
+        if not text:
+            continue
+
+        # Filter 5: reject strings that contain Unicode replacement chars
+        # (U+FFFD indicates a decode that used error='replace' on invalid
+        # Shift-JIS bytes — means we started mid-stream or hit junk, and
+        # re-encoding during import/ReFrontier export would fail).
+        if "\ufffd" in text:
+            continue
+
+        # Filter 6: reject strings whose first decoded char is a C0 control
+        # (these are almost always numeric coincidences, not real strings)
+        first = text[0]
+        if ord(first) < 0x20 and first not in ("\n", "\t"):
+            continue
+
+        if dedupe:
+            if pointer in seen_targets:
+                continue
+            seen_targets.add(pointer)
+
+        results.append({"offset": slot_offset, "text": text})
+
+    return results
+
+
 def _read_indirect_count(bfile: BinaryFile, config: dict) -> int:
     """
     Read an entry count from an indirect pointer table.
@@ -448,7 +556,31 @@ def extract_text_data_from_bytes(
 
     begin_pointer = int(config["begin_pointer"], 16)
 
-    if "next_field_pointer" in config:
+    if config.get("scan_region"):
+        # Scan mode: walk every 4-byte slot in [begin, end), emit only
+        # pointers that land on a clean Shift-JIS char boundary. Used for
+        # mixed struct regions interleaved with fragments and numeric IDs.
+        if "next_field_pointer" not in config:
+            raise ValueError(
+                "scan_region mode requires 'next_field_pointer' to bound "
+                "the region"
+            )
+        next_field_pointer = int(config["next_field_pointer"], 16)
+        bfile.seek(begin_pointer)
+        region_start = bfile.read_int()
+        bfile.seek(next_field_pointer)
+        region_end = bfile.read_int()
+        dedupe = config.get("dedupe", True)
+        min_length = config.get("min_length", 4)
+        max_length = config.get("max_length", 400)
+        return scan_region_for_strings(
+            bfile, region_start, region_end,
+            min_length=min_length,
+            max_length=max_length,
+            dedupe=dedupe,
+        )
+
+    elif "next_field_pointer" in config:
         # Standard: pointer pair defining start and end of pointer table
         next_field_pointer = int(config["next_field_pointer"], 16)
         crop_end = config.get("crop_end", 0)
