@@ -59,6 +59,10 @@ python main.py --xpath=dat/armors/legs
 
 It will create a file ``output/dat-armors-legs.csv``. A JSON file (`output/dat-armors-legs.json`) is also produced alongside the CSV.
 
+For a full list of which game binary holds which xpath (weapons, armors,
+quests, Felyne dialogue, squad text, ...), see
+[`docs/game-files.md`](docs/game-files.md).
+
 ### Change the game files
 
 Using a CSV file, you can insert new strings (such as translations) in the original MHFrontier game.
