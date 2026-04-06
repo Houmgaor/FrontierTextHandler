@@ -4,6 +4,36 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **mhfgao.bin extraction**: Full Felyne partner data coverage — 2,122 strings across 16 sections
+  - Armor/weapon names and descriptions (`armor_helm`, `armor_mail`, `weapon_names`, `armor_desc`, `weapon_desc`)
+  - 8 personality-type dialogue templates (`dialogue_type_0` .. `dialogue_type_7`)
+  - Skill descriptions + English skill names (`skill_text`, `skill_names_zenith`)
+  - Situational dialogue region at 0x040 (`situational_dialogue`, 13 entries via new scan_region mode)
+- **mhfsqd.bin extraction**: Squad / NPC partner data — 190 strings across 6 sections (NPC names, star ranks, skill activation/description/quest labels, header labels)
+- **mhfrcc.bin extraction**: Reception / event info — 28 strings across 2 sections (7 English event titles + 7 full event descriptions, Guild Conquest title, remaining-time template via multi-field struct mode)
+- **mhfmsx.bin extraction**: Mezeporta Festa — 17 item names + 17 item effects via new `literal_base` flag for struct tables without a header pointer
+- **mhfpac.bin additional sections**: `text_30` and `text_48` pointer-pair tables
+- **`--apply-translations` command**: Apply a MHFrontier-Translation release JSON to a full game installation in one step (`--lang fr --game-dir ~/mhf`)
+- **Multi-field struct extraction**: `field_offset` in `struct_strided` mode now accepts a list (`[20,24,28,32]`) to emit multiple strings per struct row — used for mhfrcc.bin event rows that carry title + description + two placeholder slots
+- **`scan_region` extraction mode**: Walks every 4-byte aligned slot in a bounded region and emits only pointers that land on a clean Shift-JIS character boundary, rejecting numeric IDs, OOB values, mid-character composition-engine fragments, decode errors, and U+FFFD replacement artefacts. Used for mixed struct regions where string pointers are interleaved with runtime substring references (mhfgao.bin 0x040 situational dialogue)
+- **`literal_base` option**: `struct_strided` mode now supports a literal file-offset base (no header dereference) for tables whose base address isn't stored in a pointer slot
+
+### Changed
+- **`common.py` split**: Refactored into focused modules (`pointer_tables`, `ftxt`, `quest`, `npc`, `file_io`) with backward-compat re-exports. All existing imports from `src.common` still work.
+- **`extraction_config` validation**: hex string fields in `headers.json` are now validated up front
+- **`import_from_csv()`**: xpath is validated early before doing any work
+- **Scenario parsing**: bounds-checking on all chunk types
+
+### Fixed
+- **`<join>` tag expansion** in the `csv-to-bin` append path
+- **Empty translations JSON**: no longer crashes when the input file has zero translations
+
+### Tests
+- Test suite expanded from ~440 to **565 tests** (`test_common.py`, new `test_export.py`, new `test_import_data.py`, expanded `test_scenario.py`)
+
 ## [1.3.0] - 2026-03-02
 
 ### Added
