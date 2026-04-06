@@ -542,8 +542,12 @@ def extract_text_data_from_bytes(
         entry_size = config["entry_size"]
         field_offset = config["field_offset"]
 
-        bfile.seek(begin_pointer)
-        base_offset = bfile.read_int()
+        if config.get("literal_base"):
+            # begin_pointer is treated as a literal file offset (no deref)
+            base_offset = begin_pointer
+        else:
+            bfile.seek(begin_pointer)
+            base_offset = bfile.read_int()
         return read_struct_strings(
             bfile, base_offset, entry_count, entry_size, field_offset
         )

@@ -395,6 +395,9 @@ FILE_TYPE_DEFAULTS = {
     "jmp": "data/mhfjmp.bin",
     "nav": "data/mhfnav.bin",
     "gao": "data/mhfgao.bin",
+    "rcc": "data/mhfrcc.bin",
+    "msx": "data/mhfmsx.bin",
+    "sqd": "data/mhfsqd.bin",
 }
 
 

@@ -185,8 +185,10 @@ Pattern: none. Header layout reverse-engineered by scanning header pointers for 
 | `gao/dialogue_type_5` | 0xA4 | Felyne partner dialogue template, personality 5 — 40 lines | null-terminated |
 | `gao/dialogue_type_6` | 0xA8 | Felyne partner dialogue template, personality 6 — 40 lines | null-terminated |
 | `gao/dialogue_type_7` | 0xAC | Felyne partner dialogue template, personality 7 — 40 lines | null-terminated |
+| `gao/skill_text` | 0x124 | Felyne skill descriptions + English skill names — 238 entries: [0..1] EN headers ("None", "Disables wind pressure."), [2..55] 54 JP skill effect descriptions (previously the "orphan 0x13EC8" region — reachable here as entries [2..55]), [56..237] 182 EN skill names | struct-strided (fixed 238, size 4, field 0) |
+| `gao/skill_names_zenith` | 0x12C | English Zenith/Myriad Felyne skill names — 9 entries (Status Immunity, No Stamin Depletion, Elemental Attack Up, Affinity Up, Divine Protection, Goddess' Embrace, …) | struct-strided (fixed 9, size 4, field 0) |
 
-**1,862 strings** extracted across 13 header-rooted tables: 2×257 armor names, 257 weapon names, 514 armor descriptions, 257 weapon descriptions, and 8×40 Felyne partner dialogue templates (one per personality archetype).
+**2,109 strings** extracted across 15 header-rooted tables: 2×257 armor names, 257 weapon names, 514 armor descriptions, 257 weapon descriptions, 8×40 Felyne partner dialogue templates, 238 Felyne skill description / English name entries at 0x124, and 9 Zenith Felyne skill names at 0x12C.
 
 Layout notes:
 - `armor_helm` and `weapon_names` use fixed entry_count because an ASCII build-date string ("YYYY/MM/DD") is stored between the table end and its 0 terminator, which breaks null-terminated scanning.
@@ -197,25 +199,73 @@ Layout notes:
 
 | Pointer | Evidence | Est. strings | Notes |
 |---------|----------|-------------|-------|
-| 0x040 | header → 0x21FE0, Felyne situational dialogue | ~68 | Non-uniform struct layout; needs field-level RE |
-| nested 0xCC/0xD4/0xDC | count=8 at 0x0C8/0x0D0/0x0D8, then multi-level (count, ptr) trees | ~200? | Multi-level nested pointer tree; needs recursive walker |
-| orphan 0x13EC8 | 54 Felyne skill descriptions | 54 | No xref anywhere in file (neither aligned nor unaligned) — possibly reached via computed offset in game code |
+| 0x040 | header → 0x21FE0, situational/event dialogue indirection table | ~20 readable | Extremely sparse 64+ word region mostly filled with null entries interleaved with string pointers that land **mid Shift-JIS character** (e.g. `0x2102 → 'W！\n…'`, `0x230A → 'ｯ型が崩れるのが…'`). Evidence that the game composes dialogue at runtime from sub-string fragments rather than storing complete pointers. Needs struct field-level RE plus a template/composition engine to reconstitute full sentences; not extractable as flat s32p. |
+| nested 0xCC/0xD4/0xDC | `count=8` at 0x0C8/0x0D0/0x0D8, then 3-level `(count, ptr)` trees at 0x19380 / 0x15F80 / 0x15140 | ~16 unique fragments (not ~250) | Tree walk confirmed: outer array of 8 × (u32 count, u32 ptr) → middle array of *count* × (u32 count, u32 ptr) → leaf array of *count* × s32p. Walking all three trees yields only ~16 unique readable strings, and the rest of the leaf pointers land mid Shift-JIS character (same compositional tokenization as 0x040). Interpretation: these are the per-skill **effect formula tables** that the game uses to build the skill description shown in `gao/skill_text` at runtime — each leaf entry glues a fragment like `耐性値が上昇する。` to a numeric prefix to produce "X resistance rises." etc. The translator-usable strings are already captured via `gao/skill_text`; these tables carry no additional unique translatable content. Implementing a recursive walker is feasible but not worthwhile for translation output. |
+| orphan 0x13EC8 | 54 Felyne JP skill effect descriptions | — | **Resolved.** Not actually orphan: header pointer `0x124 → 0x13EC0` references a 238-entry s32p table that contains these 54 JP descriptions as entries [2..55]. Now fully extracted via `gao/skill_text`. |
 
-Remaining unextracted text in mhfgao.bin: **~320 strings** (estimated).
+Remaining unextracted text in mhfgao.bin: **~20 readable fragments in the 0x040 situational-dialogue region**, blocked on field-level RE of the composition engine. The 0xCC/0xD4/0xDC nested trees carry no additional translatable strings beyond fragment tokens already represented by `gao/skill_text`.
 
 ---
 
 ## Other game files
 
-### With text (undocumented structure)
+## mhfsqd.bin — Squad / NPC partner data
 
-These files contain readable text but have **no ImHex patterns or format documentation**. Their pointer table structures would need to be reverse-engineered before extraction can be implemented.
+Source: `client/pc/dat/mhfsqd.bin` (ECD-encrypted + JKR-compressed; decrypted+decompressed size 16,036 B)
+Pattern: none. Greenfield reverse-engineered by scanning the 15 u32 pointers at 0x00-0x38 for struct-strided tables whose embedded string pointer fields target the flat Shift-JIS blob at 0x40-0x14C0 (223 null-terminated strings).
 
-| File | Size (decrypted) | Content | Est. strings | Difficulty |
-|------|-----------------|---------|-------------|------------|
-| `mhfsqd.bin` | 16,036 B | NPC partner names (Aaron, Tania, etc.) + squad labels | ~230 | HARD — no docs |
-| `mhfrcc.bin` | 2,556 B | Event/festival announcement text | 21 | HARD — no docs, small file |
-| `mhfmsx.bin` | 15,072 B | Tower/festival item names and effect labels | ~10 | HARD — no docs, mostly numeric |
+### Extracted
+
+| xpath | Pointer | Content | Mode |
+|-------|---------|---------|------|
+| `sqd/npc_names` | 0x28 | NPC partner names (Aaron, Bart, Calvin, Tania, ...) — 43 entries | struct-strided (size 8, field 0) |
+| `sqd/star_rank` | 0x24 | Star rank labels (★, ★★, ★★★) — 3 entries | struct-strided (size 8, field 0) |
+| `sqd/skill_activation` | 0x18 | Squad skill activation messages — 35 entries | struct-strided (size 16, field 8) |
+| `sqd/skill_description` | 0x14 | Squad skill descriptions — 26 entries | struct-strided (size 12, field 4) |
+| `sqd/skill_quest_label` | 0x10 | Skill quest-count labels ("Usable N times per quest") — 80 entries | struct-strided (size 12, field 4) |
+| `sqd/header_labels` | 0x38 | Header / placeholder labels (point suppression, point reset) — 3 entries | struct-strided (size 12, field 4) |
+
+**190 strings** extracted across 6 header-rooted struct-strided tables. All tables are bounded exactly by the next header pointer (each header slot at 0x00-0x38 delimits one struct section).
+
+### Not yet extracted
+
+~33 strings remain in the 0x40-0x14C0 string blob that are referenced via more complex structures (not flat s32p arrays):
+- Header 0x38 -> 0x14E0 has an irregular layout where rows hold strings at varying field offsets (only field 4 is reliably a string, so entry 1 of that table has 2 additional unexposed strings).
+- Header 0x30 -> 0x1520 references secondary pointer tables at 0x15BC/0x15D8/0x15EC with 24-bit offset encoding — needs a dedicated walker.
+- Headers 0x00/0x04/0x08/0x0C/0x1C/0x20/0x2C/0x34 point to non-string data (floats, indices, tables of struct IDs).
+
+## mhfrcc.bin — Reception / event info
+
+Source: `client/pc/dat/mhfrcc.bin` (ECD-encrypted + JKR-compressed; decrypted+decompressed size 2,556 B).
+Pattern: none. Greenfield reverse-engineered by scanning decrypted bytes for Shift-JIS runs and cross-referencing u32 values to candidate string pointers.
+
+### Extracted
+
+| xpath | Pointer | Content | Mode |
+|-------|---------|---------|------|
+| `rcc/events_en` | 0x08 | English event-info strings (Pallone Grand Voyage, Hunter Fest, Hunting Competition, ...) — 7 entries | struct-strided (fixed 7, size 4, field 0) |
+
+### Not yet extracted
+
+~27 Japanese event-info strings (contiguous at 0x20-0x557) plus their 7 English titles at 0x6c0+ are referenced from a variable-length struct region at 0x5c0-0x6c0 whose struct boundaries alternate between 0x1C and 0x24 byte spans. The fields mix float timestamps and packed date masks with 4 string pointers per event, but the stride is not uniform so a struct-strided config cannot safely cover them yet. Needs a dedicated parser.
+
+## mhfmsx.bin — Mezeporta Festa
+
+Source: `client/pc/dat/mhfmsx.bin` (ECD-encrypted + JKR-compressed; decrypted+decompressed size 15,072 B).
+Pattern: none. Greenfield reverse-engineered by locating the only readable Shift-JIS block (0x80-0xf8) and walking the nearest backing struct table.
+
+### Extracted
+
+| xpath | Base | Content | Mode |
+|-------|------|---------|------|
+| `msx/item_name` | 0x2abc (literal) | Festa item names: 輝く杯, 宝飾剣, 古書物, 小箱, 燭台 + 12 `----` placeholder slots — 17 entries | struct-strided literal_base (size 0x24, field 0) |
+| `msx/item_effect` | 0x2abc (literal) | Festa item effects: 踏破報酬枠追加, 踏破報酬抽選確率アップ, TRP増加, 狩人祭効果発動, パローネ大航祭効果発動 + placeholders — 17 entries | struct-strided literal_base (size 0x24, field 4) |
+
+10 real Japanese strings (5 names + 5 effects) recovered out of 34 struct slots in this section. A new `literal_base: true` flag on the struct-strided extraction mode was added to `pointer_tables.py` so that the struct base address (0x2abc) can be specified directly when no header u32 happens to hold it.
+
+### Not yet extracted
+
+Any additional localized strings referenced from sibling struct tables elsewhere in mhfmsx.bin. Color labels (赤, 青, 黄) at ~0x2d30 sit in a different layout and are not currently exposed.
 
 ### Without text
 
@@ -243,11 +293,13 @@ These files contain readable text but have **no ImHex patterns or format documen
 | mhfpac.bin — UI/dialogue | ~3,365 | 0 | - |
 | mhfjmp.bin | 53 | 0 | - |
 | mhfinf.bin — quests | **~22,700** | 0 | - |
-| mhfgao.bin — Felyne | 1,862 (armor/weapon names+descs, dialogue) | ~320 (situational dialogue, nested skill trees, orphan 0x13EC8) | Multi-level pointer tree walker |
-| Undocumented files | 0 | ~260 (mhfsqd, mhfrcc, mhfmsx) | No format documentation |
-| **Total remaining** | | **~580** | |
+| mhfgao.bin — Felyne | 2,109 (armor/weapon names+descs, dialogue, skill descriptions/names) | ~20 readable fragments in 0x040 situational dialogue | Needs composition-engine RE (string fragments land mid Shift-JIS character) |
+| mhfsqd.bin — Squad | 190 (NPC names, skills, labels) | ~33 (irregular sub-tables) | Variable field offsets / 24-bit ptrs |
+| mhfrcc.bin — Reception | 7 (English event strings) | ~27 (Japanese equivalents in variable-stride struct region) | Variable struct stride |
+| mhfmsx.bin — Mezeporta Festa | 10 (item names + effects) | 0 confirmed beyond placeholders | - |
+| **Total remaining** | | **~384** | |
 
 ### Recommended next steps (by effort/impact ratio)
 
 1. **mhfgao.bin nested tables** — implement a recursive (count, ptr) tree walker for the structures at header 0x0C8/0x0D0/0x0D8 to surface the remaining Felyne skill descriptions
-2. **Undocumented files** (mhfsqd, mhfrcc, mhfmsx) — require reverse engineering before implementation
+2. **mhfrcc.bin variable-stride struct region** — write a dedicated walker for the 0x5c0-0x6c0 event-info structs to recover the remaining 27 Japanese announcement strings

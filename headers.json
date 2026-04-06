@@ -434,6 +434,94 @@
       "_comment": "Felyne partner dialogue template, personality type 7 (40 lines, cool/casual).",
       "begin_pointer": "0xAC",
       "null_terminated": true
+    },
+    "skill_text": {
+      "_comment": "Felyne skill descriptions + English skill names. Flat s32p array of 238 entries at header 0x124 -> 0x13EC0: [0..1] English headers ('None', 'Disables wind pressure.'), [2..55] 54 Japanese skill effect descriptions (the previously orphan region at 0x13EC8 is reachable as entries [2..55] of this table), [56..237] 182 English skill name/description strings. End of array coincides with the start of the other slices at header 0x108/0x10c.",
+      "begin_pointer": "0x124",
+      "entry_count": 238,
+      "entry_size": 4,
+      "field_offset": 0
+    },
+    "skill_names_zenith": {
+      "_comment": "English Zenith/Myriad Felyne skill names (9 entries: Status Immunity, Status Immunity Myriad, No Stamin Depletion [Small/Large], Elemental Attack Up, Affinity Up [Small/Large], Divine Protection, Goddess' Embrace).",
+      "begin_pointer": "0x12C",
+      "entry_count": 9,
+      "entry_size": 4,
+      "field_offset": 0
+    }
+  },
+  "sqd": {
+    "_comment": "Squad / NPC partner data (mhfsqd.bin). Greenfield RE: the file header at 0x00-0x38 stores 15 u32 pointers that delimit struct-strided tables in the data region, with a flat Shift-JIS string blob at 0x40-0x14C0. String pointers are embedded as fields within structs (not s32p arrays). First-pass coverage: 6 header-rooted struct-strided tables (~190 strings). Tables at 0x00/0x04/0x08/0x0C/0x1C/0x20/0x2C/0x30/0x34/0x38 are non-string / complex and not yet extracted.",
+    "npc_names": {
+      "_comment": "NPC partner names (Aaron, Bart, Calvin, Tania, ...). 43 entries, stride 8, string ptr at field 0. End matches header 0x20 (0x1B58).",
+      "begin_pointer": "0x28",
+      "entry_count": 43,
+      "entry_size": 8,
+      "field_offset": 0
+    },
+    "star_rank": {
+      "_comment": "Star rank labels (one/two/three stars). 3 entries, stride 8, field 0. End matches header 0x20 (0x1B58).",
+      "begin_pointer": "0x24",
+      "entry_count": 3,
+      "entry_size": 8,
+      "field_offset": 0
+    },
+    "skill_activation": {
+      "_comment": "Squad skill activation messages ('Skill X activates.'). 35 entries, stride 16, string ptr at field 8. End matches header 0x14 (0x1DC0).",
+      "begin_pointer": "0x18",
+      "entry_count": 35,
+      "entry_size": 16,
+      "field_offset": 8
+    },
+    "skill_description": {
+      "_comment": "Squad skill descriptions. 26 entries, stride 12, string ptr at field 4. End matches header 0x10 (0x1F00).",
+      "begin_pointer": "0x14",
+      "entry_count": 26,
+      "entry_size": 12,
+      "field_offset": 4
+    },
+    "skill_quest_label": {
+      "_comment": "Skill quest-count labels ('Usable 5 times per quest', ...). 80 entries, stride 12, string ptr at field 4. End matches header 0x0C (0x22C0).",
+      "begin_pointer": "0x10",
+      "entry_count": 80,
+      "entry_size": 12,
+      "field_offset": 4
+    },
+    "header_labels": {
+      "_comment": "Header / placeholder labels (point suppression, point reset). 3 entries, stride 12, string ptr at field 4. End matches header 0x34 (0x1510) — but layout is irregular; only field 4 is reliably a string across all rows. First entry is a placeholder '1234567890'.",
+      "begin_pointer": "0x38",
+      "entry_count": 3,
+      "entry_size": 12,
+      "field_offset": 4
+    }
+  },
+  "rcc": {
+    "_comment": "Reception / event info strings (mhfrcc.bin). First-pass coverage: the English event-info pointer table at 0x580 is clean (7 entries). Japanese equivalents live in a variable-length struct region near 0x5c0 mixed with numeric fields and are not yet fully mapped.",
+    "events_en": {
+      "_comment": "English event info strings referenced by a contiguous 7-entry s32p table pointed to by u32 at file offset 0x08.",
+      "begin_pointer": "0x08",
+      "entry_count": 7,
+      "entry_size": 4,
+      "field_offset": 0
+    }
+  },
+  "msx": {
+    "_comment": "Mezeporta Festa item/effect strings (mhfmsx.bin). First-pass coverage: a 17-entry struct-strided table at literal file offset 0x2abc containing (name_ptr, desc_ptr) pairs per 0x24-byte struct. Most slots are '----' placeholders; ~10 slots contain real item names and their effect descriptions.",
+    "item_name": {
+      "_comment": "Name pointer (field +0x00) of each 0x24-byte struct.",
+      "begin_pointer": "0x2abc",
+      "literal_base": true,
+      "entry_count": 17,
+      "entry_size": 36,
+      "field_offset": 0
+    },
+    "item_effect": {
+      "_comment": "Effect/description pointer (field +0x04) of each 0x24-byte struct.",
+      "begin_pointer": "0x2abc",
+      "literal_base": true,
+      "entry_count": 17,
+      "entry_size": 36,
+      "field_offset": 4
     }
   }
 }
