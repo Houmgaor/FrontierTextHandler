@@ -2,7 +2,7 @@
 Definition of the FrontierTextHandler module.
 """
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 from .export import (
     export_as_json,
