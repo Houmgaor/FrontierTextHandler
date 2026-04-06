@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 def export_as_csv(
     data: Iterable[dict[str, int | str]],
     output_file: str,
-    location_name: str = ""
+    location_name: str = "",
+    with_index: bool = False,
 ) -> int:
     """
     Export data in a CSV file with standard compatibility format.
@@ -26,16 +27,29 @@ def export_as_csv(
     :param data: Extracted strings, format is usually {"offset": offset, "text": string}
     :param output_file: Output file path
     :param location_name: File in which to find the source
+    :param with_index: If True, include a stable per-section ``index`` column
+        (slot number in the pointer table). This is the future primary key
+        for translations — robust against string-length changes that shift
+        offsets. The legacy ``location`` column is still written for now so
+        existing tooling keeps working.
     :return: Number of lines written
     """
     lines = 0
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["location", "source", "target"])
-        for datum in data:
-            writer.writerow(
-                [f"0x{datum['offset']:x}@{location_name}", datum["text"], datum["text"]]
-            )
+        if with_index:
+            writer.writerow(["index", "location", "source", "target"])
+        else:
+            writer.writerow(["location", "source", "target"])
+        for index, datum in enumerate(data):
+            row = [
+                f"0x{datum['offset']:x}@{location_name}",
+                datum["text"],
+                datum["text"],
+            ]
+            if with_index:
+                row.insert(0, index)
+            writer.writerow(row)
             lines += 1
     logger.info("Wrote %d lines of translation CSV as %s", lines, output_file)
     return lines
@@ -73,7 +87,8 @@ def export_for_refrontier(
 def export_as_json(
     data: Iterable[dict[str, int | str]],
     output_file: str,
-    location_name: str = ""
+    location_name: str = "",
+    with_index: bool = False,
 ) -> int:
     """
     Export data as a JSON file with metadata.
@@ -86,13 +101,16 @@ def export_as_json(
     from . import __version__
 
     strings = []
-    for datum in data:
+    for index, datum in enumerate(data):
         location = f"0x{datum['offset']:x}@{location_name}"
-        strings.append({
+        entry = {
             "location": location,
             "source": datum["text"],
             "target": datum["text"],
-        })
+        }
+        if with_index:
+            entry = {"index": index, **entry}
+        strings.append(entry)
 
     output = {
         "metadata": {
@@ -406,7 +424,8 @@ def extract_from_file(
     xpath: str,
     output_file: str,
     output_dir: str = DEFAULT_OUTPUT_DIR,
-    headers_path: str = common.DEFAULT_HEADERS_PATH
+    headers_path: str = common.DEFAULT_HEADERS_PATH,
+    with_index: bool = False,
 ) -> tuple[str, str, str]:
     """
     Extract data from a single file.
@@ -441,9 +460,15 @@ def extract_from_file(
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(export_name)[0] + ".json"
 
-    export_as_csv(file_section, export_name, os.path.basename(input_file))
+    export_as_csv(
+        file_section, export_name, os.path.basename(input_file),
+        with_index=with_index,
+    )
     export_for_refrontier(file_section, refrontier_path)
-    export_as_json(file_section, json_path, os.path.basename(input_file))
+    export_as_json(
+        file_section, json_path, os.path.basename(input_file),
+        with_index=with_index,
+    )
 
     return export_name, refrontier_path, json_path
 
@@ -451,7 +476,8 @@ def extract_from_file(
 def extract_all(
     input_files: dict[str, str] = None,
     output_dir: str = DEFAULT_OUTPUT_DIR,
-    headers_path: str = common.DEFAULT_HEADERS_PATH
+    headers_path: str = common.DEFAULT_HEADERS_PATH,
+    with_index: bool = False,
 ) -> list[str]:
     """
     Extract all sections defined in headers.json.
@@ -492,7 +518,8 @@ def extract_all(
 
         try:
             csv_path, _, _ = extract_from_file(
-                input_file, xpath, "", output_dir, headers_path
+                input_file, xpath, "", output_dir, headers_path,
+                with_index=with_index,
             )
             generated_files.append(csv_path)
             logger.info("Extracted '%s' to '%s'", xpath, csv_path)

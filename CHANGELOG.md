@@ -4,6 +4,11 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **`--with-index` flag (opt-in)**: Extract CSV/JSON with a stable per-section `index` column (slot number in the pointer table) alongside the legacy `location` column. Index keys survive upstream string-length changes that would shift raw byte offsets, making re-extracted files easier to merge with existing translations. The importer auto-detects index-keyed files and resolves indexes against the live pointer table — index-keyed imports require `--xpath`. The legacy offset-only format remains the default for backward compatibility, and the ReFrontier-compatible TSV output is unchanged. Intended to become the long-term default once validated against real translation projects.
+
 ## [1.4.0] - 2026-04-06
 
 ### Added

@@ -123,6 +123,107 @@ def get_new_strings_from_json(input_file: str) -> list[tuple[int, str]]:
     return new_strings
 
 
+def detect_translation_format(input_file: str) -> str:
+    """
+    Detect whether a CSV/JSON translation file uses index-based or
+    offset-based location keys.
+
+    :param input_file: CSV or JSON path
+    :return: ``"index"`` if the file has an ``index`` column/field,
+        otherwise ``"offset"`` (the legacy format)
+    """
+    if input_file.lower().endswith(".json"):
+        with open(input_file, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                return "offset"
+        strings = data.get("strings") if isinstance(data, dict) else None
+        if isinstance(strings, list) and strings and isinstance(strings[0], dict):
+            return "index" if "index" in strings[0] else "offset"
+        return "offset"
+
+    with open(input_file, "r", newline="", encoding="utf-8") as csvfile:
+        reader = csv.reader(csvfile)
+        try:
+            header = next(reader)
+        except StopIteration:
+            return "offset"
+        return "index" if header and header[0].strip().lower() == "index" else "offset"
+
+
+def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
+    """
+    Read translations keyed by stable pointer-table index.
+
+    Returns ``(index, target)`` pairs for rows whose ``target`` differs
+    from ``source``.  The caller must resolve indexes to file offsets
+    against the freshly-extracted section.
+
+    :param input_file: CSV or JSON file with an ``index`` column/field
+    :return: List of ``(index, text)`` tuples
+    :raises CSVParseError: If a row has a malformed index
+    """
+    pairs: list[tuple[int, str]] = []
+
+    if input_file.lower().endswith(".json"):
+        with open(input_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for i, entry in enumerate(data.get("strings", [])):
+            if not isinstance(entry, dict) or "index" not in entry:
+                continue
+            if entry.get("source") == entry.get("target"):
+                continue
+            try:
+                pairs.append((int(entry["index"]), entry["target"]))
+            except (TypeError, ValueError) as exc:
+                logger.warning("Entry %d: invalid index %r: %s", i, entry.get("index"), exc)
+        return pairs
+
+    with open(input_file, "r", newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for line_num, row in enumerate(reader, start=2):
+            if not row.get("index", "").strip():
+                continue
+            if row.get("source") == row.get("target"):
+                continue
+            try:
+                pairs.append((int(row["index"]), row["target"]))
+            except ValueError as exc:
+                logger.warning("Line %d: invalid index %r: %s", line_num, row.get("index"), exc)
+    return pairs
+
+
+def resolve_indexes_to_offsets(
+    indexed: list[tuple[int, str]],
+    file_data: bytes,
+    config: dict,
+) -> list[tuple[int, str]]:
+    """
+    Resolve ``(index, text)`` pairs to ``(offset, text)`` by re-extracting
+    the live section's pointer table.
+
+    :param indexed: List of ``(index, text)`` tuples
+    :param file_data: Decrypted/decompressed binary data
+    :param config: Extraction config dict from headers.json
+    :return: List of ``(offset, text)`` tuples in the same order
+    :raises ValueError: If any index is out of range for the section
+    """
+    from .common import extract_text_data_from_bytes
+
+    entries = extract_text_data_from_bytes(file_data, config)
+    resolved: list[tuple[int, str]] = []
+    for index, text in indexed:
+        if index < 0 or index >= len(entries):
+            raise ValueError(
+                f"Translation index {index} is out of range for section "
+                f"with {len(entries)} entries. The section may have shrunk; "
+                f"re-extract and merge translations to update the file."
+            )
+        resolved.append((entries[index]["offset"], text))
+    return resolved
+
+
 def get_new_strings_auto(input_file: str) -> list[tuple[int, str]]:
     """
     Detect file format by extension and return new strings.
@@ -521,12 +622,27 @@ def import_from_csv(
                 + (f" ... ({len(available)} total)" if len(available) > 10 else "")
             )
 
-    new_strings = get_new_strings_auto(input_file)
-    logger.info("Found %d translations to write", len(new_strings))
-
-    if not new_strings:
-        logger.info("No translations to write, skipping binary modification")
-        return None
+    fmt = detect_translation_format(input_file)
+    if fmt == "index":
+        if xpath is None:
+            raise ValueError(
+                f"'{input_file}' uses index-based locations and requires "
+                "--xpath=<section> to resolve indexes against the live "
+                "pointer table."
+            )
+        indexed_strings = get_new_strings_indexed(input_file)
+        logger.info(
+            "Found %d translations to write (index-based)", len(indexed_strings)
+        )
+        if not indexed_strings:
+            logger.info("No translations to write, skipping binary modification")
+            return None
+    else:
+        new_strings = get_new_strings_auto(input_file)
+        logger.info("Found %d translations to write", len(new_strings))
+        if not new_strings:
+            logger.info("No translations to write, skipping binary modification")
+            return None
 
     if output_path is None:
         # Generate default output path
@@ -569,6 +685,10 @@ def import_from_csv(
 
     if xpath is not None:
         config = common.read_extraction_config(xpath, headers_path)
+        if fmt == "index":
+            new_strings = resolve_indexes_to_offsets(
+                indexed_strings, file_data, config
+            )
         rebuild_section(file_data, config, new_strings, output_path)
         logger.info("Rebuilt section '%s' in %s", xpath, output_path)
     else:

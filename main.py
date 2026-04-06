@@ -194,6 +194,17 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Root directory of the game installation (required by --apply-translations).",
     )
     parser.add_argument(
+        "--with-index",
+        action="store_true",
+        help=(
+            "Include a stable per-section 'index' column in extracted CSV/JSON. "
+            "Index-keyed files survive upstream string-length changes that would "
+            "shift raw offsets. Importing an index-keyed file requires --xpath. "
+            "This is the future default; the legacy offset-only format remains "
+            "supported for backward compatibility."
+        ),
+    )
+    parser.add_argument(
         "--save-meta",
         action="store_true",
         help="Save .meta file when decrypting (preserves header for re-encryption).",
@@ -328,7 +339,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.extract_all:
         # Batch extraction mode - extract all sections from headers.json
-        files = src.extract_all()
+        files = src.extract_all(with_index=args.with_index)
         if files:
             print(f"Extracted {len(files)} files to output/")
         else:
@@ -442,7 +453,8 @@ def main(args: argparse.Namespace) -> None:
         # Default: read and save as CSV
         xpath = args.xpath if args.xpath is not None else "dat/armors/head"
         src.extract_from_file(
-            args.input_file, xpath, args.output_file
+            args.input_file, xpath, args.output_file,
+            with_index=args.with_index,
         )
 
 

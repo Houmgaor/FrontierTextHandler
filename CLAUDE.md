@@ -90,6 +90,8 @@ Note: These are pointers-to-pointers. The file stores addresses that point to th
 
 ## CSV Format
 
+**Legacy (default), offset-keyed:**
+
 ```csv
 location,source,target
 0x64@mhfdat.bin,Original Japanese,New Translation
@@ -98,6 +100,24 @@ location,source,target
 - `location`: Pointer offset in hex @ filename
 - `source`: Original string (for reference)
 - `target`: New string (only imported if different from source)
+
+**New (opt-in via `--with-index`), index-keyed:**
+
+```csv
+index,location,source,target
+0,0x64@mhfdat.bin,Original Japanese,New Translation
+```
+
+- `index`: Stable slot number in the section's pointer table. Survives
+  string-length changes that would shift raw offsets.
+- `location`/`source`/`target`: same as legacy. `location` is preserved
+  alongside `index` so files remain readable by older tools.
+
+The importer auto-detects which format a CSV/JSON uses. Index-keyed imports
+**require `--xpath`** to resolve indexes against the live pointer table.
+Index-keying is the intended long-term default; the legacy format will remain
+supported for backward compatibility. The ReFrontier-compatible TSV format
+(`export_for_refrontier`) is unchanged and stays offset-keyed.
 
 ## String Encoding
 

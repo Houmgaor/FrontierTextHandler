@@ -102,6 +102,49 @@ When `--csv-to-bin` is combined with `--xpath`, only the target section is rewri
 python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin --xpath=dat/armors/legs
 ```
 
+### Stable index keys (`--with-index`, opt-in)
+
+By default, extracted CSV/JSON files key each string by its raw byte offset in
+the binary (`location` column, e.g. `0x4a8f2c@mhfdat.bin`). Offsets are fragile:
+any upstream change to a string's length shifts every offset that follows it,
+which makes re-extracted files hard to merge with old translations.
+
+`--with-index` adds a stable `index` column (the slot number in the section's
+pointer table). Indexes survive length changes — slot 37 is still slot 37 even
+if earlier strings grow or shrink.
+
+```bash
+# Extract with the new stable index column
+python main.py --xpath=dat/armors/head --with-index
+
+# Extract everything with index keys
+python main.py --extract-all --with-index
+```
+
+The resulting CSV looks like:
+
+```csv
+index,location,source,target
+0,0x4a8f2c@mhfdat.bin,オリジナル,Traduction
+1,0x4a8f3a@mhfdat.bin,...,...
+```
+
+The legacy `location` column is still written alongside `index`, so index-keyed
+files remain readable by older tools and by the offset-based importer code path.
+
+When importing an index-keyed file, the importer auto-detects the format and
+**requires `--xpath`** to resolve indexes against the live pointer table:
+
+```bash
+python main.py --csv-to-bin output/dat-armors-head.csv data/mhfdat.bin \
+    --xpath=dat/armors/head --compress --encrypt
+```
+
+This is opt-in for now and the legacy offset-only format remains the default.
+Index keys are intended to become the long-term default once the workflow has
+been validated against real translation projects. The ReFrontier-compatible TSV
+output is unchanged.
+
 ### Decrypt files
 
 Decrypt an ECD/EXF-encrypted file manually:

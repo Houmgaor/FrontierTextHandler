@@ -158,6 +158,58 @@ class TestStandardPointerRoundTrip(unittest.TestCase):
         self.assertEqual(re_results[2]["text"], "Keep Too")
 
 
+class TestIndexedRoundTrip(unittest.TestCase):
+    """Index-keyed CSV/JSON survives offset shifts caused by length changes."""
+
+    def _build_binary(self, strings):
+        return TestStandardPointerRoundTrip._build_binary(self, strings)
+
+    def test_indexed_csv_roundtrip(self):
+        from src.import_data import (
+            detect_translation_format,
+            get_new_strings_indexed,
+            resolve_indexes_to_offsets,
+        )
+
+        original = ["A", "B", "C"]
+        data, config = self._build_binary(original)
+        results = extract_text_data_from_bytes(data, config)
+
+        fd, csv_path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        self.addCleanup(os.unlink, csv_path)
+        export_as_csv(results, csv_path, "test.bin", with_index=True)
+
+        # Header must include index column
+        with open(csv_path, encoding="utf-8") as f:
+            self.assertEqual(next(csv.reader(f))[0], "index")
+
+        self.assertEqual(detect_translation_format(csv_path), "index")
+
+        # Edit: translate slot 1 to a much longer string
+        with open(csv_path, encoding="utf-8") as f:
+            rows = list(csv.reader(f))
+        rows[2][3] = "Bee" * 50  # target column
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerows(rows)
+
+        # Now mutate the underlying binary so all offsets shift:
+        # rebuild it with longer original strings — slot 1 keeps its
+        # *index* but lives at a different *offset*.
+        shifted_originals = ["A" * 30, "B", "C" * 40]
+        shifted_data, _ = self._build_binary(shifted_originals)
+
+        indexed = get_new_strings_indexed(csv_path)
+        self.assertEqual(len(indexed), 1)
+        self.assertEqual(indexed[0][0], 1)
+
+        resolved = resolve_indexes_to_offsets(indexed, shifted_data, config)
+        # Resolved offset must point at slot 1 in the shifted file
+        shifted_entries = extract_text_data_from_bytes(shifted_data, config)
+        self.assertEqual(resolved[0][0], shifted_entries[1]["offset"])
+        self.assertEqual(resolved[0][1], "Bee" * 50)
+
+
 class TestFtxtRoundTrip(unittest.TestCase):
     """Test extract → CSV → import → re-extract for FTXT files."""
 
