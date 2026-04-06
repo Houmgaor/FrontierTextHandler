@@ -4,6 +4,11 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **`apply_translations_from_release_json` accepts index-keyed entries**: Release JSON entries may now use `{"index": N, "source": ..., "target": ...}` instead of the legacy `{"location": "0xNNN@file.bin", ...}` shape. Indexed entries are resolved against the live pointer table for their xpath after the binary is decrypted/decompressed. Sections may mix both formats. The legacy `location` shape still works unchanged. Adds an optional `headers_path` parameter so the resolver can be pointed at a custom config (mainly useful for tests).
+
 ## [1.5.0] - 2026-04-06
 
 ### Added

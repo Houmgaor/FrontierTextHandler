@@ -483,5 +483,165 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
         self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
 
 
+    def _write_indexed_release_json(self, lang: str, sections: dict) -> str:
+        """Write a release JSON whose entries use the new ``index`` key.
+
+        sections: {xpath: [(slot_index, source, target)]}
+        """
+        data = {}
+        for xpath, entries in sections.items():
+            data.setdefault(lang, {})[xpath] = [
+                {"index": idx, "source": src, "target": tgt}
+                for idx, src, tgt in entries
+            ]
+        path = os.path.join(self.tmpdir, "translations-indexed.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        return path
+
+    def test_apply_index_keyed_entries(self):
+        """Release JSON entries keyed by `index` are resolved against
+        the section's pointer table and applied correctly."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["Helmet", "Sword", "Shield"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        # Synthetic headers.json matching the test binary's layout:
+        # begin_pointer at 0 (→ table_start = 8), next_field_pointer at 4
+        # (→ first byte after the 12-byte table = 20).
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "dat": {
+                    "armors": {
+                        "head": {
+                            "begin_pointer": "0x0",
+                            "next_field_pointer": "0x4",
+                        }
+                    }
+                }
+            }, f)
+
+        # Slot 0 → Helmet, slot 2 → Shield. Slot 1 untouched.
+        json_path = self._write_indexed_release_json("fr", {
+            "dat/armors/head": [
+                (0, "Helmet", "Casque"),
+                (2, "Shield", "Bouclier"),
+            ],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+            headers_path=headers_path,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
+
+        # Verify pointers now reference the translations
+        with open(bin_path, "rb") as f:
+            patched = f.read()
+        bfile = BinaryFile.from_bytes(patched)
+        # Slot 0 pointer is at offset 8, slot 2 pointer at offset 16
+        for ptr_off, expected in [(8, "Casque"), (16, "Bouclier")]:
+            bfile.seek(ptr_off)
+            str_off = struct.unpack("<I", bfile.read(4))[0]
+            bfile.seek(str_off)
+            buf = bytearray()
+            b = bfile.read(1)
+            while b not in (b"\x00", b""):
+                buf.extend(b)
+                b = bfile.read(1)
+            self.assertEqual(buf.decode(GAME_ENCODING), expected)
+        # Slot 1 (offset 12) should still resolve to "Sword"
+        bfile.seek(12)
+        str_off = struct.unpack("<I", bfile.read(4))[0]
+        bfile.seek(str_off)
+        buf = bytearray()
+        b = bfile.read(1)
+        while b not in (b"\x00", b""):
+            buf.extend(b)
+            b = bfile.read(1)
+        self.assertEqual(buf.decode(GAME_ENCODING), "Sword")
+
+    def test_apply_mixed_index_and_location(self):
+        """A section may mix `index` entries with legacy `location` entries."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["Helmet", "Sword", "Shield"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "dat": {"armors": {"head": {
+                    "begin_pointer": "0x0",
+                    "next_field_pointer": "0x4",
+                }}}
+            }, f)
+
+        # Mixed: slot 0 via index, slot 1 via legacy location (pointer @ 12)
+        path = os.path.join(self.tmpdir, "mixed.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({
+                "fr": {
+                    "dat/armors/head": [
+                        {"index": 0, "source": "Helmet", "target": "Casque"},
+                        {"location": "0xc@game.bin",
+                         "source": "Sword", "target": "Epée"},
+                    ]
+                }
+            }, f, ensure_ascii=False)
+
+        results = apply_translations_from_release_json(
+            path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+            headers_path=headers_path,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
+
+    def test_apply_indexed_unknown_xpath_skipped(self):
+        """An indexed section whose xpath is missing from headers.json is
+        skipped with a warning, not raised."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["A", "B"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        with open(os.path.join(dat_dir, "mhfdat.bin"), "wb") as f:
+            f.write(raw)
+
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w", encoding="utf-8") as f:
+            json.dump({"dat": {}}, f)
+
+        json_path = self._write_indexed_release_json("fr", {
+            "dat/totally/unknown": [(0, "A", "Z")],
+        })
+
+        with self.assertLogs("src.import_data", level="WARNING") as cm:
+            results = apply_translations_from_release_json(
+                json_path, lang="fr", game_dir=game_dir,
+                compress=False, encrypt=False,
+                headers_path=headers_path,
+            )
+        self.assertEqual(results, {})
+        self.assertTrue(
+            any("xpath not found" in m for m in cm.output),
+            f"expected unknown-xpath warning, got {cm.output}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

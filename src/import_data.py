@@ -500,23 +500,38 @@ def apply_translations_from_release_json(
     compress: bool = True,
     encrypt: bool = True,
     key_index: int = DEFAULT_KEY_INDEX,
+    headers_path: str = common.DEFAULT_HEADERS_PATH,
 ) -> dict[str, int]:
     """
     Apply translations from a MHFrontier-Translation release JSON to game files.
 
-    The release JSON has the structure produced by ``export_json.py``::
+    The release JSON has the structure produced by the upstream exporter::
 
-        {lang: {xpath: [{location, source, target}]}}
+        {lang: {xpath: [entry, entry, ...]}}
+
+    Each entry must have ``source`` and ``target``, plus **either**:
+
+    * ``index`` — slot number in the section's pointer table (new
+      index-keyed format, recommended; survives string-length shifts), or
+    * ``location`` — legacy ``"0xNNN@filename.bin"`` offset string
+      (still accepted for backward compatibility).
+
+    Mixed sections are allowed: a section may use one format while another
+    section in the same file uses the other.
 
     For each game binary that has at least one translated string this function:
 
     1. Reads the binary from *game_dir* (auto-decrypts / decompresses).
-    2. Appends all translated strings and updates the in-file pointers.
-    3. Writes the result back, optionally re-compressing and re-encrypting.
+    2. Resolves any index-keyed entries against the live pointer table for
+       their section.
+    3. Appends all translated strings and updates the in-file pointers.
+    4. Writes the result back, optionally re-compressing and re-encrypting.
 
     Only strings where *target* is non-empty and differs from *source* are
-    applied.  Sections whose game binary is missing from *game_dir* are skipped
-    with a warning.
+    applied. Sections whose game binary is missing from *game_dir* are skipped
+    with a warning. Sections whose xpath is unknown to *headers_path* are
+    skipped with a warning when they contain index-keyed entries (location
+    entries don't need the config and are still applied).
 
     :param json_file: Path to the release JSON (e.g. ``translations-translated.json``).
     :param lang: Language code to apply (e.g. ``"fr"``).
@@ -524,6 +539,7 @@ def apply_translations_from_release_json(
     :param compress: Re-compress with JKR HFI after patching.
     :param encrypt: Re-encrypt with ECD after patching.
     :param key_index: ECD key index (default 4, used by all MHF files).
+    :param headers_path: Path to ``headers.json`` (used to resolve indexes).
     :return: Mapping of game-file relative path → number of strings applied.
     :raises ValueError: If *lang* is not present in the JSON.
     """
@@ -543,15 +559,21 @@ def apply_translations_from_release_json(
             f"Available: {', '.join(available)}"
         )
 
-    # Collect (offset, text) pairs grouped by target game file.
-    by_file: dict[str, list[tuple[int, str]]] = {}
+    # Collect entries grouped by target game file *and* by xpath, so that
+    # index-keyed entries can be resolved against the right section's
+    # pointer table later.
+    #
+    # Shape: {rel_path: {xpath: {"index": [(idx, text)], "offset": [(off, text)]}}}
+    by_file: dict[str, dict[str, dict[str, list]]] = {}
     for xpath, strings in data[lang].items():
         prefix = xpath.split("/")[0]
         rel_path = XPATH_PREFIX_TO_GAME_FILE.get(prefix)
         if rel_path is None:
             logger.warning("Unknown xpath prefix '%s', skipping section '%s'", prefix, xpath)
             continue
-        pairs = by_file.setdefault(rel_path, [])
+        section = by_file.setdefault(rel_path, {}).setdefault(
+            xpath, {"index": [], "offset": []}
+        )
         for entry in strings:
             if not isinstance(entry, dict):
                 continue
@@ -559,25 +581,32 @@ def apply_translations_from_release_json(
             source = entry.get("source") or ""
             if not target or target == source:
                 continue
-            location = entry.get("location") or ""
-            try:
-                offset = parse_location(location)
-                pairs.append((offset, target))
-            except CSVParseError as exc:
-                logger.warning("Skipping entry in '%s': %s", xpath, exc)
+            if "index" in entry:
+                try:
+                    section["index"].append((int(entry["index"]), target))
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "Skipping entry in '%s': invalid index %r",
+                        xpath, entry.get("index"),
+                    )
+            else:
+                location = entry.get("location") or ""
+                try:
+                    section["offset"].append((parse_location(location), target))
+                except CSVParseError as exc:
+                    logger.warning("Skipping entry in '%s': %s", xpath, exc)
 
     results: dict[str, int] = {}
 
-    for rel_path, all_strings in by_file.items():
-        if not all_strings:
+    for rel_path, sections in by_file.items():
+        # Skip files where every section is empty after filtering
+        if not any(sec["index"] or sec["offset"] for sec in sections.values()):
             continue
 
         game_path = os.path.join(game_dir, rel_path)
         if not os.path.exists(game_path):
             logger.warning("Game file not found, skipping: %s", game_path)
             continue
-
-        logger.info("Applying %d translation(s) to %s", len(all_strings), rel_path)
 
         with open(game_path, "rb") as fh:
             file_data = fh.read()
@@ -604,6 +633,37 @@ def apply_translations_from_release_json(
                 "  %s was compressed but --compress not set — output will NOT be game-ready",
                 rel_path,
             )
+
+        # Resolve all sections to flat (offset, text) pairs against the
+        # now-decrypted file_data. Indexed entries need the config from
+        # headers.json; offset entries are already resolved.
+        all_strings: list[tuple[int, str]] = []
+        for xpath, section in sections.items():
+            all_strings.extend(section["offset"])
+            if not section["index"]:
+                continue
+            try:
+                config = common.read_extraction_config(xpath, headers_path)
+            except KeyError:
+                logger.warning(
+                    "  Skipping %d indexed entr(y/ies) in '%s': "
+                    "xpath not found in %s",
+                    len(section["index"]), xpath, headers_path,
+                )
+                continue
+            try:
+                all_strings.extend(
+                    resolve_indexes_to_offsets(section["index"], file_data, config)
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "  Skipping indexed entries in '%s': %s", xpath, exc,
+                )
+
+        if not all_strings:
+            continue
+
+        logger.info("Applying %d translation(s) to %s", len(all_strings), rel_path)
 
         # Write decrypted/decompressed data to a temp file, apply translations,
         # then read back for the compress/encrypt pass.
