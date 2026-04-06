@@ -568,11 +568,29 @@ def import_from_csv(
         rebuild_section(file_data, config, new_strings, output_path)
         logger.info("Rebuilt section '%s' in %s", xpath, output_path)
     else:
-        # Legacy append strategy (backward compatible)
-        pointers_to_update = [offset for offset, _ in new_strings]
+        # Legacy append strategy (backward compatible).
+        # Expand <join at="N"> tags so each sub-pointer is updated
+        # independently — otherwise grouped sections like inf/quests
+        # would write the literal join markup as a single string and
+        # leave sibling pointers stale.
+        expanded: list[tuple[int, str]] = []
+        has_joins = False
+        for offset, text in new_strings:
+            pairs = parse_joined_text(offset, text)
+            if len(pairs) > 1:
+                has_joins = True
+            expanded.extend(pairs)
+        if has_joins:
+            logger.warning(
+                "CSV contains <join> tags (grouped pointer entries) but no "
+                "--xpath was given. Falling back to append mode; prefer "
+                "--xpath=<section> so rebuild_section is used and orphan "
+                "pointers are avoided."
+            )
+        pointers_to_update = [offset for offset, _ in expanded]
         with open(output_path, "wb") as f:
             f.write(file_data)
-        append_to_binary(new_strings, tuple(pointers_to_update), output_path)
+        append_to_binary(expanded, tuple(pointers_to_update), output_path)
         logger.info("Wrote output to %s (append mode)", output_path)
 
     if compress:
