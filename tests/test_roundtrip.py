@@ -211,6 +211,62 @@ class TestIndexedRoundTrip(unittest.TestCase):
         self.assertEqual(resolved[0][1], "Bee" * 50)
 
 
+    def test_indexed_full_roundtrip_with_translation(self):
+        """End-to-end: extract → edit index CSV → import → re-extract.
+
+        This is the canonical proof that the new index-keyed format
+        actually works for its primary use case. Mirrors
+        ``test_roundtrip_with_translation`` from the legacy format.
+        """
+        import json as _json
+        from src.import_data import import_from_csv
+
+        original = ["First", "Second", "Third"]
+        data, config = self._build_binary(original)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # 1. Write source binary + a tiny headers.json
+            bin_path = os.path.join(tmp, "src.bin")
+            with open(bin_path, "wb") as f:
+                f.write(data)
+            headers_path = os.path.join(tmp, "headers.json")
+            with open(headers_path, "w", encoding="utf-8") as f:
+                _json.dump({"test": {"section": config}}, f)
+
+            # 2. Extract to index-keyed CSV
+            csv_path = os.path.join(tmp, "test-section.csv")
+            export_as_csv(
+                extract_text_data_from_bytes(data, config),
+                csv_path, "src.bin", with_index=True,
+            )
+
+            # 3. Edit two of the three slots
+            with open(csv_path, encoding="utf-8") as f:
+                rows = list(csv.reader(f))
+            self.assertEqual(rows[0], ["index", "source", "target"])
+            rows[1][2] = "Premier"   # slot 0
+            rows[3][2] = "Troisieme" # slot 2
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                csv.writer(f).writerows(rows)
+
+            # 4. Import (no --xpath; should infer from filename)
+            out_path = os.path.join(tmp, "out.bin")
+            result = import_from_csv(
+                csv_path, bin_path, output_path=out_path,
+                headers_path=headers_path,
+            )
+            self.assertEqual(result, out_path)
+
+            # 5. Re-extract and verify the translations landed at the
+            #    right slots and the untranslated middle entry is intact
+            with open(out_path, "rb") as f:
+                rebuilt = f.read()
+            re_results = extract_text_data_from_bytes(rebuilt, config)
+            self.assertEqual(len(re_results), 3)
+            self.assertEqual(re_results[0]["text"], "Premier")
+            self.assertEqual(re_results[1]["text"], "Second")
+            self.assertEqual(re_results[2]["text"], "Troisieme")
+
     def test_indexed_extract_is_deterministic_no_op(self):
         """Extract → import (no edits) → re-extract is a true no-op.
 
