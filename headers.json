@@ -359,5 +359,60 @@
   },
   "nav": {
     "_comment": "Hunter Navi data (mhfnav.bin). Text fields not yet documented in ImHex patterns."
+  },
+  "gao": {
+    "_comment": "Felyne partner / companion data (mhfgao.bin). First-pass coverage: header-rooted null-terminated s32p tables. Additional sections (0x020/0x028/0x02C equipment description tables, 0x040 event dialogue) are reached via meta-tables at 0xC640-0xC680 and still need struct RE.",
+    "armor_helm": {
+      "_comment": "Felyne head armor names (ネコヘルム). Uses fixed count because a 'YYYY/MM/DD' build-date ASCII string is stored between the table end and its 0 terminator, which would break null-terminated mode.",
+      "begin_pointer": "0x18",
+      "entry_count": 257,
+      "entry_size": 4,
+      "field_offset": 0
+    },
+    "armor_mail": {
+      "_comment": "Felyne body armor names (ネコメイル).",
+      "begin_pointer": "0x1C",
+      "null_terminated": true
+    },
+    "dialogue_type_0": {
+      "_comment": "Felyne partner dialogue template, personality type 0 (40 lines, enthusiastic/cat-fighter).",
+      "begin_pointer": "0x90",
+      "null_terminated": true
+    },
+    "dialogue_type_1": {
+      "_comment": "Felyne partner dialogue template, personality type 1 (40 lines, humble/grateful).",
+      "begin_pointer": "0x94",
+      "null_terminated": true
+    },
+    "dialogue_type_2": {
+      "_comment": "Felyne partner dialogue template, personality type 2 (40 lines, timid/anxious).",
+      "begin_pointer": "0x98",
+      "null_terminated": true
+    },
+    "dialogue_type_3": {
+      "_comment": "Felyne partner dialogue template, personality type 3 (40 lines, aloof/self-reliant).",
+      "begin_pointer": "0x9C",
+      "null_terminated": true
+    },
+    "dialogue_type_4": {
+      "_comment": "Felyne partner dialogue template, personality type 4 (40 lines, earnest/trainee).",
+      "begin_pointer": "0xA0",
+      "null_terminated": true
+    },
+    "dialogue_type_5": {
+      "_comment": "Felyne partner dialogue template, personality type 5 (40 lines, polite/respectful).",
+      "begin_pointer": "0xA4",
+      "null_terminated": true
+    },
+    "dialogue_type_6": {
+      "_comment": "Felyne partner dialogue template, personality type 6 (40 lines, cheerful/spirited).",
+      "begin_pointer": "0xA8",
+      "null_terminated": true
+    },
+    "dialogue_type_7": {
+      "_comment": "Felyne partner dialogue template, personality type 7 (40 lines, cool/casual).",
+      "begin_pointer": "0xAC",
+      "null_terminated": true
+    }
   }
 }

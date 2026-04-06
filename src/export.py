@@ -394,6 +394,7 @@ FILE_TYPE_DEFAULTS = {
     "inf": "data/mhfinf.bin",
     "jmp": "data/mhfjmp.bin",
     "nav": "data/mhfnav.bin",
+    "gao": "data/mhfgao.bin",
 }
 
 

@@ -163,13 +163,54 @@ Pattern: `patterns/mhf-patterns/mhfnav.bin.hexpat`
 
 ## Other game files
 
+## mhfgao.bin — Felyne partner / companion data
+
+Source: `client/pc/dat/mhfgao.bin` (ECD-encrypted + JKR-compressed; decrypted size 218,981 B)
+Pattern: none. Header layout reverse-engineered by scanning header pointers for pointer tables that target the main Shift-JIS string region at 0x0001A0–0x00C62F (~1,559 unique strings).
+
+### Extracted
+
+| xpath | Pointer | Content | Mode |
+|-------|---------|---------|------|
+| `gao/armor_helm` | 0x18 | Felyne head armor names (ネコヘルム) — 257 entries | struct-strided (fixed 257, size 4, field 0) |
+| `gao/armor_mail` | 0x1C | Felyne body armor names (ネコメイル) — 257 entries | null-terminated |
+| `gao/dialogue_type_0` | 0x90 | Felyne partner dialogue template, personality 0 — 40 lines | null-terminated |
+| `gao/dialogue_type_1` | 0x94 | Felyne partner dialogue template, personality 1 — 40 lines | null-terminated |
+| `gao/dialogue_type_2` | 0x98 | Felyne partner dialogue template, personality 2 — 40 lines | null-terminated |
+| `gao/dialogue_type_3` | 0x9C | Felyne partner dialogue template, personality 3 — 40 lines | null-terminated |
+| `gao/dialogue_type_4` | 0xA0 | Felyne partner dialogue template, personality 4 — 40 lines | null-terminated |
+| `gao/dialogue_type_5` | 0xA4 | Felyne partner dialogue template, personality 5 — 40 lines | null-terminated |
+| `gao/dialogue_type_6` | 0xA8 | Felyne partner dialogue template, personality 6 — 40 lines | null-terminated |
+| `gao/dialogue_type_7` | 0xAC | Felyne partner dialogue template, personality 7 — 40 lines | null-terminated |
+
+**834 strings** extracted across 10 header-rooted pointer tables. The 8 dialogue templates are indexed by Felyne personality type and each contain 40 parallel lines (greetings, quest departure, reactions, etc.).
+
+Note: `armor_helm` uses fixed entry_count because a literal ASCII build-date string ("YYYY/MM/DD") is stored between the table end and its 0 terminator, which breaks null-terminated scanning. The other 9 tables have clean 0-terminators.
+
+### Not yet extracted
+
+Several larger tables exist but are reached indirectly through meta-tables at 0xC640/0xC660/0xC680 that store (begin, end) pointer pairs — these need struct-level reverse engineering of the meta-table layout:
+
+| Pointer | Evidence | Est. strings | Notes |
+|---------|----------|-------------|-------|
+| 0x020 | header → 0x30CC0, first entry "Nothing equipped." | ~670 | Felyne equipment descriptions (sparse, many zero-ptr holes) |
+| 0x028 | header → 0x22A80, entries like "レイアネコレイピア" | ~97 | Felyne weapon names |
+| 0x02C | header → 0x26320, first entry "Nothing equipped." | ~1032 | Felyne weapon descriptions (sparse) |
+| 0x040 | header → 0x21FE0, Felyne quest intro lines | ~68 | Partner situational dialogue |
+| orphan 0x13EC8 | 54 Felyne skill descriptions | 54 | No header xref found; likely indexed via 0x0CC/0x0D4/0x0DC triplets |
+
+Remaining unextracted text in mhfgao.bin: **~1,900 strings** (estimate, needs validated struct layout before safe round-trip is possible).
+
+---
+
+## Other game files
+
 ### With text (undocumented structure)
 
 These files contain readable text but have **no ImHex patterns or format documentation**. Their pointer table structures would need to be reverse-engineered before extraction can be implemented.
 
 | File | Size (decrypted) | Content | Est. strings | Difficulty |
 |------|-----------------|---------|-------------|------------|
-| `mhfgao.bin` | 218,981 B | Companion/Felyne skill names, descriptions, quest dialogue | ~2,186 | HARD — no docs |
 | `mhfsqd.bin` | 16,036 B | NPC partner names (Aaron, Tania, etc.) + squad labels | ~230 | HARD — no docs |
 | `mhfrcc.bin` | 2,556 B | Event/festival announcement text | 21 | HARD — no docs, small file |
 | `mhfmsx.bin` | 15,072 B | Tower/festival item names and effect labels | ~10 | HARD — no docs, mostly numeric |
@@ -200,9 +241,11 @@ These files contain readable text but have **no ImHex patterns or format documen
 | mhfpac.bin — UI/dialogue | ~3,365 | 0 | - |
 | mhfjmp.bin | 53 | 0 | - |
 | mhfinf.bin — quests | **~22,700** | 0 | - |
-| Undocumented files | 0 | ~2,450 (mhfgao, mhfsqd, mhfrcc, mhfmsx) | No format documentation |
-| **Total remaining** | | **~2,450** | |
+| mhfgao.bin — Felyne | 834 (armor + dialogue) | ~1,900 (equipment descriptions, weapons, orphan tables) | Meta-table (0xC640-0xC680) struct RE |
+| Undocumented files | 0 | ~260 (mhfsqd, mhfrcc, mhfmsx) | No format documentation |
+| **Total remaining** | | **~2,160** | |
 
 ### Recommended next steps (by effort/impact ratio)
 
-1. **Undocumented files** (mhfgao, mhfsqd, mhfrcc, mhfmsx) — require reverse engineering before implementation
+1. **mhfgao.bin remainder** — RE the meta-tables at 0xC640/0xC660/0xC680 to surface equipment description and weapon tables (~1,900 strings)
+2. **Undocumented files** (mhfsqd, mhfrcc, mhfmsx) — require reverse engineering before implementation

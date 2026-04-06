@@ -330,6 +330,7 @@ XPATH_PREFIX_TO_GAME_FILE: dict[str, str] = {
     "inf": os.path.join("dat", "mhfinf.bin"),
     "jmp": os.path.join("dat", "mhfjmp.bin"),
     "nav": os.path.join("dat", "mhfnav.bin"),
+    "gao": os.path.join("dat", "mhfgao.bin"),
 }
 
 
