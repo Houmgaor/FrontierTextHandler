@@ -203,6 +203,30 @@ def read_json_data(
         )
 
 
+def compute_binary_fingerprint(file_data: bytes) -> str:
+    """
+    Compute a stable fingerprint for a decrypted/decompressed game binary.
+
+    Used to detect when a translation file extracted from one binary is
+    being applied to a different one (different game version, different
+    patch level, or a binary that already has translations applied).
+
+    The fingerprint is the SHA-256 of the supplied bytes, truncated to
+    16 hex characters (64 bits — collision-resistant enough for the
+    handful of binaries the project tracks, short enough to be readable
+    in JSON metadata and log lines).
+
+    Pass *decrypted, decompressed* bytes — the raw on-disk file changes
+    on every re-encryption due to ECD's randomized key stream, so
+    fingerprinting the encrypted form would be useless.
+
+    :param file_data: Decrypted, decompressed binary contents
+    :return: 16-character hex fingerprint
+    """
+    import hashlib
+    return hashlib.sha256(file_data).hexdigest()[:16]
+
+
 def load_file_data(file_path: str) -> bytes:
     """
     Load a game file, auto-decrypting and decompressing as needed.

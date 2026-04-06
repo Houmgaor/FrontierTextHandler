@@ -129,21 +129,30 @@ index,source,target
 1,...,...
 ```
 
-JSON output uses the same shape and records the source binary and xpath in
-metadata instead of repeating them on every row:
+JSON output uses the same shape and records the source binary, xpath, and a
+content fingerprint in metadata instead of repeating them on every row:
 
 ```json
 {
   "metadata": {
     "source_file": "mhfdat.bin",
     "xpath": "dat/armors/head",
-    "version": "1.4.0"
+    "version": "1.4.0",
+    "fingerprint": "a1b2c3d4e5f60718"
   },
   "strings": [
     {"index": 0, "source": "オリジナル", "target": "Traduction"}
   ]
 }
 ```
+
+The `fingerprint` is the first 16 hex chars of SHA-256 over the
+*decrypted, decompressed* binary. At import time the importer recomputes
+it on the target file and **warns loudly on mismatch** — that catches
+the most dangerous failure mode (applying a translation extracted from
+one game version to a different version, or to a binary that already
+has translations applied). The warning does not abort the import; the
+user can still proceed if they know what they're doing.
 
 When importing an index-keyed file, the importer auto-detects the format and
 infers the section xpath from (1) the JSON `metadata.xpath` field or (2) the

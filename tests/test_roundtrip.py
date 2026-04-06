@@ -281,6 +281,78 @@ class TestIndexedRoundTrip(unittest.TestCase):
             # Real headers.json contains dat/armors/head
             self.assertEqual(infer_xpath(csv_path), "dat/armors/head")
 
+    def test_fingerprint_in_json_metadata_and_mismatch_warning(self):
+        """JSON export records a fingerprint; importer warns on mismatch."""
+        import json as _json
+        import logging as _logging
+        from src.common import compute_binary_fingerprint
+        from src.export import export_as_json
+        from src.import_data import import_from_csv
+
+        original = ["alpha", "bravo", "charlie"]
+        data, config = self._build_binary(original)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # Build a tiny headers.json so we can pass an xpath
+            headers_path = os.path.join(tmp, "headers.json")
+            with open(headers_path, "w", encoding="utf-8") as f:
+                _json.dump({"test": {"section": config}}, f)
+
+            entries = extract_text_data_from_bytes(data, config)
+            json_path = os.path.join(tmp, "test-section.json")
+            export_as_json(
+                entries, json_path, "test.bin",
+                with_index=True, xpath="test/section",
+                fingerprint=compute_binary_fingerprint(data),
+            )
+
+            # Metadata block records the fingerprint and xpath
+            with open(json_path, encoding="utf-8") as f:
+                meta = _json.load(f)["metadata"]
+            self.assertEqual(meta["fingerprint"], compute_binary_fingerprint(data))
+            self.assertEqual(meta["xpath"], "test/section")
+
+            # Edit one target so import has work to do
+            with open(json_path, "r", encoding="utf-8") as f:
+                payload = _json.load(f)
+            payload["strings"][1]["target"] = "BRAVO!"
+            with open(json_path, "w", encoding="utf-8") as f:
+                _json.dump(payload, f)
+
+            # Match: no warning
+            bin_path = os.path.join(tmp, "test.bin")
+            with open(bin_path, "wb") as f:
+                f.write(data)
+            with self.assertLogs("src.import_data", level="INFO") as cm:
+                import_from_csv(
+                    json_path, bin_path,
+                    output_path=os.path.join(tmp, "out_match.bin"),
+                    xpath="test/section", headers_path=headers_path,
+                )
+            self.assertTrue(
+                any("fingerprint" in m and "matches" in m for m in cm.output),
+                f"expected match log, got {cm.output}",
+            )
+            self.assertFalse(
+                any("mismatch" in m.lower() for m in cm.output),
+            )
+
+            # Mismatch: import a different binary, expect a WARNING
+            other_data, _ = self._build_binary(["x", "y", "z"])
+            other_path = os.path.join(tmp, "other.bin")
+            with open(other_path, "wb") as f:
+                f.write(other_data)
+            with self.assertLogs("src.import_data", level="WARNING") as cm:
+                import_from_csv(
+                    json_path, other_path,
+                    output_path=os.path.join(tmp, "out_mismatch.bin"),
+                    xpath="test/section", headers_path=headers_path,
+                )
+            self.assertTrue(
+                any("fingerprint mismatch" in m.lower() for m in cm.output),
+                f"expected mismatch warning, got {cm.output}",
+            )
+
     def test_xpath_inference_returns_none_when_unknown(self):
         from src.import_data import infer_xpath
         with tempfile.TemporaryDirectory() as tmp:

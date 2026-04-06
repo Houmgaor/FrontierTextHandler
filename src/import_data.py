@@ -194,6 +194,25 @@ def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
     return pairs
 
 
+def read_json_metadata(input_file: str) -> dict:
+    """
+    Read the ``metadata`` block from an index-keyed JSON translation file.
+
+    :param input_file: Path to a JSON file
+    :return: The metadata dict, or ``{}`` if the file is not JSON,
+        is unreadable, or has no metadata block.
+    """
+    if not input_file.lower().endswith(".json"):
+        return {}
+    try:
+        with open(input_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+    meta = data.get("metadata") if isinstance(data, dict) else None
+    return meta if isinstance(meta, dict) else {}
+
+
 def infer_xpath(
     input_file: str,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
@@ -213,15 +232,9 @@ def infer_xpath(
     :return: An xpath string, or ``None`` if no source could be inferred
     """
     # 1. JSON metadata
-    if input_file.lower().endswith(".json"):
-        try:
-            with open(input_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            xpath = (data.get("metadata") or {}).get("xpath")
-            if isinstance(xpath, str) and xpath:
-                return xpath
-        except (json.JSONDecodeError, OSError):
-            pass
+    xpath = read_json_metadata(input_file).get("xpath")
+    if isinstance(xpath, str) and xpath:
+        return xpath
 
     # 2. Filename-derived: <prefix>-<a>-<b>-...-<z>.{csv,json} → prefix/a/b/.../z
     basename = os.path.splitext(os.path.basename(input_file))[0]
@@ -732,6 +745,26 @@ def import_from_csv(
     if xpath is not None:
         config = common.read_extraction_config(xpath, headers_path)
         if fmt == "index":
+            # Fingerprint sanity check: warn loudly if the translation file
+            # was extracted from a binary that doesn't match the target.
+            recorded_fp = read_json_metadata(input_file).get("fingerprint")
+            if recorded_fp:
+                actual_fp = common.compute_binary_fingerprint(file_data)
+                if actual_fp != recorded_fp:
+                    logger.warning(
+                        "Binary fingerprint mismatch: '%s' was extracted from a "
+                        "binary with fingerprint %s but the target binary has "
+                        "fingerprint %s. This may indicate a different game "
+                        "version, a different patch level, or a binary that "
+                        "already has translations applied. Indexes may not "
+                        "refer to the same strings — proceed with caution.",
+                        input_file, recorded_fp, actual_fp,
+                    )
+                else:
+                    logger.info(
+                        "Binary fingerprint %s matches translation source",
+                        actual_fp,
+                    )
             new_strings = resolve_indexes_to_offsets(
                 indexed_strings, file_data, config
             )

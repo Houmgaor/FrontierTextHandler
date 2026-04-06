@@ -90,6 +90,7 @@ def export_as_json(
     location_name: str = "",
     with_index: bool = False,
     xpath: str = "",
+    fingerprint: str = "",
 ) -> int:
     """
     Export data as a JSON file with metadata.
@@ -102,6 +103,9 @@ def export_as_json(
         in ``metadata`` instead of being repeated per-row. If False, write
         the legacy ``{location, source, target}`` entries.
     :param xpath: Section xpath to record in metadata (index-keyed mode only).
+    :param fingerprint: Optional binary fingerprint to record in metadata
+        (index-keyed mode only). Used by the importer to detect when a
+        translation file is being applied to a different binary version.
     :return: Number of entries written
     """
     from . import __version__
@@ -128,6 +132,8 @@ def export_as_json(
     }
     if with_index and xpath:
         metadata["xpath"] = xpath
+    if with_index and fingerprint:
+        metadata["fingerprint"] = fingerprint
 
     output = {
         "metadata": metadata,
@@ -451,9 +457,13 @@ def extract_from_file(
     :param headers_path: Path to headers.json configuration file
     :return: Tuple of (csv_path, refrontier_path, json_path) for the exported files
     """
-    # Read data using config-based extraction (supports all formats)
+    # Read data using config-based extraction (supports all formats).
+    # Load the file once so we can reuse the bytes for fingerprinting
+    # rather than reading the file twice.
     config = common.read_extraction_config(xpath, headers_path)
-    file_section = common.extract_text_data(input_file, config)
+    file_data = common.load_file_data(input_file)
+    file_section = common.extract_text_data_from_bytes(file_data, config)
+    fingerprint = common.compute_binary_fingerprint(file_data) if with_index else ""
 
     if not file_section:
         raise ValueError(
@@ -481,7 +491,7 @@ def extract_from_file(
     export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
-        with_index=with_index, xpath=xpath,
+        with_index=with_index, xpath=xpath, fingerprint=fingerprint,
     )
 
     return export_name, refrontier_path, json_path
