@@ -304,9 +304,6 @@ Any additional localized strings referenced from sibling struct tables elsewhere
 | mhfsqd.bin — Squad | 190 (NPC names, skills, labels) | ~0 (earlier ~33 estimate was IDs/padding, not strings) | None actionable |
 | mhfrcc.bin — Reception | 28 (7 EN titles + 7 JP/EN descriptions + Guild Conquest + templates via multi-field events_full) | 0 | - |
 | mhfmsx.bin — Mezeporta Festa | 10 (item names + effects) | 0 confirmed beyond placeholders | - |
-| **Total remaining** | | **~384** | |
+| **Total remaining** | | **~0** | |
 
-### Recommended next steps (by effort/impact ratio)
-
-1. **mhfgao.bin nested tables** — implement a recursive (count, ptr) tree walker for the structures at header 0x0C8/0x0D0/0x0D8 to surface the remaining Felyne skill descriptions
-2. **mhfrcc.bin variable-stride struct region** — write a dedicated walker for the 0x5c0-0x6c0 event-info structs to recover the remaining 27 Japanese announcement strings
+All known translator-useful text in `client/pc/dat/*.bin` is now extracted. The `.txb` files in the same directory were checked (2026-04-06) and are PNG image containers (or, in the case of `my_garden.txb`, an ECD-wrapped PNG), not text. No remaining extraction work is identified.
