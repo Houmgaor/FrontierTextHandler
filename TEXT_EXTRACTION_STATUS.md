@@ -229,10 +229,13 @@ Pattern: none. Greenfield reverse-engineered by scanning the 15 u32 pointers at 
 
 ### Not yet extracted
 
-~33 strings remain in the 0x40-0x14C0 string blob that are referenced via more complex structures (not flat s32p arrays):
-- Header 0x38 -> 0x14E0 has an irregular layout where rows hold strings at varying field offsets (only field 4 is reliably a string, so entry 1 of that table has 2 additional unexposed strings).
-- Header 0x30 -> 0x1520 references secondary pointer tables at 0x15BC/0x15D8/0x15EC with 24-bit offset encoding — needs a dedicated walker.
-- Headers 0x00/0x04/0x08/0x0C/0x1C/0x20/0x2C/0x34 point to non-string data (floats, indices, tables of struct IDs).
+Investigation (2026-04-06) revised the remaining-string estimate sharply downward. Inspecting the two candidate tables at runtime:
+- Header 0x38 -> 0x14E0 (0x30 B, 12 u32): 12-byte stride `(index, name_ptr, template_ptr)` with only 3 populated rows. Already fully extracted by `sqd/header_labels` — the remaining cells are 1 shared effect template (`効果\n…`) plus null padding. **0 new strings.**
+- Header 0x34 -> 0x1510 (16 B): flag words only, no strings.
+- Header 0x30 -> 0x1520 (0x120 B, 72 u32): pointer-to-pointer network whose leaf values are of the form `0x0001019c` — **skill IDs, not file offsets** (they exceed the 0x3EA4 file size). Cross-references to the skill table already extracted elsewhere. Entries that do point into 0x27A0-0x27B4 land on an all-null region in this file version. **0 new strings.**
+- Headers 0x00/0x04/0x08/0x0C/0x1C/0x20/0x2C point to non-string data (floats, indices, tables of struct IDs).
+
+Net remaining translator-useful strings in sqd: **~0**. The earlier ~33 estimate was wrong — it counted ID cross-references and layout padding as strings.
 
 ## mhfrcc.bin — Reception / event info
 
@@ -244,10 +247,13 @@ Pattern: none. Greenfield reverse-engineered by scanning decrypted bytes for Shi
 | xpath | Pointer | Content | Mode |
 |-------|---------|---------|------|
 | `rcc/events_en` | 0x08 | English event-info strings (Pallone Grand Voyage, Hunter Fest, Hunting Competition, ...) — 7 entries | struct-strided (fixed 7, size 4, field 0) |
+| `rcc/events_full` | 0x00 | Event info multi-field struct table at 0x5c0: 7 rows × 36-byte stride with up to 4 string ptr fields per row (+0x14 title / +0x18 description / +0x1C / +0x20). Captures JP descriptions (パローネ大航祭, 極限征伐戦, 天廊遠征録), `Guild Conquest is underway!`, and the `残り時間` template — 28 entries | struct-strided (multi-field [20,24,28,32]) |
+
+Re-investigation on 2026-04-06 confirmed the region is a uniform 36-byte stride (not variable), bounded exactly by header 0x00=0x5c0 and header 0x04=7. Handled by upgrading `struct-strided` to support multi-field `field_offset` (int or list[int]) in `pointer_tables.py`.
 
 ### Not yet extracted
 
-~27 Japanese event-info strings (contiguous at 0x20-0x557) plus their 7 English titles at 0x6c0+ are referenced from a variable-length struct region at 0x5c0-0x6c0 whose struct boundaries alternate between 0x1C and 0x24 byte spans. The fields mix float timestamps and packed date masks with 4 string pointers per event, but the stride is not uniform so a struct-strided config cannot safely cover them yet. Needs a dedicated parser.
+No remaining translator-useful strings in the 0x5c0-0x6c0 region — the earlier ~27-string estimate was wrong. Several slots in `events_full` are `−` placeholders (rows that define only title+description), which is expected game data, not missing coverage.
 
 ## mhfmsx.bin — Mezeporta Festa
 
@@ -294,8 +300,8 @@ Any additional localized strings referenced from sibling struct tables elsewhere
 | mhfjmp.bin | 53 | 0 | - |
 | mhfinf.bin — quests | **~22,700** | 0 | - |
 | mhfgao.bin — Felyne | 2,109 (armor/weapon names+descs, dialogue, skill descriptions/names) | ~20 readable fragments in 0x040 situational dialogue | Needs composition-engine RE (string fragments land mid Shift-JIS character) |
-| mhfsqd.bin — Squad | 190 (NPC names, skills, labels) | ~33 (irregular sub-tables) | Variable field offsets / 24-bit ptrs |
-| mhfrcc.bin — Reception | 7 (English event strings) | ~27 (Japanese equivalents in variable-stride struct region) | Variable struct stride |
+| mhfsqd.bin — Squad | 190 (NPC names, skills, labels) | ~0 (earlier ~33 estimate was IDs/padding, not strings) | None actionable |
+| mhfrcc.bin — Reception | 28 (7 EN titles + 7 JP/EN descriptions + Guild Conquest + templates via multi-field events_full) | 0 | - |
 | mhfmsx.bin — Mezeporta Festa | 10 (item names + effects) | 0 confirmed beyond placeholders | - |
 | **Total remaining** | | **~384** | |
 

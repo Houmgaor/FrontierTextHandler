@@ -225,38 +225,52 @@ def read_struct_strings(
     base_offset: int,
     entry_count: int,
     entry_size: int,
-    field_offset: int
+    field_offset: int | list[int]
 ) -> list[dict[str, int | str]]:
     """
     Read strings from struct fields at regular intervals.
 
     Extracts string pointers embedded in repeated structs (e.g., menu
     entries where title/description pointers sit at a fixed offset
-    within each struct).
+    within each struct). ``field_offset`` may be a single int or a list
+    of ints when a struct contains multiple string pointer fields; in the
+    multi-field case all fields are read per entry (entry-major order).
 
     :param bfile: Binary file to read from
     :param base_offset: Start address of the struct array in the file
     :param entry_count: Number of structs in the array
     :param entry_size: Size of each struct in bytes
-    :param field_offset: Byte offset of the string pointer within each struct
+    :param field_offset: Byte offset(s) of string pointer field(s) within
+        each struct. int for single-field, list[int] for multi-field.
     :return: List of dicts with "offset" and "text" keys
     """
+    if isinstance(field_offset, int):
+        field_offsets = [field_offset]
+    else:
+        field_offsets = list(field_offset)
+
     results: list[dict[str, int | str]] = []
     for i in range(entry_count):
-        pointer_offset = base_offset + i * entry_size + field_offset
-        bfile.validate_offset(
-            pointer_offset,
-            context=f"struct entry {i} field at +0x{field_offset:x}"
-        )
-        bfile.seek(pointer_offset)
-        pointer = bfile.read_int()
-        if pointer == 0:
-            continue
-        bfile.validate_offset(pointer, context=f"string pointer in entry {i}")
-        bfile.seek(pointer)
-        data_stream = read_until_null(bfile)
-        text = decode_game_string(data_stream, context=f"struct entry {i}")
-        results.append({"offset": pointer_offset, "text": text})
+        entry_base = base_offset + i * entry_size
+        for fo in field_offsets:
+            pointer_offset = entry_base + fo
+            bfile.validate_offset(
+                pointer_offset,
+                context=f"struct entry {i} field at +0x{fo:x}"
+            )
+            bfile.seek(pointer_offset)
+            pointer = bfile.read_int()
+            if pointer == 0:
+                continue
+            bfile.validate_offset(
+                pointer, context=f"string pointer in entry {i} +0x{fo:x}"
+            )
+            bfile.seek(pointer)
+            data_stream = read_until_null(bfile)
+            text = decode_game_string(
+                data_stream, context=f"struct entry {i} +0x{fo:x}"
+            )
+            results.append({"offset": pointer_offset, "text": text})
     return results
 
 

@@ -503,6 +503,13 @@
       "entry_count": 7,
       "entry_size": 4,
       "field_offset": 0
+    },
+    "events_full": {
+      "_comment": "Event info multi-field struct table at 0x5c0 (7 rows x 36-byte stride). Header u32 at 0x00 = 0x5c0 (base), header u32 at 0x04 = 7 (count). Each row carries up to 4 string pointer fields at +0x14 (title), +0x18 (description/alt title), +0x1C / +0x20 (usually '−' placeholders but row 1 stores 'Guild Conquest is underway!' and a '残り時間…' template). Supersets events_en (row.+0x14 == events_en entries).",
+      "begin_pointer": "0x00",
+      "entry_count": 7,
+      "entry_size": 36,
+      "field_offset": [20, 24, 28, 32]
     }
   },
   "msx": {
