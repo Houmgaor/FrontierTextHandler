@@ -731,7 +731,8 @@ def import_from_csv(
     encrypt: bool = False,
     key_index: int = DEFAULT_KEY_INDEX,
     xpath: Optional[str] = None,
-    headers_path: str = common.DEFAULT_HEADERS_PATH
+    headers_path: str = common.DEFAULT_HEADERS_PATH,
+    fold_unsupported_chars: bool = False,
 ) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
@@ -750,6 +751,13 @@ def import_from_csv(
     :param xpath: Optional xpath to the section in headers.json.  When
         provided, enables in-place rebuild instead of append.
     :param headers_path: Path to headers.json (default: headers.json)
+    :param fold_unsupported_chars: If True, fold characters that the
+        MHFrontier custom font cannot render (Latin diacritics, ligatures,
+        typographic punctuation) down to their nearest ASCII equivalents
+        before encoding. Off by default to keep Japanese imports
+        byte-identical. Translators of European languages should pass
+        ``True`` until the in-game font is extended.
+        See :mod:`src.text_folding` for the exact mapping.
     :return: Path to the modified binary file, or None if no changes
     """
     # Validate xpath early to give a clear error instead of a confusing KeyError
@@ -783,12 +791,28 @@ def import_from_csv(
         if not indexed_strings:
             logger.info("No translations to write, skipping binary modification")
             return None
+        if fold_unsupported_chars:
+            from .text_folding import fold_unsupported_chars as _fold
+            indexed_strings = [(idx, _fold(text)) for idx, text in indexed_strings]
+            logger.info(
+                "Folded unsupported characters in %d translations "
+                "(custom-font workaround)",
+                len(indexed_strings),
+            )
     else:
         new_strings = get_new_strings_auto(input_file)
         logger.info("Found %d translations to write", len(new_strings))
         if not new_strings:
             logger.info("No translations to write, skipping binary modification")
             return None
+        if fold_unsupported_chars:
+            from .text_folding import fold_unsupported_chars as _fold
+            new_strings = [(loc, _fold(text)) for loc, text in new_strings]
+            logger.info(
+                "Folded unsupported characters in %d translations "
+                "(custom-font workaround)",
+                len(new_strings),
+            )
 
     if output_path is None:
         # Generate default output path

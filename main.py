@@ -93,6 +93,16 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="ECD key index to use for encryption (default: 4). All MHF files use key 4.",
     )
     parser.add_argument(
+        "--fold-unsupported-chars",
+        action="store_true",
+        help="Fold characters the MHF custom font cannot render (Latin "
+        "diacritics, ligatures, typographic punctuation) down to ASCII "
+        "before encoding. Use with --csv-to-bin when importing European "
+        "languages whose source CSVs contain accents (e.g. French é è à "
+        "ç œ « »). Off by default so Japanese imports stay byte-identical. "
+        "Remove once the in-game font is extended to cover the missing glyphs.",
+    )
+    parser.add_argument(
         "--ftxt",
         action="store_true",
         help="Extract text from an FTXT standalone text file (magic 0x000B0000).",
@@ -448,6 +458,7 @@ def main(args: argparse.Namespace) -> None:
             encrypt=args.encrypt,
             key_index=args.key_index,
             xpath=args.xpath,
+            fold_unsupported_chars=args.fold_unsupported_chars,
         )
     else:
         # Default: read and save as CSV
