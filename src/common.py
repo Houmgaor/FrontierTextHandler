@@ -14,6 +14,7 @@ into focused submodules are re-exported here for backward compatibility:
 import codecs
 import json
 import logging
+import re
 import struct
 from dataclasses import dataclass, field
 from typing import Iterator, Optional
@@ -39,6 +40,91 @@ REFRONTIER_REPLACEMENTS: tuple[tuple[str, str], ...] = (
 
 # Encoding used by Monster Hunter Frontier
 GAME_ENCODING = "shift_jisx0213"
+
+
+# ---------------------------------------------------------------------------
+# Color codes
+# ---------------------------------------------------------------------------
+# The game encodes inline color changes as the byte 0x7E followed by ``C`` and
+# two decimal digits (e.g. ``0x7E 'C' '0' '5'``).  In shift_jisx0213, 0x7E
+# decodes to U+203E OVERLINE (``‾``), which is visually confusing and often
+# mangled by tools that assume plain ASCII.
+#
+# On disk in translation CSVs/JSONs we use an ASCII-safe brace form instead,
+# matching the existing ``{K012}``/``{i131}`` keybind/icon placeholders that
+# the MHFrontier-Translation project already uses:
+#
+#     ‾C05  →  {c05}   (open a color span)
+#     ‾C00  →  {/c}    (reset to default)
+#
+# The mapping is a pure lexical bijection: ``color_codes_to_csv`` and
+# ``color_codes_from_csv`` compose to the identity on any input, so round-
+# tripping an extracted CSV through the importer reproduces the original
+# byte sequence exactly.
+#
+# ``COLOR_CODE_KNOWN`` is informational: unknown ids still pass through with
+# a warning, so newly-seen codes surface without breaking extraction.
+
+# Color ids observed in mhfdat/mhfpac across G10+ dumps (2026-04).
+COLOR_CODE_KNOWN: frozenset[int] = frozenset({
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    10, 11, 14, 15, 16, 17, 18, 19, 20, 24, 28,
+    69, 75,
+})
+
+_COLOR_GAME_RE = re.compile(r"‾C(\d{2})")
+_COLOR_CSV_RE = re.compile(r"\{/c\}|\{c(\d{2})\}")
+
+
+def color_codes_to_csv(text: str) -> str:
+    """
+    Rewrite game-form color codes (``‾CNN``) to the CSV brace form.
+
+    ``‾C00`` becomes ``{/c}`` (close/reset); every other ``‾CNN`` becomes
+    ``{cNN}``.  Unknown ids are passed through with a warning.
+
+    :param text: Decoded game string possibly containing ``‾CNN`` codes
+    :return: Same text with color codes rewritten
+    """
+    def repl(m: "re.Match[str]") -> str:
+        nn = m.group(1)
+        if nn == "00":
+            return "{/c}"
+        try:
+            if int(nn) not in COLOR_CODE_KNOWN:
+                logger.warning(
+                    "Unknown color code ‾C%s in extracted text; passing through", nn
+                )
+        except ValueError:
+            pass
+        return "{c" + nn + "}"
+
+    return _COLOR_GAME_RE.sub(repl, text)
+
+
+def color_codes_from_csv(text: str) -> str:
+    """
+    Inverse of :func:`color_codes_to_csv`: rewrite ``{cNN}``/``{/c}`` back
+    to the game's ``‾CNN`` form before re-encoding to Shift-JIS.
+
+    :param text: Translation string using the CSV brace form
+    :return: Same text with color codes rewritten to game form
+    """
+    def repl(m: "re.Match[str]") -> str:
+        if m.group(0) == "{/c}":
+            return "‾C00"
+        nn = m.group(1)
+        try:
+            if int(nn) not in COLOR_CODE_KNOWN:
+                logger.warning(
+                    "Unknown color code {c%s} in translation input; passing through",
+                    nn,
+                )
+        except ValueError:
+            pass
+        return "‾C" + nn
+
+    return _COLOR_CSV_RE.sub(repl, text)
 
 
 class EncodingError(ValueError):

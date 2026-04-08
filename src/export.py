@@ -9,7 +9,7 @@ import os
 from typing import Iterable
 
 from . import common
-from .common import encode_game_string, GAME_ENCODING
+from .common import encode_game_string, GAME_ENCODING, color_codes_to_csv
 from .scenario import extract_scenario_file as _extract_scenario
 
 logger = logging.getLogger(__name__)
@@ -40,15 +40,17 @@ def export_as_csv(
         if with_index:
             writer.writerow(["index", "source", "target"])
             for index, datum in enumerate(data):
-                writer.writerow([index, datum["text"], datum["text"]])
+                display = color_codes_to_csv(str(datum["text"]))
+                writer.writerow([index, display, display])
                 lines += 1
         else:
             writer.writerow(["location", "source", "target"])
             for datum in data:
+                display = color_codes_to_csv(str(datum["text"]))
                 writer.writerow([
                     f"0x{datum['offset']:x}@{location_name}",
-                    datum["text"],
-                    datum["text"],
+                    display,
+                    display,
                 ])
                 lines += 1
     logger.info("Wrote %d lines of translation CSV as %s", lines, output_file)
@@ -113,17 +115,19 @@ def export_as_json(
     strings = []
     if with_index:
         for index, datum in enumerate(data):
+            display = color_codes_to_csv(str(datum["text"]))
             strings.append({
                 "index": index,
-                "source": datum["text"],
-                "target": datum["text"],
+                "source": display,
+                "target": display,
             })
     else:
         for datum in data:
+            display = color_codes_to_csv(str(datum["text"]))
             strings.append({
                 "location": f"0x{datum['offset']:x}@{location_name}",
-                "source": datum["text"],
-                "target": datum["text"],
+                "source": display,
+                "target": display,
             })
 
     metadata = {

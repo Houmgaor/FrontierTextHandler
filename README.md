@@ -235,7 +235,7 @@ python main.py --npc-to-bin output/npc_dialogue.csv data/npc_dialogue.bin
 
 ### Scenario files
 
-Extract and reimport text from story scenario `.bin` files (Basic quests, Veteran quests, Diva Exchange, Diva Story). These files use a multi-chunk container format with quest names, NPC dialog (`@RETURN`, `@MYNAME`, `~C05` color codes), and JKR-compressed menu text.
+Extract and reimport text from story scenario `.bin` files (Basic quests, Veteran quests, Diva Exchange, Diva Story). These files use a multi-chunk container format with quest names, NPC dialog (`@RETURN`, `@MYNAME`, `{c05}…{/c}` color codes), and JKR-compressed menu text.
 
 ```bash
 # Extract from a single file (outputs CSV + JSON)

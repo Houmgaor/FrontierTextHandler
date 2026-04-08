@@ -1023,5 +1023,74 @@ class TestExtractTextDataFromBytesValidation(unittest.TestCase):
         self.assertIn("begin_pointer", str(ctx.exception))
 
 
+class TestColorCodeTransforms(unittest.TestCase):
+    """Round-trip and edge-case tests for the ‾CNN ↔ {cNN}/{/c} bijection."""
+
+    def _to(self, s):
+        from src.common import color_codes_to_csv
+        return color_codes_to_csv(s)
+
+    def _from(self, s):
+        from src.common import color_codes_from_csv
+        return color_codes_from_csv(s)
+
+    def test_basic_open_close(self):
+        self.assertEqual(
+            self._to("hello ‾C05world‾C00!"),
+            "hello {c05}world{/c}!",
+        )
+
+    def test_reverse_basic(self):
+        self.assertEqual(
+            self._from("hello {c05}world{/c}!"),
+            "hello ‾C05world‾C00!",
+        )
+
+    def test_roundtrip_identity(self):
+        # Samples drawn from real MHFrontier-Translation CSVs.
+        samples = [
+            "まず、‾C05≪天廊≫‾C00じゃ。",
+            "‾C02一度進んだら戻れない‾C00みたいニャ。",
+            "「‾C18メゼフェス１人用券‾C17」と、４人用",
+            "‾C69▼△▼△▼△▼△▼△▼△▼△▼△▼‾C17",
+            "no codes at all, plain text",
+            "",
+        ]
+        for s in samples:
+            with self.subTest(s=s):
+                self.assertEqual(self._from(self._to(s)), s)
+
+    def test_chained_codes_without_reset(self):
+        # Two color opens with no intermediate reset — pure lexical mapping.
+        self.assertEqual(
+            self._to("‾C05foo‾C02bar‾C00"),
+            "{c05}foo{c02}bar{/c}",
+        )
+        self.assertEqual(
+            self._from("{c05}foo{c02}bar{/c}"),
+            "‾C05foo‾C02bar‾C00",
+        )
+
+    def test_unknown_id_passes_through(self):
+        # Unknown ids still round-trip; a warning is logged but not fatal.
+        import logging
+        with self.assertLogs("src.common", level="WARNING"):
+            out = self._to("‾C99x‾C00")
+        self.assertEqual(out, "{c99}x{/c}")
+        with self.assertLogs("src.common", level="WARNING"):
+            back = self._from("{c99}x{/c}")
+        self.assertEqual(back, "‾C99x‾C00")
+
+    def test_braces_without_color_are_untouched(self):
+        # Existing {K012} / {i131} / {u4} placeholders must not collide.
+        s = "Press {K012} or {i131} to continue ({u4})"
+        self.assertEqual(self._from(s), s)
+        self.assertEqual(self._to(s), s)
+
+    def test_no_color_code_left_in_csv_form(self):
+        # After to_csv, no ‾C should remain.
+        self.assertNotIn("‾C", self._to("‾C05a‾C00‾C18b‾C17"))
+
+
 if __name__ == "__main__":
     unittest.main()

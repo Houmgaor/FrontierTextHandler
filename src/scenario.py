@@ -359,7 +359,8 @@ def _scan_decompressed_strings(
         # Try to find start of Shift-JIS text by looking for printable chars
         # Shift-JIS high bytes: 0x81-0x9F, 0xE0-0xEF for lead bytes
         # ASCII printable: 0x20-0x7E
-        # Also ~ (0x7E) for color codes like ~C05
+        # Also ~ (0x7E) for color codes: the game stores ‾CNN (0x7E 'C' NN),
+        # surfaced as {cNN}/{/c} in translation CSVs. See common.color_codes_to_csv.
         byte = decompressed[pos]
         is_text_start = (
             (0x81 <= byte <= 0x9F)

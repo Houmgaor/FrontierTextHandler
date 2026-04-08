@@ -12,7 +12,7 @@ from typing import Optional
 
 from .binary_file import BinaryFile
 from . import common
-from .common import encode_game_string, EncodingError
+from .common import encode_game_string, EncodingError, color_codes_from_csv
 from .jkr_decompress import is_jkr_file, decompress_jkr
 from .jkr_compress import compress_jkr_hfi
 from .crypto import is_encrypted_file, decrypt, encode_ecd, DEFAULT_KEY_INDEX
@@ -75,7 +75,7 @@ def get_new_strings(input_file: str) -> list[tuple[int, str]]:
                 continue
             try:
                 index = parse_location(line[0])
-                new_strings.append((index, line[2]))
+                new_strings.append((index, color_codes_from_csv(line[2])))
             except CSVParseError as exc:
                 logger.warning("Line %d: %s", line_num, exc)
                 continue
@@ -116,7 +116,7 @@ def get_new_strings_from_json(input_file: str) -> list[tuple[int, str]]:
                 continue
             try:
                 index = parse_location(entry["location"])
-                new_strings.append((index, entry["target"]))
+                new_strings.append((index, color_codes_from_csv(entry["target"])))
             except CSVParseError as exc:
                 logger.warning("Entry %d: %s", i, exc)
                 continue
@@ -175,7 +175,10 @@ def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
             if entry.get("source") == entry.get("target"):
                 continue
             try:
-                pairs.append((int(entry["index"]), entry["target"]))
+                pairs.append((
+                    int(entry["index"]),
+                    color_codes_from_csv(entry["target"]),
+                ))
             except (TypeError, ValueError) as exc:
                 logger.warning("Entry %d: invalid index %r: %s", i, entry.get("index"), exc)
         return pairs
@@ -188,7 +191,10 @@ def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
             if row.get("source") == row.get("target"):
                 continue
             try:
-                pairs.append((int(row["index"]), row["target"]))
+                pairs.append((
+                    int(row["index"]),
+                    color_codes_from_csv(row["target"]),
+                ))
             except ValueError as exc:
                 logger.warning("Line %d: invalid index %r: %s", line_num, row.get("index"), exc)
     return pairs
