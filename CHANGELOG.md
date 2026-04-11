@@ -28,6 +28,18 @@ translation files import unchanged.
   positional alignment, updating every sibling pointer. A sub-string
   count mismatch keeps the originals rather than corrupting siblings.
 
+### Added
+- **Placeholder validation** across every importer and as a new
+  standalone `--validate-placeholders FILE` CLI command. Runs a
+  multiset comparison of brace-form markers (`{cNN}`, `{/c}`, `{j}`,
+  `{K…}`, `{i…}`, `{u…}`) between source and target on every row,
+  reports dropped / added / duplicated / typoed placeholders.
+  Default behaviour logs a warning summary and proceeds;
+  `--strict-placeholders` turns the first mismatch into a hard
+  error so CI pipelines can block bad translations before they land
+  in the binary. See the *Placeholder validation* section in
+  [`docs/translation-format.md`](docs/translation-format.md).
+
 ### Fixed
 - `apply_translations_from_release_json`: runs `color_codes_from_csv`
   on each target before re-encoding, so `{cNN}` lands in the binary

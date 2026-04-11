@@ -22,6 +22,10 @@ from .common import (
 from .jkr_decompress import is_jkr_file, decompress_jkr
 from .jkr_compress import compress_jkr_hfi
 from .crypto import is_encrypted_file, decrypt, encode_ecd, DEFAULT_KEY_INDEX
+from .placeholder_validation import (
+    PlaceholderValidator,
+    PlaceholderValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +78,31 @@ def parse_location(location: str) -> int:
         ) from exc
 
 
-def get_new_strings(input_file: str) -> list[tuple[int, str]]:
+def get_new_strings(
+    input_file: str,
+    *,
+    strict_placeholders: bool = False,
+) -> list[tuple[int, str]]:
     """
     Get the new strings defined in a CSV file.
 
+    Every row's ``source`` / ``target`` pair is run through the
+    placeholder validator before its target is decoded. Mismatches
+    (a ``{cNN}`` / ``{j}`` / ``{K012}`` / etc. dropped or added
+    compared to the source) are logged as warnings via
+    :meth:`PlaceholderValidator.log_summary`; passing
+    ``strict_placeholders=True`` raises
+    :class:`PlaceholderValidationError` at the first bad row instead.
+
     :param input_file: Input CSV file path.
+    :param strict_placeholders: If True, abort on the first
+        placeholder-mismatch row. Default False (collect + warn).
     :return: New strings defined in the file as list of (offset, string) tuples
     :raises CSVParseError: If CSV format is invalid
+    :raises PlaceholderValidationError: In strict mode, on the first
+        row whose target dropped or added a placeholder.
     """
+    validator = PlaceholderValidator(strict=strict_placeholders)
     new_strings: list[tuple[int, str]] = []
     with open(input_file, "r", newline="", encoding="utf-8") as csvfile:
         reader = csv.reader(csvfile)
@@ -100,22 +121,39 @@ def get_new_strings(input_file: str) -> list[tuple[int, str]]:
             # Skip if translation is same as source
             if line[1] == line[2]:
                 continue
+            # Placeholder check runs on the raw CSV cells, before the
+            # on-disk {cNN} markers get rewritten to game bytes.
+            validator.check(f"line {line_num}", line[1], line[2])
             try:
                 index = parse_location(line[0])
                 new_strings.append((index, color_codes_from_csv(line[2])))
             except CSVParseError as exc:
                 logger.warning("Line %d: %s", line_num, exc)
                 continue
+    validator.log_summary(input_file)
     return new_strings
 
 
-def get_new_strings_from_json(input_file: str) -> list[tuple[int, str]]:
+def get_new_strings_from_json(
+    input_file: str,
+    *,
+    strict_placeholders: bool = False,
+) -> list[tuple[int, str]]:
     """
     Get the new strings defined in a JSON file.
 
+    Same placeholder-validation behaviour as :func:`get_new_strings`:
+    every entry is checked, mismatches are logged as warnings, and
+    ``strict_placeholders=True`` turns the first bad entry into a
+    hard :class:`PlaceholderValidationError`.
+
     :param input_file: Input JSON file path.
+    :param strict_placeholders: If True, abort on the first
+        placeholder-mismatch entry.
     :return: New strings defined in the file as list of (offset, string) tuples
     :raises CSVParseError: If JSON format is invalid
+    :raises PlaceholderValidationError: In strict mode, on the first
+        entry whose target dropped or added a placeholder.
     """
     with open(input_file, "r", encoding="utf-8") as f:
         try:
@@ -126,6 +164,7 @@ def get_new_strings_from_json(input_file: str) -> list[tuple[int, str]]:
     if "strings" not in data:
         raise CSVParseError(f"Missing 'strings' key in JSON file '{input_file}'")
 
+    validator = PlaceholderValidator(strict=strict_placeholders)
     new_strings: list[tuple[int, str]] = []
     for i, entry in enumerate(data["strings"]):
         if not isinstance(entry, dict):
@@ -141,12 +180,14 @@ def get_new_strings_from_json(input_file: str) -> list[tuple[int, str]]:
             # Skip if translation is same as source
             if entry["source"] == entry["target"]:
                 continue
+            validator.check(f"entry {i}", entry["source"], entry["target"])
             try:
                 index = parse_location(entry["location"])
                 new_strings.append((index, color_codes_from_csv(entry["target"])))
             except CSVParseError as exc:
                 logger.warning("Entry %d: %s", i, exc)
                 continue
+    validator.log_summary(input_file)
     return new_strings
 
 
@@ -179,18 +220,29 @@ def detect_translation_format(input_file: str) -> str:
         return "index" if header and header[0].strip().lower() == "index" else "offset"
 
 
-def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
+def get_new_strings_indexed(
+    input_file: str,
+    *,
+    strict_placeholders: bool = False,
+) -> list[tuple[int, str]]:
     """
     Read translations keyed by stable pointer-table index.
 
     Returns ``(index, target)`` pairs for rows whose ``target`` differs
-    from ``source``.  The caller must resolve indexes to file offsets
-    against the freshly-extracted section.
+    from ``source``. The caller must resolve indexes to file offsets
+    against the freshly-extracted section. Placeholder validation
+    runs on every row; see :func:`get_new_strings` for the
+    semantics.
 
     :param input_file: CSV or JSON file with an ``index`` column/field
+    :param strict_placeholders: If True, abort on the first
+        placeholder-mismatch row.
     :return: List of ``(index, text)`` tuples
     :raises CSVParseError: If a row has a malformed index
+    :raises PlaceholderValidationError: In strict mode, on the first
+        row whose target dropped or added a placeholder.
     """
+    validator = PlaceholderValidator(strict=strict_placeholders)
     pairs: list[tuple[int, str]] = []
 
     if input_file.lower().endswith(".json"):
@@ -199,15 +251,19 @@ def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
         for i, entry in enumerate(data.get("strings", [])):
             if not isinstance(entry, dict) or "index" not in entry:
                 continue
-            if entry.get("source") == entry.get("target"):
+            source = entry.get("source") or ""
+            target = entry.get("target") or ""
+            if source == target:
                 continue
+            validator.check(f"entry {i}", source, target)
             try:
                 pairs.append((
                     int(entry["index"]),
-                    color_codes_from_csv(entry["target"]),
+                    color_codes_from_csv(target),
                 ))
             except (TypeError, ValueError) as exc:
                 logger.warning("Entry %d: invalid index %r: %s", i, entry.get("index"), exc)
+        validator.log_summary(input_file)
         return pairs
 
     with open(input_file, "r", newline="", encoding="utf-8") as csvfile:
@@ -215,15 +271,19 @@ def get_new_strings_indexed(input_file: str) -> list[tuple[int, str]]:
         for line_num, row in enumerate(reader, start=2):
             if not row.get("index", "").strip():
                 continue
-            if row.get("source") == row.get("target"):
+            source = row.get("source") or ""
+            target = row.get("target") or ""
+            if source == target:
                 continue
+            validator.check(f"line {line_num}", source, target)
             try:
                 pairs.append((
                     int(row["index"]),
-                    color_codes_from_csv(row["target"]),
+                    color_codes_from_csv(target),
                 ))
             except ValueError as exc:
                 logger.warning("Line %d: invalid index %r: %s", line_num, row.get("index"), exc)
+    validator.log_summary(input_file)
     return pairs
 
 
@@ -472,16 +532,27 @@ def resolve_indexes_to_offsets(
     return resolve_indexes_against_entries(indexed, entries, context="section")
 
 
-def get_new_strings_auto(input_file: str) -> list[tuple[int, str]]:
+def get_new_strings_auto(
+    input_file: str,
+    *,
+    strict_placeholders: bool = False,
+) -> list[tuple[int, str]]:
     """
     Detect file format by extension and return new strings.
 
     :param input_file: Input file path (CSV or JSON)
+    :param strict_placeholders: If True, propagate strict mode to the
+        underlying CSV/JSON reader so a placeholder mismatch raises
+        instead of warning.
     :return: New strings as list of (offset, string) tuples
     """
     if input_file.lower().endswith(".json"):
-        return get_new_strings_from_json(input_file)
-    return get_new_strings(input_file)
+        return get_new_strings_from_json(
+            input_file, strict_placeholders=strict_placeholders,
+        )
+    return get_new_strings(
+        input_file, strict_placeholders=strict_placeholders,
+    )
 
 
 def append_to_binary(
@@ -786,6 +857,7 @@ def apply_translations_from_release_json(
     encrypt: bool = True,
     key_index: int = DEFAULT_KEY_INDEX,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
+    strict_placeholders: bool = False,
 ) -> dict[str, int]:
     """
     Apply translations from a MHFrontier-Translation release JSON to game files.
@@ -803,6 +875,12 @@ def apply_translations_from_release_json(
 
     Mixed sections are allowed: a section may use one format while another
     section in the same file uses the other.
+
+    Every entry's ``source`` / ``target`` pair is run through the
+    placeholder validator before ``target`` is rewritten to game
+    bytes. Mismatches are logged as warnings by default; passing
+    ``strict_placeholders=True`` turns the first mismatch into a
+    hard :class:`PlaceholderValidationError`.
 
     For each game binary that has at least one translated string this function:
 
@@ -825,8 +903,13 @@ def apply_translations_from_release_json(
     :param encrypt: Re-encrypt with ECD after patching.
     :param key_index: ECD key index (default 4, used by all MHF files).
     :param headers_path: Path to ``headers.json`` (used to resolve indexes).
+    :param strict_placeholders: If True, abort on the first entry
+        whose target dropped or added a placeholder compared to its
+        source.
     :return: Mapping of game-file relative path → number of strings applied.
     :raises ValueError: If *lang* is not present in the JSON.
+    :raises PlaceholderValidationError: In strict mode, on the first
+        bad entry.
     """
     import gzip
     import json as _json
@@ -853,6 +936,7 @@ def apply_translations_from_release_json(
     # pointer table later.
     #
     # Shape: {rel_path: {xpath: {"index": [(idx, text)], "offset": [(off, text)]}}}
+    validator = PlaceholderValidator(strict=strict_placeholders)
     by_file: dict[str, dict[str, dict[str, list]]] = {}
     for xpath, strings in data[lang].items():
         prefix = xpath.split("/")[0]
@@ -863,13 +947,17 @@ def apply_translations_from_release_json(
         section = by_file.setdefault(rel_path, {}).setdefault(
             xpath, {"index": [], "offset": []}
         )
-        for entry in strings:
+        for i, entry in enumerate(strings):
             if not isinstance(entry, dict):
                 continue
             target = entry.get("target") or ""
             source = entry.get("source") or ""
             if not target or target == source:
                 continue
+            # Placeholder check runs on the on-disk form (source and
+            # target still carry {cNN}/{j}/{K…} at this point), before
+            # color_codes_from_csv rewrites the target to game bytes.
+            validator.check(f"{xpath}[{i}]", source, target)
             # Rewrite CSV-form color codes ({cNN}/{/c}) back to the game's
             # ‾CNN bytes before re-encoding. Release JSONs produced from
             # MHFrontier-Translation store the brace form since 1.6.0, so
@@ -890,6 +978,7 @@ def apply_translations_from_release_json(
                     section["offset"].append((parse_location(location), target))
                 except CSVParseError as exc:
                     logger.warning("Skipping entry in '%s': %s", xpath, exc)
+    validator.log_summary(json_file)
 
     results: dict[str, int] = {}
 
@@ -1042,6 +1131,7 @@ def import_from_csv(
     xpath: Optional[str] = None,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     fold_unsupported_chars: bool = False,
+    strict_placeholders: bool = False,
 ) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
@@ -1067,6 +1157,13 @@ def import_from_csv(
         byte-identical. Translators of European languages should pass
         ``True`` until the in-game font is extended.
         See :mod:`src.text_folding` for the exact mapping.
+    :param strict_placeholders: If True, abort the import with a
+        :class:`PlaceholderValidationError` on the first row whose
+        target dropped or added a ``{cNN}`` / ``{j}`` / ``{K…}``
+        placeholder compared to its source. Default False — the
+        importer logs a warning summary and proceeds, so CI pipelines
+        can choose strict mode while interactive runs stay
+        forgiving.
     :return: Path to the modified binary file, or None if no changes
     """
     # Validate xpath early to give a clear error instead of a confusing KeyError
@@ -1114,7 +1211,9 @@ def import_from_csv(
             else:
                 xpath = inferred
                 logger.info("Inferred xpath '%s' from %s", xpath, input_file)
-        indexed_strings = get_new_strings_indexed(input_file)
+        indexed_strings = get_new_strings_indexed(
+            input_file, strict_placeholders=strict_placeholders,
+        )
         logger.info(
             "Found %d translations to write (index-based)", len(indexed_strings)
         )
@@ -1130,7 +1229,9 @@ def import_from_csv(
                 len(indexed_strings),
             )
     else:
-        new_strings = get_new_strings_auto(input_file)
+        new_strings = get_new_strings_auto(
+            input_file, strict_placeholders=strict_placeholders,
+        )
         logger.info("Found %d translations to write", len(new_strings))
         if not new_strings:
             logger.info("No translations to write, skipping binary modification")
@@ -1334,6 +1435,8 @@ def _read_standalone_translations(
     input_file: str,
     live_entries_fn,
     context: str,
+    *,
+    strict_placeholders: bool = False,
 ) -> list[tuple[int, str]]:
     """
     Read translations for a standalone-format file (FTXT, NPC dialogue,
@@ -1359,12 +1462,17 @@ def _read_standalone_translations(
         (each with ``offset`` / ``text``). Called at most once, and
         only when the translation file is index-keyed.
     :param context: Short label for error messages (e.g. ``"FTXT"``).
+    :param strict_placeholders: Propagated to the underlying reader —
+        when True, a placeholder mismatch in the translation file
+        aborts the import with a :class:`PlaceholderValidationError`.
     :return: Resolved ``(offset, text)`` pairs ready to hand to the
         format's ``rebuild_*`` function.
     """
     fmt = detect_translation_format(input_file)
     if fmt == "index":
-        indexed = get_new_strings_indexed(input_file)
+        indexed = get_new_strings_indexed(
+            input_file, strict_placeholders=strict_placeholders,
+        )
         if not indexed:
             return []
         # Keep grouped entries joined: the standalone rebuild_*
@@ -1376,7 +1484,9 @@ def _read_standalone_translations(
             indexed, live_entries_fn(),
             context=context, expand_groups=False,
         )
-    return get_new_strings_auto(input_file)
+    return get_new_strings_auto(
+        input_file, strict_placeholders=strict_placeholders,
+    )
 
 
 def import_ftxt_from_csv(
@@ -1385,7 +1495,8 @@ def import_ftxt_from_csv(
     output_path: Optional[str] = None,
     compress: bool = False,
     encrypt: bool = False,
-    key_index: int = DEFAULT_KEY_INDEX
+    key_index: int = DEFAULT_KEY_INDEX,
+    strict_placeholders: bool = False,
 ) -> Optional[str]:
     """
     Import translations from CSV into an FTXT file.
@@ -1403,6 +1514,10 @@ def import_ftxt_from_csv(
     :param compress: If True, compress output with JKR HFI
     :param encrypt: If True, encrypt output with ECD
     :param key_index: ECD key index (0-5, default 4)
+    :param strict_placeholders: If True, abort on the first row whose
+        target dropped or added a placeholder (``{cNN}``, ``{j}``,
+        ``{K…}``, etc.) compared to its source. Default False —
+        mismatches are logged as warnings and the import proceeds.
     :return: Path to the modified file, or None if no changes
     """
     from .common import load_file_data, extract_ftxt_data
@@ -1412,6 +1527,7 @@ def import_ftxt_from_csv(
 
     new_strings = _read_standalone_translations(
         input_file, _live_entries, context="FTXT",
+        strict_placeholders=strict_placeholders,
     )
     logger.info("Found %d translations to write", len(new_strings))
 
@@ -1655,7 +1771,8 @@ def import_scenario_from_csv(
     output_path: Optional[str] = None,
     compress: bool = False,
     encrypt: bool = False,
-    key_index: int = DEFAULT_KEY_INDEX
+    key_index: int = DEFAULT_KEY_INDEX,
+    strict_placeholders: bool = False,
 ) -> Optional[str]:
     """
     Import translations from CSV into a scenario file.
@@ -1670,6 +1787,8 @@ def import_scenario_from_csv(
     :param compress: If True, compress output with JKR HFI
     :param encrypt: If True, encrypt output with ECD
     :param key_index: ECD key index (0-5, default 4)
+    :param strict_placeholders: If True, abort on the first row whose
+        target dropped or added a placeholder. Default False.
     :return: Path to the modified file, or None if no changes
     """
     from .scenario import extract_scenario_file
@@ -1679,6 +1798,7 @@ def import_scenario_from_csv(
 
     new_strings = _read_standalone_translations(
         input_file, _live_entries, context="scenario",
+        strict_placeholders=strict_placeholders,
     )
     logger.info("Found %d scenario translations to write", len(new_strings))
 
@@ -1724,7 +1844,8 @@ def import_npc_dialogue_from_csv(
     output_path: Optional[str] = None,
     compress: bool = False,
     encrypt: bool = False,
-    key_index: int = DEFAULT_KEY_INDEX
+    key_index: int = DEFAULT_KEY_INDEX,
+    strict_placeholders: bool = False,
 ) -> Optional[str]:
     """
     Import translations from CSV into an NPC dialogue file.
@@ -1742,6 +1863,8 @@ def import_npc_dialogue_from_csv(
     :param compress: If True, compress output with JKR HFI
     :param encrypt: If True, encrypt output with ECD
     :param key_index: ECD key index (0-5, default 4)
+    :param strict_placeholders: If True, abort on the first row whose
+        target dropped or added a placeholder. Default False.
     :return: Path to the modified file, or None if no changes
     """
     from .common import load_file_data, extract_npc_dialogue_data
@@ -1751,6 +1874,7 @@ def import_npc_dialogue_from_csv(
 
     new_strings = _read_standalone_translations(
         input_file, _live_entries, context="NPC dialogue",
+        strict_placeholders=strict_placeholders,
     )
     logger.info("Found %d NPC dialogue translations to write", len(new_strings))
 

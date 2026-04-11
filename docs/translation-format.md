@@ -135,14 +135,90 @@ Rules of thumb for translators:
   renaming it to `{K013}` picks a different keybind at runtime.
 - **Never translate or delete the placeholder itself.** Deleting a
   `{K012}` turns "Press {K012} to open the map" into "Press  to open
-  the map" with a stray space and no runtime substitution. The tool
-  has no way to warn about this today (see the *Placeholder
-  validation* discussion at the end of this doc).
+  the map" with a stray space and no runtime substitution. The
+  placeholder validator (see below) catches this automatically.
 - **Surrounding text is free game.** Reorder, translate, or rewrite
   the words around the placeholder however the target language
   demands.
 
 The same "leave it alone" rule applies to `{cNN}` / `{/c}` and `{j}`.
+
+### Placeholder validation
+
+Every import runs a lightweight linter over the rows it reads
+before they touch the binary. For each row whose `target` differs
+from `source`, it compares the multiset of `{letter…}` /
+`{/letter…}` markers across the two cells and flags anything that
+doesn't match — a dropped `{cNN}`, a duplicated `{K012}`, a typo
+like `{K013}` where `{K012}` was expected, or an invented placeholder
+that never existed in the source.
+
+By default the importers log a warning summary (first five rows with
+details, `... and N more` for the rest) and keep going, so an
+interactive run on a translation file with a handful of broken rows
+still lands the good translations and surfaces the bad ones for
+fixing. CI pipelines can opt into hard-fail mode:
+
+```bash
+python main.py --csv-to-bin fr/dat-weapons-melee-name.csv data/mhfdat.bin \
+    --xpath=dat/weapons/melee/name --strict-placeholders \
+    --compress --encrypt
+```
+
+With `--strict-placeholders` the first mismatch raises and no binary
+is written, so the pipeline fails before a corrupt translation lands
+in the output.
+
+There's also a standalone command that lints a translation file
+without touching any binary — useful as a pre-commit hook in a
+translation repository:
+
+```bash
+python main.py --validate-placeholders fr/dat-weapons-melee-name.csv
+```
+
+Exits `0` when every row is clean, `1` with a per-row report when
+at least one row has a mismatch:
+
+```text
+FAIL: 2 row(s) in fr/dat-weapons-melee-name.csv have placeholder mismatches:
+  line 42: missing '{K012}' (source has 1, target has 0)
+  line 117: missing '{/c}' (source has 1, target has 0)
+  line 117: missing '{c05}' (source has 1, target has 0)
+```
+
+What the validator catches:
+
+- **Dropped markers.** `{c05}Warning{/c}` → `Attention` drops both
+  the colour span open and close.
+- **Added markers.** Stray `{K013}` appearing in target with no
+  counterpart in source.
+- **Duplicated markers.** `{K012}{K012}` where source had exactly
+  one.
+- **Typos in the number.** `{K012}` → `{K013}` flags one missing
+  and one extra.
+- **Dropped `{j}` sub-strings.** Caught earlier and more clearly
+  than the "sub-string count mismatch" error that would fire later
+  in `resolve_indexes_against_entries`.
+
+What it does **not** catch (by design):
+
+- **Reordering.** `{c05}Level {i131}{/c}` → `Niveau {i131}
+  {c05}atteint{/c}` is legitimate translator freedom.
+- **Semantic validity of the number.** The validator doesn't know
+  whether `{K999}` is a real keybind ID — only whether source and
+  target agree on it. Unknown colour IDs are surfaced separately
+  by `color_codes_to_csv` / `color_codes_from_csv` on the encode
+  path.
+- **Braces with spaces.** `{Not A Marker}` in natural text isn't
+  matched by the regex, so it can't produce false positives on
+  literal English-prose brace tokens.
+
+Callers that need programmatic access can use
+`src.validate_placeholders(source, target)` (pure function,
+returns a list of `PlaceholderIssue`) or
+`src.validate_translation_file(path, strict=False)` (reads a full
+translation file, returns a populated `PlaceholderValidator`).
 
 ## Shift-JIS character set limitations
 

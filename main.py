@@ -222,6 +222,29 @@ def parse_inputs() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,  # no-op alias: 1.5.0 opt-in is the default in 1.6.0+
     )
     parser.add_argument(
+        "--validate-placeholders",
+        type=str,
+        metavar="FILE",
+        help=(
+            "Lint a translation CSV/JSON: check that every row preserves "
+            "its inline placeholders ({cNN}/{/c}, {j}, {K...}, {i...}, "
+            "{u...}) between source and target. Prints a report and "
+            "exits non-zero when any row has a mismatch. No binary is "
+            "touched, so this is safe to run in CI on every commit to a "
+            "translation repository."
+        ),
+    )
+    parser.add_argument(
+        "--strict-placeholders",
+        action="store_true",
+        help=(
+            "Treat placeholder mismatches as hard errors during import. "
+            "By default the importers log a warning summary and proceed; "
+            "with this flag the first bad row aborts the import so CI "
+            "pipelines can fail a build on malformed translations."
+        ),
+    )
+    parser.add_argument(
         "--save-meta",
         action="store_true",
         help="Save .meta file when decrypting (preserves header for re-encryption).",
@@ -271,6 +294,24 @@ def main(args: argparse.Namespace) -> None:
         print(f"Format: {result.inner_format}")
         print(f"Status: {'OK' if result.valid else 'INVALID'}")
         return
+
+    if args.validate_placeholders:
+        # Standalone lint — read a translation CSV/JSON and report
+        # every placeholder mismatch between source and target without
+        # touching any binary. Exits non-zero when there is at least
+        # one issue so CI pipelines can gate merges on it.
+        validator = src.validate_translation_file(args.validate_placeholders)
+        if validator.issue_count == 0:
+            print(f"OK: no placeholder mismatches in {args.validate_placeholders}")
+            return
+        print(
+            f"FAIL: {validator.issue_count} row(s) in "
+            f"{args.validate_placeholders} have placeholder mismatches:"
+        )
+        for row_id, issues in validator.rows:
+            for issue in issues:
+                print(f"  {row_id}: {issue.describe()}")
+        raise SystemExit(1)
 
     if args.diff:
         from src.diff import load_strings, diff_strings, format_diff
@@ -412,6 +453,7 @@ def main(args: argparse.Namespace) -> None:
             compress=args.compress,
             encrypt=args.encrypt,
             key_index=args.key_index,
+            strict_placeholders=args.strict_placeholders,
         )
     elif args.scenario:
         # Single scenario extraction mode
@@ -428,6 +470,7 @@ def main(args: argparse.Namespace) -> None:
             compress=args.compress,
             encrypt=args.encrypt,
             key_index=args.key_index,
+            strict_placeholders=args.strict_placeholders,
         )
     elif args.npc:
         # Single NPC dialogue extraction mode
@@ -463,6 +506,7 @@ def main(args: argparse.Namespace) -> None:
             compress=args.compress,
             encrypt=args.encrypt,
             key_index=args.key_index,
+            strict_placeholders=args.strict_placeholders,
         )
         if results:
             total = sum(results.values())
@@ -480,6 +524,7 @@ def main(args: argparse.Namespace) -> None:
             key_index=args.key_index,
             xpath=args.xpath,
             fold_unsupported_chars=args.fold_unsupported_chars,
+            strict_placeholders=args.strict_placeholders,
         )
     else:
         # Default: read and save as CSV
