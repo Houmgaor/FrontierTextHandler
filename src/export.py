@@ -9,8 +9,25 @@ import os
 from typing import Iterable
 
 from . import common
-from .common import encode_game_string, GAME_ENCODING, color_codes_to_csv
+from .common import (
+    encode_game_string,
+    GAME_ENCODING,
+    color_codes_to_csv,
+    join_codes_to_csv,
+)
 from .scenario import extract_scenario_file as _extract_scenario
+
+
+def _to_csv_form(text: str) -> str:
+    """
+    Apply all on-disk escape transforms to an extracted string.
+
+    Currently rewrites inline color codes and grouped-entry join tags
+    to their translator-friendly brace forms. Order matters: color
+    codes go first so we never rewrite a ``{c..}`` inside a ``{j}``
+    segment.
+    """
+    return join_codes_to_csv(color_codes_to_csv(text))
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +57,13 @@ def export_as_csv(
         if with_index:
             writer.writerow(["index", "source", "target"])
             for index, datum in enumerate(data):
-                display = color_codes_to_csv(str(datum["text"]))
+                display = _to_csv_form(str(datum["text"]))
                 writer.writerow([index, display, display])
                 lines += 1
         else:
             writer.writerow(["location", "source", "target"])
             for datum in data:
-                display = color_codes_to_csv(str(datum["text"]))
+                display = _to_csv_form(str(datum["text"]))
                 writer.writerow([
                     f"0x{datum['offset']:x}@{location_name}",
                     display,
@@ -115,7 +132,7 @@ def export_as_json(
     strings = []
     if with_index:
         for index, datum in enumerate(data):
-            display = color_codes_to_csv(str(datum["text"]))
+            display = _to_csv_form(str(datum["text"]))
             strings.append({
                 "index": index,
                 "source": display,
@@ -123,7 +140,7 @@ def export_as_json(
             })
     else:
         for datum in data:
-            display = color_codes_to_csv(str(datum["text"]))
+            display = _to_csv_form(str(datum["text"]))
             strings.append({
                 "location": f"0x{datum['offset']:x}@{location_name}",
                 "source": display,

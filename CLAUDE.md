@@ -123,6 +123,32 @@ Index-keying is the intended long-term default; the legacy format will remain
 supported for backward compatibility. The ReFrontier-compatible TSV format
 (`export_for_refrontier`) is unchanged and stays offset-keyed.
 
+### Inline escapes
+
+Two transforms run on every `target`/`source` value as it crosses the
+CSV/JSON boundary. They are pure lexical, pre-decoding steps, applied
+automatically by `export_as_csv` / `export_as_json` (on extract) and the
+importers (on re-encode):
+
+- **Color codes** — `‾CNN` ↔ `{cNN}` (and `‾C00` ↔ `{/c}`). The game
+  encodes inline colour changes as the byte `0x7E` followed by `C` and
+  two decimal digits. In Shift-JISX0213 `0x7E` decodes as `‾` (U+203E,
+  overline), which is frequently mangled by tools. The brace form is
+  ASCII-safe and round-trips byte-identical through the importer.
+- **Grouped join marker** — `<join at="N">` → `{j}` (export only; the
+  importer accepts either form). Some sections pack several pointer
+  slots into one logical entry (quest tables, multi-pointer entries,
+  NPC dialogue); the extractor surfaces this as a single CSV/JSON row
+  separated by `{j}`. Offsets are intentionally dropped: the importer
+  re-derives per-sub pointer addresses from the live pointer table by
+  positional alignment, so translators never have to touch them. The
+  internal representation still uses `<join at="N">` (extractors and
+  `rebuild_section` need the real offsets to rewrite the pointer
+  table); the rewrite happens only at the CSV/JSON export step.
+
+Both transforms are skipped on the ReFrontier-compatible TSV path,
+which continues to carry raw game bytes.
+
 ## String Encoding
 
 Game files use Shift-JIS (specifically Shift-JISX0213). The tool handles encoding/decoding automatically.

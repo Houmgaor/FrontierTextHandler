@@ -3,11 +3,10 @@ Quest file text extraction for Monster Hunter Frontier.
 
 Handles both standalone quest .bin files and quest text label definitions.
 """
-import re
 import struct
 
 from .binary_file import BinaryFile, InvalidPointerError
-from .common import decode_game_string, load_file_data
+from .common import decode_game_string, load_file_data, _JOIN_SPLIT_RE
 from .pointer_tables import read_until_null
 
 __all__ = [
@@ -26,13 +25,16 @@ QUEST_TEXT_LABELS = [
 
 def split_join_text(text: str) -> list[str]:
     """
-    Split a text with ``<join at="...">`` tags into individual strings.
+    Split a grouped entry text into its individual sub-strings.
 
-    :param text: Text that may contain ``<join at="NNN">`` tags
-    :return: List of individual strings
+    Splits on both the new ``{j}`` marker (1.6.0+) and the legacy
+    ``<join at="NNN">`` tag form, so existing translation files keep
+    working after the format change.
+
+    :param text: Text that may contain join markers
+    :return: List of individual sub-strings (order preserved)
     """
-    parts = re.split(r'<join at="[^"]*">', text)
-    return parts
+    return _JOIN_SPLIT_RE.split(text)
 
 
 def extract_quest_file(

@@ -12,7 +12,13 @@ from typing import Optional
 
 from .binary_file import BinaryFile
 from . import common
-from .common import encode_game_string, EncodingError, color_codes_from_csv
+from .common import (
+    encode_game_string,
+    EncodingError,
+    color_codes_from_csv,
+    JOIN_MARKER,
+    _JOIN_SPLIT_RE,
+)
 from .jkr_decompress import is_jkr_file, decompress_jkr
 from .jkr_compress import compress_jkr_hfi
 from .crypto import is_encrypted_file, decrypt, encode_ecd, DEFAULT_KEY_INDEX
@@ -255,6 +261,82 @@ def infer_xpath(
     return None
 
 
+def _expand_legacy_join_tags(
+    entries: list[tuple[int, str]],
+) -> list[tuple[int, str]]:
+    """
+    Expand pre-1.6.0 ``<join at="N">`` tags into per-sub pairs.
+
+    Each input tuple whose text contains ``<join at="N">`` markers is
+    replaced by one tuple per sub-string, using the offsets embedded
+    in the tags. Entries without the marker pass through unchanged.
+    Does **not** handle the new ``{j}`` marker — that requires a live
+    config, see :func:`resolve_offsets_with_groups`.
+
+    :param entries: List of ``(offset, text)`` tuples
+    :return: Flattened list with grouped entries expanded
+    """
+    expanded: list[tuple[int, str]] = []
+    for offset, text in entries:
+        if "<join at=" in text:
+            expanded.extend(parse_joined_text(offset, text))
+        else:
+            expanded.append((offset, text))
+    return expanded
+
+
+def resolve_offsets_with_groups(
+    entries: list[tuple[int, str]],
+    file_data: bytes,
+    config: dict,
+) -> list[tuple[int, str]]:
+    """
+    Expand ``{j}``-marker grouped translations against a live section.
+
+    Like :func:`resolve_indexes_to_offsets` but keyed by absolute
+    first-pointer offset instead of slot index. Used on the legacy
+    location-keyed release JSON path so grouped translations with
+    1.6.0+ ``{j}`` markers still apply per-sub.
+
+    :param entries: ``(first_offset, text)`` tuples from the release JSON
+    :param file_data: Decrypted/decompressed binary data
+    :param config: Extraction config for the section
+    :return: Flat list of ``(ptr_offset, sub_text)`` tuples
+    :raises ValueError: If a grouped entry's first offset does not
+        match any live entry, or the sub-string count differs
+    """
+    from .common import extract_text_data_from_bytes
+    live_entries = extract_text_data_from_bytes(file_data, config)
+    live_by_first = {
+        int(e["offset"]): parse_joined_text(
+            int(e["offset"]), str(e["text"])
+        )
+        for e in live_entries
+    }
+
+    expanded: list[tuple[int, str]] = []
+    for offset, text in entries:
+        if not _has_join_marker(text):
+            expanded.append((offset, text))
+            continue
+        live_pairs = live_by_first.get(offset)
+        if live_pairs is None:
+            raise ValueError(
+                f"Grouped translation at offset 0x{offset:x} does "
+                f"not match any live entry in this section"
+            )
+        subs = split_group_text(text)
+        if len(subs) != len(live_pairs):
+            raise ValueError(
+                f"Grouped entry at 0x{offset:x}: translation has "
+                f"{len(subs)} sub-strings but the live section has "
+                f"{len(live_pairs)}. Re-extract and merge."
+            )
+        for (live_off, _), sub in zip(live_pairs, subs):
+            expanded.append((live_off, sub))
+    return expanded
+
+
 def resolve_indexes_to_offsets(
     indexed: list[tuple[int, str]],
     file_data: bytes,
@@ -282,27 +364,29 @@ def resolve_indexes_to_offsets(
                 f"re-extract and merge translations to update the file."
             )
         live_entry = entries[index]
-        # Grouped entries carry <join at="N"> markers whose absolute
-        # offsets were captured at extraction time and are stale once the
-        # binary is repacked. Rewrite them against the live pointer table
-        # by positional matching with the live entry's sub-pointers.
-        if "<join" in text or "<join" in str(live_entry["text"]):
+        # Grouped entries are serialized with a ``{j}`` marker (1.6.0+)
+        # CSV/JSON output, or the legacy ``<join at="N">`` form in
+        # older translation files. Either way the per-sub ptr offsets
+        # in the translation input are discarded — we realign the
+        # sub-strings positionally against the freshly-extracted live
+        # entry, then emit one (live_off, sub_text) pair per sub so
+        # every downstream caller (``rebuild_section``,
+        # ``append_to_binary``) sees fully-expanded pointers without
+        # having to re-parse join markers.
+        live_text = str(live_entry["text"])
+        if _has_join_marker(text) or _has_join_marker(live_text):
             live_pairs = parse_joined_text(
-                int(live_entry["offset"]), str(live_entry["text"])
+                int(live_entry["offset"]), live_text
             )
-            parts = _JOIN_TAG_RE.split(text)
-            # parts: [text0, off1, text1, off2, text2, ...]
-            sub_texts = [parts[0]] + [parts[i + 1] for i in range(1, len(parts), 2)]
+            sub_texts = split_group_text(text)
             if len(sub_texts) != len(live_pairs):
                 raise ValueError(
                     f"Translation index {index}: grouped entry has "
                     f"{len(sub_texts)} sub-strings but the live section "
                     f"has {len(live_pairs)}. Re-extract and merge."
                 )
-            rebuilt = sub_texts[0]
-            for (live_off, _), sub in zip(live_pairs[1:], sub_texts[1:]):
-                rebuilt += f'<join at="{live_off}">{sub}'
-            resolved.append((int(live_entry["offset"]), rebuilt))
+            for (live_off, _), sub in zip(live_pairs, sub_texts):
+                resolved.append((live_off, sub))
         else:
             resolved.append((int(live_entry["offset"]), text))
     return resolved
@@ -350,27 +434,79 @@ def append_to_binary(
             bfile.write_int(new_pointer)
 
 
+# Legacy splitter — captures the embedded offset inside <join at="N">
+# tags. Kept for backward compatibility so pre-1.6.0 translation files
+# with stored offsets still parse. The new {j} marker is handled by
+# ``split_group_text`` below, which drops offsets entirely because they
+# are re-derived from the live pointer table at import time.
 _JOIN_TAG_RE = re.compile(r'<join at="(\d+)">')
+_JOIN_NEW_RE = re.compile(r'\{j\}')
+
+
+def _has_join_marker(text: str) -> bool:
+    """Return True if *text* contains any recognised grouped-entry marker."""
+    return JOIN_MARKER in text or "<join at=" in text
+
+
+def split_group_text(text: str) -> list[str]:
+    """
+    Split a grouped-entry text on any join marker form.
+
+    Accepts both the new ``{j}`` marker and the legacy
+    ``<join at="NNN">`` tag. Returns the sub-strings in order, without
+    any offset information — callers that need offsets must align the
+    result positionally against a freshly-extracted live entry.
+
+    :param text: Translation text possibly containing join markers
+    :return: Ordered list of sub-strings
+    """
+    return _JOIN_SPLIT_RE.split(text)
 
 
 def parse_joined_text(offset: int, text: str) -> list[tuple[int, str]]:
     """
-    Split a text with ``<join at="NNN">`` tags into per-pointer pairs.
+    Split a grouped-entry text into per-pointer pairs.
 
-    A single CSV entry may map to multiple pointers when the extraction
-    grouped them with join tags.  This function expands them back.
+    Recognises both the new ``{j}`` marker (1.6.0+) and the legacy
+    ``<join at="NNN">`` form. When the legacy form is used the embedded
+    offset is preserved in the returned tuple. When the new marker is
+    used only the first pair's offset is known (*offset*); subsequent
+    sub-strings are returned with offset ``-1``, signalling to the
+    caller that they must be re-derived from the live pointer table.
 
-    :param offset: Pointer offset of the first string (from CSV location)
-    :param text: Text that may contain ``<join at="NNN">`` tags
-    :return: List of ``(pointer_offset, sub_text)`` tuples
+    :param offset: Pointer offset of the first sub-string
+    :param text: Text that may contain join markers
+    :return: List of ``(pointer_offset, sub_text)`` tuples. Sub-strings
+        introduced by a ``{j}`` marker carry ``-1`` as their offset.
     """
-    parts = _JOIN_TAG_RE.split(text)
-    # parts[0] is the first text, then alternating (offset_str, text)
-    result = [(offset, parts[0])]
-    for i in range(1, len(parts), 2):
-        join_offset = int(parts[i])
-        join_text = parts[i + 1]
-        result.append((join_offset, join_text))
+    # Tokenise in a single pass so mixed forms (shouldn't happen but
+    # cheap to support) still round-trip.
+    result: list[tuple[int, str]] = []
+    pos = 0
+    first = True
+    for match in re.finditer(r'<join at="(\d+)">|\{j\}', text):
+        sub = text[pos:match.start()]
+        if first:
+            result.append((offset, sub))
+            first = False
+        else:
+            # The previous match produced this segment; its offset was
+            # recorded on the previous loop iteration.
+            result[-1] = (result[-1][0], sub)
+        # Seed the next segment's offset based on which marker we hit.
+        if match.group(1) is not None:
+            next_off = int(match.group(1))
+        else:
+            next_off = -1
+        result.append((next_off, ""))
+        pos = match.end()
+    # Tail segment after the last marker (or the only segment if no
+    # markers were present).
+    tail = text[pos:]
+    if first:
+        result.append((offset, tail))
+    else:
+        result[-1] = (result[-1][0], tail)
     return result
 
 
@@ -403,22 +539,48 @@ def rebuild_section(
     # 1. Extract all entries from the section
     all_entries = extract_text_data_from_bytes(file_data, config)
 
-    # 2. Build translation map: {pointer_offset: new_text}
-    #    Expand join tags so each sub-pointer maps independently
-    translation_map: dict[int, str] = {}
+    # 2. Index new_strings by their first (entry-level) offset. Grouped
+    #    entries are stored as a list of sub-strings so we can align
+    #    them positionally against the live entry at step 3 — this is
+    #    what lets the ``{j}`` marker work even though it carries no
+    #    per-sub ptr offset.
+    group_translations: dict[int, list[str]] = {}
+    single_translations: dict[int, str] = {}
     for offset, text in new_strings:
-        for ptr_offset, sub_text in parse_joined_text(offset, text):
-            translation_map[ptr_offset] = sub_text
+        if _has_join_marker(text):
+            group_translations[offset] = split_group_text(text)
+        else:
+            single_translations[offset] = text
 
-    # 3. Flatten all entries into (ptr_offset, text) pairs,
-    #    applying translations where available
+    # 3. Flatten all entries into (ptr_offset, text) pairs, applying
+    #    translations where available. For grouped entries we align the
+    #    translation's sub-strings positionally with the live entry's
+    #    sub-pointers so ``{j}``-form inputs (no offsets) work the same
+    #    way as legacy ``<join at="N">`` inputs.
     all_pairs: list[tuple[int, str]] = []
     for entry in all_entries:
-        for ptr_offset, sub_text in parse_joined_text(entry["offset"], entry["text"]):
-            if ptr_offset in translation_map:
-                all_pairs.append((ptr_offset, translation_map[ptr_offset]))
+        entry_offset = int(entry["offset"])
+        live_pairs = parse_joined_text(entry_offset, str(entry["text"]))
+
+        if entry_offset in group_translations and len(live_pairs) > 1:
+            trans_subs = group_translations[entry_offset]
+            if len(trans_subs) != len(live_pairs):
+                logger.warning(
+                    "Grouped entry at 0x%x: translation has %d sub-strings "
+                    "but the live section has %d. Skipping and keeping "
+                    "original strings — re-extract and merge the file.",
+                    entry_offset, len(trans_subs), len(live_pairs),
+                )
+                all_pairs.extend(live_pairs)
             else:
-                all_pairs.append((ptr_offset, sub_text))
+                for (live_off, _), sub in zip(live_pairs, trans_subs):
+                    all_pairs.append((live_off, sub))
+        else:
+            for live_off, live_text in live_pairs:
+                if live_off in single_translations:
+                    all_pairs.append((live_off, single_translations[live_off]))
+                else:
+                    all_pairs.append((live_off, live_text))
 
     # 4. Write file: copy original data, then append contiguous string block
     with open(output_path, "wb") as f:
@@ -438,7 +600,10 @@ def rebuild_section(
             bfile.write_int(new_pointer)
             bfile.seek(current_pos)
 
-    translated_count = len(translation_map)
+    translated_count = (
+        sum(len(subs) for subs in group_translations.values())
+        + len(single_translations)
+    )
     total_count = len(all_pairs)
     logger.info(
         "Rebuilt section: %d/%d strings translated, all %d pointers updated",
@@ -674,11 +839,52 @@ def apply_translations_from_release_json(
             )
 
         # Resolve all sections to flat (offset, text) pairs against the
-        # now-decrypted file_data. Indexed entries need the config from
-        # headers.json; offset entries are already resolved.
+        # now-decrypted file_data. Grouped entries (``{j}`` marker or
+        # legacy ``<join at="N">`` tags) must be expanded into per-sub
+        # ``(live_ptr_offset, sub_text)`` pairs so ``append_to_binary``
+        # updates every sibling pointer — otherwise only the first
+        # pointer moves and the rest keep referencing stale strings.
         all_strings: list[tuple[int, str]] = []
         for xpath, section in sections.items():
-            all_strings.extend(section["offset"])
+            # Location-keyed entries: expand legacy ``<join at="N">``
+            # tags directly (their embedded offsets are the target ptr
+            # offsets). ``{j}``-form entries would need a live config
+            # to re-derive offsets; try to load one, and skip the
+            # section with a warning if it isn't in headers.json.
+            loc_entries = section["offset"]
+            needs_live_expansion = any(
+                JOIN_MARKER in t for _, t in loc_entries
+            )
+            if needs_live_expansion:
+                try:
+                    loc_config = common.read_extraction_config(
+                        xpath, headers_path,
+                    )
+                except KeyError:
+                    logger.warning(
+                        "  Skipping %d location entr(y/ies) in '%s': "
+                        "xpath not found in %s (needed to resolve "
+                        "'{j}' markers)",
+                        len(loc_entries), xpath, headers_path,
+                    )
+                    loc_entries = []
+                else:
+                    try:
+                        loc_entries = resolve_offsets_with_groups(
+                            loc_entries, file_data, loc_config,
+                        )
+                    except ValueError as exc:
+                        logger.warning(
+                            "  Skipping location entries in '%s': %s",
+                            xpath, exc,
+                        )
+                        loc_entries = []
+            else:
+                # Legacy tags carry their own offsets — parse_joined_text
+                # expands them without needing a live config.
+                loc_entries = _expand_legacy_join_tags(loc_entries)
+            all_strings.extend(loc_entries)
+
             if not section["index"]:
                 continue
             try:
@@ -895,10 +1101,67 @@ def import_from_csv(
         logger.info("Rebuilt section '%s' in %s", xpath, output_path)
     else:
         # Legacy append strategy (backward compatible).
-        # Expand <join at="N"> tags so each sub-pointer is updated
-        # independently — otherwise grouped sections like inf/quests
-        # would write the literal join markup as a single string and
-        # leave sibling pointers stale.
+        #
+        # The append path can only update ptr offsets it knows about.
+        # For grouped entries that's only possible with the legacy
+        # ``<join at="N">`` form, which carries per-sub ptr offsets
+        # inline. The new ``{j}`` marker has no offsets — those have
+        # to come from a live re-extraction. Without --xpath the only
+        # format we can re-extract here is a standalone quest file, so
+        # try that first and fall back to an error if it doesn't look
+        # like one.
+        has_new_marker = any(JOIN_MARKER in text for _, text in new_strings)
+        if has_new_marker:
+            try:
+                quest_entries = common.extract_quest_file_data(file_data)
+            except (ValueError, common.EncodingError):
+                quest_entries = None
+            if not quest_entries:
+                raise ValueError(
+                    "CSV/JSON contains the grouped-entry marker '{j}' "
+                    "(1.6.0 format) but no --xpath was given and the "
+                    "source file is not a standalone quest file. Pass "
+                    "--xpath=<section> so rebuild_section can re-derive "
+                    "sibling pointer offsets from the live pointer table."
+                )
+            # Resolve {j}-form entries against the live quest table by
+            # positional alignment, then fall through to the regular
+            # append path with concrete (offset, text) pairs.
+            quest_by_first_off = {
+                int(e["offset"]): parse_joined_text(
+                    int(e["offset"]), str(e["text"])
+                )
+                for e in quest_entries
+            }
+            resolved_new: list[tuple[int, str]] = []
+            for offset, text in new_strings:
+                if JOIN_MARKER not in text and "<join at=" not in text:
+                    resolved_new.append((offset, text))
+                    continue
+                live_pairs = quest_by_first_off.get(offset)
+                if live_pairs is None:
+                    raise ValueError(
+                        f"Grouped translation at offset 0x{offset:x} does "
+                        f"not match any quest entry in the source file "
+                        f"(available entry offsets: "
+                        f"{[hex(k) for k in quest_by_first_off]})"
+                    )
+                subs = split_group_text(text)
+                if len(subs) != len(live_pairs):
+                    raise ValueError(
+                        f"Grouped entry at 0x{offset:x}: translation has "
+                        f"{len(subs)} sub-strings but the live quest "
+                        f"entry has {len(live_pairs)}. Re-extract and "
+                        f"merge the translation file."
+                    )
+                for (live_off, _), sub in zip(live_pairs, subs):
+                    resolved_new.append((live_off, sub))
+            new_strings = resolved_new
+
+        # Expand legacy <join at="N"> tags so each sub-pointer is
+        # updated independently — otherwise grouped sections like
+        # inf/quests would write the literal join markup as a single
+        # string and leave sibling pointers stale.
         expanded: list[tuple[int, str]] = []
         has_joins = False
         for offset, text in new_strings:
@@ -908,10 +1171,10 @@ def import_from_csv(
             expanded.extend(pairs)
         if has_joins:
             logger.warning(
-                "CSV contains <join> tags (grouped pointer entries) but no "
-                "--xpath was given. Falling back to append mode; prefer "
-                "--xpath=<section> so rebuild_section is used and orphan "
-                "pointers are avoided."
+                "CSV contains <join at=...> tags (grouped pointer entries) "
+                "but no --xpath was given. Falling back to append mode; "
+                "prefer --xpath=<section> so rebuild_section is used and "
+                "orphan pointers are avoided."
             )
         pointers_to_update = [offset for offset, _ in expanded]
         with open(output_path, "wb") as f:

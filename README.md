@@ -478,7 +478,7 @@ This means:
 
 ### Multiline Strings
 
-Some sections (like weapon descriptions) use **null pointer separators** (`0x00000000`) to indicate line breaks within a single logical entry. The tool automatically joins these into a single string with `<join>` markers.
+Some sections (like weapon descriptions) use **null pointer separators** (`0x00000000`) to indicate line breaks within a single logical entry. The tool joins these into a single CSV/JSON row separated by `{j}` markers — for example, `"Hunter Basics{j}Deliver 2 Raw Meat{j}None{j}…"`. The importer re-derives the per-sub pointer offsets from the live pointer table at import time, so translations can freely rearrange or re-word the sub-strings as long as the **number** of `{j}`-separated parts stays the same. Pre-1.6.0 CSVs used the offset-bearing `<join at="N">` tag form and remain accepted by the importer for backward compatibility.
 
 ## Troubleshooting
 

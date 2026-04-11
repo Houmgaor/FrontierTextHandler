@@ -76,6 +76,68 @@ _COLOR_GAME_RE = re.compile(r"‾C(\d{2})")
 _COLOR_CSV_RE = re.compile(r"\{/c\}|\{c(\d{2})\}")
 
 
+# ---------------------------------------------------------------------------
+# Grouped-entry join marker
+# ---------------------------------------------------------------------------
+# Some sections (quest tables, multi-pointer entries, NPC dialogues) pack
+# several pointer slots that share a common logical string into a single
+# CSV/JSON row. The individual sub-strings need to be separated by a marker
+# the translator can see and preserve across edits.
+#
+# The *internal* representation — what the extractors produce and what
+# :func:`import_data.parse_joined_text` consumes — uses
+# ``<join at="NNN">`` where ``NNN`` is the absolute file offset of the
+# next pointer slot. That form carries real, unambiguous offsets, which
+# is what ``rebuild_section`` needs to rewrite the pointer table.
+#
+# On disk in CSV/JSON output we rewrite the tags to the brace form
+# ``{j}``. That form is:
+#
+#   * quote-free — so CSV writers don't wrap the field in quotes and
+#     don't double each inner ``"`` into ``""`` (the pre-1.6.0 output
+#     contained unreadable cells like ``<join at=""1453412"">``);
+#   * offset-free — the numbers inside the tag mean nothing to
+#     translators and would go stale the moment upstream strings
+#     shifted. Offsets are re-derived from the live pointer table at
+#     import time by positional alignment;
+#   * marker-like — consistent with the ``{cNN}``/``{/c}`` colour
+#     convention and not confusable with an HTML tag by diff tools.
+#
+# The importer understands **both** forms so existing pre-1.6.0
+# translation files keep working until their maintainers regenerate
+# them: ``<join at="NNN">`` is the canonical internal form, ``{j}`` is
+# the on-disk form, and either may appear in a translation file.
+JOIN_MARKER = "{j}"
+
+# Matches either the new ``{j}`` marker or the legacy ``<join at="NNN">``
+# form. Used to split a grouped entry into its sub-strings; callers that
+# also need the per-sub ptr offset must look them up against a freshly-
+# extracted live entry (see ``import_data.parse_joined_text``).
+_JOIN_SPLIT_RE = re.compile(r'\{j\}|<join at="\d+">')
+
+# Matches only the internal ``<join at="NNN">`` tag form — used by
+# :func:`join_codes_to_csv` to rewrite the extractor's output to the
+# on-disk ``{j}`` marker.
+_JOIN_TAG_RE = re.compile(r'<join at="\d+">')
+
+
+def join_codes_to_csv(text: str) -> str:
+    """
+    Rewrite internal ``<join at="NNN">`` tags to the CSV/JSON ``{j}``
+    marker form.
+
+    The extractors produce the tag form with real ptr offsets embedded;
+    the offsets are discarded on the way to disk because they are
+    re-derived from the live pointer table at import time. This makes
+    extracted files portable across re-extractions and immune to CSV
+    quote-escaping noise.
+
+    :param text: Extracted game string possibly containing ``<join>`` tags
+    :return: Same text with ``<join>`` tags rewritten to ``{j}``
+    """
+    return _JOIN_TAG_RE.sub(JOIN_MARKER, text)
+
+
 def color_codes_to_csv(text: str) -> str:
     """
     Rewrite game-form color codes (``‾CNN``) to the CSV brace form.

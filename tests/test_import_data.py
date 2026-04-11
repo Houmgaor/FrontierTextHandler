@@ -505,6 +505,186 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
         self.assertEqual(decoded, "\u203eC14Rouge\u203eC00")
         self.assertNotIn("{c14}", decoded)
 
+    def _build_grouped_binary(self) -> bytes:
+        """Build a binary with one grouped entry (2 sub-pointers) + 1 single.
+
+        Layout:
+          0x00-0x07: header (begin_ptr, next_ptr)
+          0x08-0x17: pointer table — [ptr0, ptr1, 0, ptr2]
+          0x18+   : strings "Hello\\0", "World\\0", "Bye\\0"
+
+        The 0-separator at 0x10 splits the grouped entry (ptr0+ptr1,
+        both pointing into the grouped row) from the standalone ptr2.
+        """
+        header_size = 8
+        strings_start = header_size + 4 * 4  # 0x18
+        table = [
+            strings_start,       # ptr0 → "Hello"
+            strings_start + 6,   # ptr1 → "World" (after "Hello\0")
+            0,                   # group separator
+            strings_start + 12,  # ptr2 → "Bye"   (after "Hello\0World\0")
+        ]
+        table_bytes = b"".join(struct.pack("<I", p) for p in table)
+        strings = b"Hello\x00World\x00Bye\x00"
+        header = (
+            struct.pack("<I", header_size)
+            + struct.pack("<I", header_size + len(table_bytes))
+        )
+        return header + table_bytes + strings
+
+    def test_apply_grouped_entry_with_new_j_marker(self):
+        """A grouped translation using the 1.6.0 ``{j}`` marker in the
+        release JSON must land with BOTH sibling pointers updated.
+
+        Before the format change the legacy path wrote the text verbatim
+        with the literal marker, leaving the second pointer stale and
+        visibly broken in-game. This regression test locks in the fix.
+        """
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_grouped_binary()
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        # Custom headers.json pointing at our section. The section uses
+        # multi-pointer mode with 2 pointers per entry and a null-
+        # terminator group separator — same shape as the real inf/quests
+        # section, minus the scale.
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w") as f:
+            json.dump({
+                "dat": {
+                    "armors": {
+                        "head": {
+                            "begin_pointer": "0x0",
+                            "next_field_pointer": "0x4",
+                        }
+                    }
+                }
+            }, f)
+
+        # Release JSON: index-keyed entry with a {j}-form target for the
+        # grouped row. In 1.5.x this would have been written as
+        # `<join at="...">` but post-1.6.0 it's the clean brace form.
+        data = {
+            "fr": {
+                "dat/armors/head": [
+                    {
+                        "index": 0,
+                        "source": "Hello{j}World",
+                        "target": "Bonjour{j}Monde",
+                    }
+                ]
+            }
+        }
+        json_path = os.path.join(self.tmpdir, "translations-translated.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+            headers_path=headers_path,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
+
+        with open(bin_path, "rb") as f:
+            patched = f.read()
+
+        def read_str_at(ptr_slot: int) -> str:
+            bfile = BinaryFile.from_bytes(patched)
+            bfile.seek(ptr_slot)
+            str_off = struct.unpack("<I", bfile.read(4))[0]
+            bfile.seek(str_off)
+            buf = bytearray()
+            b = bfile.read(1)
+            while b != b"\x00" and b != b"":
+                buf.extend(b)
+                b = bfile.read(1)
+            return buf.decode(GAME_ENCODING)
+
+        # Both grouped sub-pointers must land on the translated subs.
+        self.assertEqual(read_str_at(0x8), "Bonjour")
+        self.assertEqual(read_str_at(0xC), "Monde")
+        # The standalone pointer at 0x14 (after the zero separator at
+        # 0x10) must still point at the untouched original "Bye".
+        self.assertEqual(read_str_at(0x14), "Bye")
+        # And critically: the literal ``{j}`` must not have been written
+        # into the binary as text.
+        self.assertNotIn(b"{j}", patched)
+
+    def test_apply_grouped_entry_with_legacy_join_tag(self):
+        """Same regression check but with the pre-1.6.0 ``<join at=N>``
+        form still accepted — legacy translation files must keep
+        working."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_grouped_binary()
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w") as f:
+            json.dump({
+                "dat": {
+                    "armors": {
+                        "head": {
+                            "begin_pointer": "0x0",
+                            "next_field_pointer": "0x4",
+                        }
+                    }
+                }
+            }, f)
+
+        data = {
+            "fr": {
+                "dat/armors/head": [
+                    {
+                        "index": 0,
+                        "source": 'Hello<join at="12">World',
+                        "target": 'Bonjour<join at="12">Monde',
+                    }
+                ]
+            }
+        }
+        json_path = os.path.join(self.tmpdir, "translations-translated.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+            headers_path=headers_path,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 2)
+
+        with open(bin_path, "rb") as f:
+            patched = f.read()
+
+        def read_str_at(ptr_slot: int) -> str:
+            bfile = BinaryFile.from_bytes(patched)
+            bfile.seek(ptr_slot)
+            str_off = struct.unpack("<I", bfile.read(4))[0]
+            bfile.seek(str_off)
+            buf = bytearray()
+            b = bfile.read(1)
+            while b != b"\x00" and b != b"":
+                buf.extend(b)
+                b = bfile.read(1)
+            return buf.decode(GAME_ENCODING)
+
+        self.assertEqual(read_str_at(0x8), "Bonjour")
+        self.assertEqual(read_str_at(0xC), "Monde")
+        self.assertNotIn(b"<join", patched)
+
     def test_missing_language_raises(self):
         """ValueError when the requested language isn't in the JSON but others exist."""
         from src.import_data import apply_translations_from_release_json

@@ -98,7 +98,7 @@ Decompile pattern: `patterns/mhf-patterns/mhfpac/decompile.hexpat`
 | `pac/text_d0` | 0xD0 | Partner dialogue C (NPC speech) — 13 strings | indirect-count strided (nums+0x5A, size 12, field 0) |
 | `pac/text_d4` | 0xD4 | Partner dialogue D (Felyne speech) — 24 strings | indirect-count strided (nums+0x5C, size 12, field 0) |
 
-All documented text fields in mhfpac.bin are now extracted. Grouped sections (`text_14`..`text_54`) emit multi-string CSV rows joined with `<join at="N">` tags and require `--xpath=pac/text_XX` on `csv-to-bin` so `rebuild_section` is used.
+All documented text fields in mhfpac.bin are now extracted. Grouped sections (`text_14`..`text_54`) emit multi-string CSV rows separated by `{j}` markers (1.6.0+; pre-1.6.0 CSVs used `<join at="N">` tags, still accepted by the importer for backward compatibility) and require `--xpath=pac/text_XX` on `csv-to-bin` so `rebuild_section` is used.
 
 ### Verified string counts (from `data/mhfpac.bin`, decrypted size 2,259,385 B)
 

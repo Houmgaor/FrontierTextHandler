@@ -113,16 +113,16 @@ class TestEncodeGameString(unittest.TestCase):
 class TestSplitJoinText(unittest.TestCase):
     """Test split_join_text round-trips."""
 
-    def test_no_join_tags(self):
+    def test_no_join_markers(self):
         self.assertEqual(split_join_text("simple text"), ["simple text"])
 
     def test_single_join(self):
-        text = 'first<join at="100">second'
+        text = 'first{j}second'
         parts = split_join_text(text)
         self.assertEqual(parts, ["first", "second"])
 
     def test_multiple_joins(self):
-        text = 'a<join at="10">b<join at="20">c<join at="30">d'
+        text = 'a{j}b{j}c{j}d'
         parts = split_join_text(text)
         self.assertEqual(parts, ["a", "b", "c", "d"])
 
@@ -130,9 +130,19 @@ class TestSplitJoinText(unittest.TestCase):
         self.assertEqual(split_join_text(""), [""])
 
     def test_empty_parts_around_join(self):
-        text = '<join at="10">second'
+        text = '{j}second'
         parts = split_join_text(text)
         self.assertEqual(parts, ["", "second"])
+
+    def test_legacy_tag_form_still_splits(self):
+        """Pre-1.6.0 <join at="N"> tags remain recognised for back-compat."""
+        text = 'a<join at="10">b<join at="20">c'
+        self.assertEqual(split_join_text(text), ["a", "b", "c"])
+
+    def test_mixed_forms(self):
+        """A text can mix legacy and new markers (e.g. partially migrated)."""
+        text = 'a{j}b<join at="20">c'
+        self.assertEqual(split_join_text(text), ["a", "b", "c"])
 
 
 class TestReadUntilNull(unittest.TestCase):
@@ -1090,6 +1100,116 @@ class TestColorCodeTransforms(unittest.TestCase):
     def test_no_color_code_left_in_csv_form(self):
         # After to_csv, no ‾C should remain.
         self.assertNotIn("‾C", self._to("‾C05a‾C00‾C18b‾C17"))
+
+
+class TestJoinMarkerTransforms(unittest.TestCase):
+    """Tests for the internal ``<join at="N">`` → CSV ``{j}`` rewrite.
+
+    The internal form carries real ptr offsets and is what extractors
+    produce; the CSV form is the quote-free brace marker translators
+    see in extracted files. The inverse is not a plain lexical
+    replacement — ``{j}`` has no offsets and is resolved positionally
+    against the live pointer table at import time (covered by the
+    ``rebuild_section`` / ``resolve_indexes_to_offsets`` tests).
+    """
+
+    def _to(self, s):
+        from src.common import join_codes_to_csv
+        return join_codes_to_csv(s)
+
+    def test_basic_single_tag(self):
+        self.assertEqual(
+            self._to('first<join at="100">second'),
+            "first{j}second",
+        )
+
+    def test_multiple_tags(self):
+        self.assertEqual(
+            self._to('a<join at="10">b<join at="20">c<join at="30">d'),
+            "a{j}b{j}c{j}d",
+        )
+
+    def test_large_offset(self):
+        # Real sections use offsets in the millions — matching the
+        # extracted inf/quests output, which motivated this change.
+        self.assertEqual(
+            self._to('≪Hunter Basics≫\nBasics<join at="1453412">Deliver 2 Raw Meat'),
+            "≪Hunter Basics≫\nBasics{j}Deliver 2 Raw Meat",
+        )
+
+    def test_plain_text_untouched(self):
+        self.assertEqual(self._to("no joins here"), "no joins here")
+
+    def test_empty_string(self):
+        self.assertEqual(self._to(""), "")
+
+    def test_quote_hostile_legacy_form_is_gone(self):
+        """The CSV form must not contain the quote-bearing legacy tag.
+
+        Pre-1.6.0 CSVs wrote ``<join at="1453412">`` inside a double-
+        quoted field, forcing each inner ``"`` to be doubled into
+        ``""`` and producing cells like ``<join at=""1453412"">`` —
+        unreadable and confusing in diffs.
+        """
+        out = self._to('a<join at="1453412">b')
+        self.assertNotIn('<join at=', out)
+        self.assertNotIn('"', out)
+        self.assertIn("{j}", out)
+
+
+class TestCsvExportCleanness(unittest.TestCase):
+    """End-to-end check: the on-disk CSV contains {j}, not <join>."""
+
+    def test_csv_has_no_double_quoted_join_tags(self):
+        """A grouped-entry extraction round-trip through export_as_csv
+        should produce cells that carry ``{j}`` and no ``<join at=``
+        substring at all — no CSV quoting, no offset noise."""
+        import csv
+        import os
+        import tempfile
+        import struct
+        from src.export import export_as_csv
+        from src.pointer_tables import read_multi_pointer_entries
+        from src.binary_file import BinaryFile
+        from src.common import GAME_ENCODING
+
+        # Minimal grouped-entry binary: one entry with two sub-strings.
+        str_a = "Hunter Basics".encode(GAME_ENCODING) + b"\x00"
+        str_b = "Deliver 2 Raw Meat".encode(GAME_ENCODING) + b"\x00"
+        strings_start = 16  # 1 entry (8B) + terminator (8B)
+        data = bytearray()
+        data.extend(struct.pack("<I", strings_start))
+        data.extend(struct.pack("<I", strings_start + len(str_a)))
+        data.extend(struct.pack("<I", 0))
+        data.extend(struct.pack("<I", 0))
+        data.extend(str_a + str_b)
+        bfile = BinaryFile.from_bytes(bytes(data))
+        entries = read_multi_pointer_entries(bfile, 0, 2)
+        self.assertEqual(len(entries), 1)
+        # Internal form still has the offset-bearing tag.
+        self.assertIn("<join at=", str(entries[0]["text"]))
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=False, mode="w"
+        ) as f:
+            path = f.name
+        try:
+            export_as_csv(entries, path, "test.bin")
+            with open(path, encoding="utf-8") as fp:
+                raw = fp.read()
+            # The marker made it through…
+            self.assertIn("{j}", raw)
+            # …and the legacy tag did not.
+            self.assertNotIn("<join at=", raw)
+            self.assertNotIn('""', raw)
+            # Round-trip via csv.reader to confirm the field itself is
+            # clean and not CSV-escaped into something funky.
+            with open(path, encoding="utf-8") as fp:
+                reader = csv.reader(fp)
+                rows = list(reader)
+            self.assertEqual(rows[1][1], "Hunter Basics{j}Deliver 2 Raw Meat")
+        finally:
+            os.unlink(path)
 
 
 if __name__ == "__main__":

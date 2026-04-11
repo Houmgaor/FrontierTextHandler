@@ -93,7 +93,9 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
             results.append({"offset": table_offset, "text": ""})
             continue
 
-        # Join dialogues with <join> tags
+        # Join dialogues with <join> tags. These tags are rewritten to
+        # the translator-friendly {j} marker by the CSV/JSON exporter
+        # and parsed back here by the importer via `split_join_text`.
         combined = dialogues[0]
         for i, dlg in enumerate(dialogues[1:], start=1):
             ptr_offset = pointers_start + i * 4

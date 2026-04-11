@@ -1925,7 +1925,7 @@ class TestQuestTableExtraction(unittest.TestCase):
             self.assertIn("Title", result[0]["text"])
             self.assertIn("Main Obj", result[0]["text"])
             self.assertIn("Description", result[0]["text"])
-            # All 8 strings joined
+            # All 8 strings joined (7 separators → 8 parts)
             self.assertEqual(result[0]["text"].count("<join"), 7)
         finally:
             os.unlink(temp_path)
@@ -2514,6 +2514,18 @@ class TestParseJoinedText(unittest.TestCase):
         result = parse_joined_text(100, '<join at="104">Only')
         self.assertEqual(result, [(100, ""), (104, "Only")])
 
+    def test_new_marker_returns_placeholder_offset(self):
+        """The {j} marker carries no ptr offset, so sub-pairs report -1."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, "A{j}B{j}C")
+        self.assertEqual(result, [(100, "A"), (-1, "B"), (-1, "C")])
+
+    def test_mixed_markers(self):
+        """Legacy and new markers can coexist in one text (partial migration)."""
+        from src.import_data import parse_joined_text
+        result = parse_joined_text(100, 'A{j}B<join at="108">C')
+        self.assertEqual(result, [(100, "A"), (-1, "B"), (108, "C")])
+
 
 class TestRebuildSection(unittest.TestCase):
     """Tests for rebuild_section and in-place translation insertion."""
@@ -2626,6 +2638,114 @@ class TestRebuildSection(unittest.TestCase):
         ptr1 = struct.unpack("<I", result[0x0C:0x10])[0]
         end1 = result.index(b"\x00", ptr1)
         self.assertEqual(result[ptr1:end1], encode_game_string("Y"))
+
+    def test_rebuild_with_new_join_marker(self):
+        """rebuild_section accepts ``{j}``-form grouped translations.
+
+        The 1.6.0 CSV/JSON format drops the per-sub offsets from the
+        join marker, so grouped translations arrive as
+        ``"A{j}B{j}C"`` with no hint about which ptr slot each sub
+        belongs to. rebuild_section must realign them positionally
+        against the live entry and still update every sibling
+        pointer.
+        """
+        from src.import_data import rebuild_section
+
+        header_size = 8
+        pointer_table_start = header_size
+        pointer_table_size = 4 * 4  # [ptr, ptr, 0, ptr]
+        strings_start = pointer_table_start + pointer_table_size
+
+        s1 = encode_game_string("Part1") + b"\x00"
+        s2 = encode_game_string("Part2") + b"\x00"
+        s3 = encode_game_string("Standalone") + b"\x00"
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, pointer_table_start)
+        struct.pack_into(
+            "<I", data, 0x04, pointer_table_start + pointer_table_size
+        )
+        data.extend(struct.pack("<I", strings_start))
+        data.extend(struct.pack("<I", strings_start + len(s1)))
+        data.extend(struct.pack("<I", 0))
+        data.extend(struct.pack("<I", strings_start + len(s1) + len(s2)))
+        data.extend(s1 + s2 + s3)
+
+        binary_data = bytes(data)
+        config = {
+            "begin_pointer": "0x00",
+            "next_field_pointer": "0x04",
+        }
+
+        # Note: the translation uses {j}, NOT the legacy <join at=N>.
+        new_strings = [(0x08, "Trad1{j}Trad2")]
+        output_path = os.path.join(self.temp_dir, "rebuilt_new.bin")
+
+        rebuild_section(binary_data, config, new_strings, output_path)
+
+        with open(output_path, "rb") as f:
+            result = f.read()
+
+        # Both grouped sub-pointers must have moved to the appended
+        # translated strings.
+        ptr0 = struct.unpack("<I", result[0x08:0x0C])[0]
+        end0 = result.index(b"\x00", ptr0)
+        self.assertEqual(result[ptr0:end0], encode_game_string("Trad1"))
+
+        ptr1 = struct.unpack("<I", result[0x0C:0x10])[0]
+        end1 = result.index(b"\x00", ptr1)
+        self.assertEqual(result[ptr1:end1], encode_game_string("Trad2"))
+
+        # Third pointer (standalone, separator in the pointer table
+        # occupies 0x10) must still reference the original "Standalone".
+        ptr2 = struct.unpack("<I", result[0x14:0x18])[0]
+        end2 = result.index(b"\x00", ptr2)
+        self.assertEqual(result[ptr2:end2], encode_game_string("Standalone"))
+
+    def test_rebuild_size_mismatch_preserves_originals(self):
+        """If a translation's sub-string count doesn't match the live
+        entry, rebuild_section must keep the original strings rather
+        than corrupt sibling pointers."""
+        from src.import_data import rebuild_section
+
+        header_size = 8
+        pointer_table_start = header_size
+        pointer_table_size = 3 * 4
+        strings_start = pointer_table_start + pointer_table_size
+
+        s1 = encode_game_string("Part1") + b"\x00"
+        s2 = encode_game_string("Part2") + b"\x00"
+
+        data = bytearray(header_size)
+        struct.pack_into("<I", data, 0x00, pointer_table_start)
+        struct.pack_into(
+            "<I", data, 0x04, pointer_table_start + pointer_table_size
+        )
+        data.extend(struct.pack("<I", strings_start))
+        data.extend(struct.pack("<I", strings_start + len(s1)))
+        data.extend(struct.pack("<I", 0))  # terminator for group
+        data.extend(s1 + s2)
+
+        binary_data = bytes(data)
+        config = {
+            "begin_pointer": "0x00",
+            "next_field_pointer": "0x04",
+        }
+
+        # Wrong number of subs — 3 instead of 2.
+        new_strings = [(0x08, "T1{j}T2{j}T3")]
+        output_path = os.path.join(self.temp_dir, "rebuilt_mismatch.bin")
+        rebuild_section(binary_data, config, new_strings, output_path)
+
+        with open(output_path, "rb") as f:
+            result = f.read()
+
+        ptr0 = struct.unpack("<I", result[0x08:0x0C])[0]
+        end0 = result.index(b"\x00", ptr0)
+        self.assertEqual(result[ptr0:end0], encode_game_string("Part1"))
+        ptr1 = struct.unpack("<I", result[0x0C:0x10])[0]
+        end1 = result.index(b"\x00", ptr1)
+        self.assertEqual(result[ptr1:end1], encode_game_string("Part2"))
 
     def test_rebuild_with_joined_entries(self):
         """Test rebuild with join tags in both original and translation."""
