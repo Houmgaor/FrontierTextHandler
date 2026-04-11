@@ -6,7 +6,12 @@ Handles both standalone quest .bin files and quest text label definitions.
 import struct
 
 from .binary_file import BinaryFile, InvalidPointerError
-from .common import decode_game_string, load_file_data, _JOIN_SPLIT_RE
+from .common import (
+    JOIN_MARKER,
+    decode_game_string,
+    load_file_data,
+    _JOIN_SPLIT_RE,
+)
 from .pointer_tables import read_until_null
 
 __all__ = [
@@ -138,9 +143,14 @@ def extract_quest_file_data(
         bfile.read(text_pointers_count * 4)
     )
 
-    # Read strings, grouping with <join> tags like quest table mode
-    results: list[dict[str, int | str]] = []
-    entry: dict[str, int | str] | None = None
+    # Read strings and group them into a single entry with ``{j}``
+    # separators; per-sub slot offsets are recorded in ``sub_offsets``
+    # for any consumer that needs to rewrite the pointer table (the
+    # standalone quest rebuild path goes through the importer's
+    # ``_has_join_marker`` fallback, which re-derives them on its own
+    # from a live re-extraction).
+    sub_texts: list[str] = []
+    sub_offsets: list[int] = []
     for i, sp in enumerate(str_ptrs):
         if sp == 0:
             continue
@@ -148,12 +158,13 @@ def extract_quest_file_data(
         bfile.seek(sp)
         data_stream = read_until_null(bfile)
         text = decode_game_string(data_stream, context=f"quest string 0x{sp:x}")
-        ptr_offset = quest_strings_ptr + i * 4
-        if entry is None:
-            entry = {"offset": ptr_offset, "text": text}
-        else:
-            entry["text"] += f'<join at="{ptr_offset}">{text}'
-    if entry is not None:
-        results.append(entry)
+        sub_texts.append(text)
+        sub_offsets.append(quest_strings_ptr + i * 4)
 
-    return results
+    if not sub_texts:
+        return []
+    return [{
+        "offset": sub_offsets[0],
+        "text": JOIN_MARKER.join(sub_texts),
+        "sub_offsets": sub_offsets,
+    }]

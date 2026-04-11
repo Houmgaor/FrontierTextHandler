@@ -84,14 +84,16 @@ _COLOR_CSV_RE = re.compile(r"\{/c\}|\{c(\d{2})\}")
 # CSV/JSON row. The individual sub-strings need to be separated by a marker
 # the translator can see and preserve across edits.
 #
-# The *internal* representation — what the extractors produce and what
-# :func:`import_data.parse_joined_text` consumes — uses
-# ``<join at="NNN">`` where ``NNN`` is the absolute file offset of the
-# next pointer slot. That form carries real, unambiguous offsets, which
-# is what ``rebuild_section`` needs to rewrite the pointer table.
+# Since 1.6.0 the extractors emit the clean ``{j}`` marker directly —
+# there is no longer an internal ``<join at="NNN">`` form. Every entry
+# also carries a ``sub_offsets: list[int]`` field with the absolute
+# slot offset of each sub-pointer, which is what ``rebuild_section``
+# and friends use to rewrite sibling pointers without having to parse
+# offsets back out of the text. The pre-1.6.0 ``<join at="NNN">`` tag
+# is still *accepted* on import for backward compatibility with
+# translation files that predate the refactor.
 #
-# On disk in CSV/JSON output we rewrite the tags to the brace form
-# ``{j}``. That form is:
+# The brace form is:
 #
 #   * quote-free — so CSV writers don't wrap the field in quotes and
 #     don't double each inner ``"`` into ``""`` (the pre-1.6.0 output
@@ -112,28 +114,27 @@ JOIN_MARKER = "{j}"
 # Matches either the new ``{j}`` marker or the legacy ``<join at="NNN">``
 # form. Used to split a grouped entry into its sub-strings; callers that
 # also need the per-sub ptr offset must look them up against a freshly-
-# extracted live entry (see ``import_data.parse_joined_text``).
-_JOIN_SPLIT_RE = re.compile(r'\{j\}|<join at="\d+">')
+# extracted live entry's ``sub_offsets`` field (see
+# ``import_data._entry_sub_offsets``). The legacy tag form is accepted on
+# *input* for backward compatibility with pre-1.6.0 translation files —
+# extractors never emit it any more.
+_JOIN_SPLIT_RE = re.compile(r'\{j\}|<join at="-?\d+">')
 
-# Matches only the internal ``<join at="NNN">`` tag form — used by
-# :func:`join_codes_to_csv` to rewrite the extractor's output to the
-# on-disk ``{j}`` marker.
-_JOIN_TAG_RE = re.compile(r'<join at="\d+">')
+# Matches only the legacy ``<join at="NNN">`` tag form. Retained so that
+# ``parse_joined_text`` and ``_expand_legacy_join_tags`` keep reading
+# pre-1.6.0 translation files correctly on the import path.
+_JOIN_TAG_RE = re.compile(r'<join at="-?\d+">')
 
 
 def join_codes_to_csv(text: str) -> str:
     """
-    Rewrite internal ``<join at="NNN">`` tags to the CSV/JSON ``{j}``
-    marker form.
+    Deprecated no-op transform kept for API compatibility.
 
-    The extractors produce the tag form with real ptr offsets embedded;
-    the offsets are discarded on the way to disk because they are
-    re-derived from the live pointer table at import time. This makes
-    extracted files portable across re-extractions and immune to CSV
-    quote-escaping noise.
-
-    :param text: Extracted game string possibly containing ``<join>`` tags
-    :return: Same text with ``<join>`` tags rewritten to ``{j}``
+    Pre-1.6.0 extractors produced ``<join at="NNN">`` tags that had to
+    be rewritten at the export boundary. Since 1.6.0 the extractors
+    emit the clean ``{j}`` marker directly, so this function is a pure
+    fallback: any legacy tag still present is rewritten in place, and
+    clean ``{j}`` text passes through unchanged.
     """
     return _JOIN_TAG_RE.sub(JOIN_MARKER, text)
 

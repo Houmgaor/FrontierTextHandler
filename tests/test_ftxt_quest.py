@@ -455,8 +455,10 @@ class TestExtractQuestFileData(unittest.TestCase):
         text = result[0]["text"]
         for s in strings:
             self.assertIn(s, text)
-        # 7 joins (8 strings - 1)
-        self.assertEqual(text.count("<join"), 7)
+        # 7 {j} markers (8 strings - 1)
+        self.assertEqual(text.count("{j}"), 7)
+        # sub_offsets has one slot per sub-string, in order.
+        self.assertEqual(len(result[0]["sub_offsets"]), 8)
 
     def test_partial_strings(self):
         """Test quest with some null string pointers."""
@@ -469,8 +471,12 @@ class TestExtractQuestFileData(unittest.TestCase):
         self.assertIn("Title", text)
         self.assertIn("Main Obj", text)
         self.assertIn("Description", text)
-        # Only 2 joins (3 non-null strings - 1)
-        self.assertEqual(text.count("<join"), 2)
+        # Only 2 {j} markers (3 non-null strings - 1)
+        self.assertEqual(text.count("{j}"), 2)
+        # Three slots kept — non-contiguous (positions 0, 1, 7 → offsets
+        # base+0, base+4, base+28). sub_offsets carries the real slot
+        # addresses so rebuild can rewrite the right pointers.
+        self.assertEqual(len(result[0]["sub_offsets"]), 3)
 
     def test_title_only(self):
         """Test quest with only a title."""
@@ -480,7 +486,8 @@ class TestExtractQuestFileData(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["text"], "Solo Title")
-        self.assertNotIn("<join", result[0]["text"])
+        self.assertNotIn("{j}", result[0]["text"])
+        self.assertEqual(len(result[0]["sub_offsets"]), 1)
 
     def test_all_null_strings(self):
         """Test quest where all text pointers are null."""
@@ -661,6 +668,144 @@ class TestQuestFileImport(unittest.TestCase):
 
             self.assertIsNotNone(result)
             self.assertTrue(os.path.exists(output_path))
+
+
+class TestQuestFileBraceJoinMarker(unittest.TestCase):
+    """Lock in ``{j}`` wiring for the standalone quest-file path.
+
+    Standalone quest files group their 8 text slots into a single
+    entry separated by the internal ``<join at="N">`` form. The 1.6.0
+    CSV/JSON export rewrites that to ``{j}``; the importer must
+    accept it back in both index-keyed (``import_from_csv`` →
+    ``_read_standalone_translations`` → ``resolve_indexes_against_
+    entries``) and legacy offset-keyed (``import_from_csv`` →
+    ``_has_join_marker`` fallback → positional resolution against
+    a fresh ``extract_quest_file_data``) modes.
+    """
+
+    def test_extract_emits_brace_marker_index_keyed(self):
+        """Default (index-keyed) extract writes ``{j}`` not ``<join at=``."""
+        strings = [
+            "Title", "Main Obj", "Sub A", "Sub B",
+            "Success", "Fail", "Contractor", "Description",
+        ]
+        data = build_quest_file(strings)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "quest001.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            csv_path, _, _ = extract_single_quest_file(src, output_dir=tmpdir)
+            with open(csv_path, encoding="utf-8") as f:
+                raw = f.read()
+            self.assertIn("{j}", raw)
+            self.assertNotIn("<join at=", raw)
+            self.assertNotIn('""', raw)
+            with open(csv_path, encoding="utf-8") as f:
+                rows = list(csv.reader(f))
+            self.assertEqual(rows[0], ["index", "source", "target"])
+            self.assertEqual(
+                rows[1][1],
+                "Title{j}Main Obj{j}Sub A{j}Sub B{j}Success{j}Fail{j}Contractor{j}Description",
+            )
+
+    def test_roundtrip_index_keyed_with_brace_marker(self):
+        """Index-keyed standalone quest import resolves ``{j}`` sub-strings.
+
+        The importer must position-align the 8 ``{j}`` sub-strings
+        against the live quest text block and rewrite every sibling
+        pointer — not just the first slot.
+        """
+        from src.import_data import import_from_csv
+
+        strings = [
+            "Title", "Main Obj", "Sub A", "Sub B",
+            "Success", "Fail", "Contractor", "Description",
+        ]
+        translated = [
+            "Titre", "Objectif", "SousA", "SousB",
+            "Reussite", "Echec", "Client", "Descriptif",
+        ]
+        data = build_quest_file(strings)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "quest001.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            csv_path, _, _ = extract_single_quest_file(src, output_dir=tmpdir)
+
+            # Rewrite the target cell with the new {j}-joined translation.
+            rows = []
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                for row in reader:
+                    rows.append(row)
+            rows[0][2] = "{j}".join(translated)
+            edited = os.path.join(tmpdir, "edited.csv")
+            with open(edited, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(rows)
+
+            out = os.path.join(tmpdir, "out.bin")
+            import_from_csv(edited, src, output_path=out)
+
+            # Re-extract the modified quest and verify every slot.
+            with open(out, "rb") as f:
+                result = extract_quest_file_data(f.read())
+            self.assertEqual(len(result), 1)
+            from src.common import split_join_text
+            parts = split_join_text(str(result[0]["text"]))
+            self.assertEqual(parts, translated)
+
+    def test_roundtrip_legacy_offset_with_brace_marker(self):
+        """Legacy offset-keyed standalone quest CSV with ``{j}`` markers
+        round-trips via the ``_has_join_marker`` fallback in
+        ``import_from_csv``.
+        """
+        from src.import_data import import_from_csv
+
+        strings = [
+            "Title", "Main Obj", "Sub A", "Sub B",
+            "Success", "Fail", "Contractor", "Description",
+        ]
+        translated = [
+            "Titre", "Objectif", "SousA", "SousB",
+            "Reussite", "Echec", "Client", "Descriptif",
+        ]
+        data = build_quest_file(strings)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "quest001.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            csv_path, _, _ = extract_single_quest_file(
+                src, output_dir=tmpdir, with_index=False
+            )
+            rows = []
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                for row in reader:
+                    rows.append(row)
+            self.assertEqual(header, ["location", "source", "target"])
+            # The legacy-format cell still got the {j} rewrite.
+            self.assertIn("{j}", rows[0][1])
+            rows[0][2] = "{j}".join(translated)
+            edited = os.path.join(tmpdir, "edited.csv")
+            with open(edited, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(rows)
+
+            out = os.path.join(tmpdir, "out.bin")
+            import_from_csv(edited, src, output_path=out)
+
+            with open(out, "rb") as f:
+                result = extract_quest_file_data(f.read())
+            from src.common import split_join_text
+            parts = split_join_text(str(result[0]["text"]))
+            self.assertEqual(parts, translated)
 
 
 class TestQuestTextLabels(unittest.TestCase):

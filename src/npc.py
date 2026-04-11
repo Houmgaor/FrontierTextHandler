@@ -6,7 +6,7 @@ Handles stage dialogue binary files with NPC table and per-NPC dialogue blocks.
 import struct
 
 from .binary_file import BinaryFile
-from .common import decode_game_string, load_file_data
+from .common import JOIN_MARKER, decode_game_string, load_file_data
 from .pointer_tables import read_until_null
 
 __all__ = [
@@ -59,7 +59,7 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
     if not npcs:
         return []
 
-    results: list[dict[str, int | str]] = []
+    results: list[dict[str, int | str | list[int]]] = []
     for npc_id, block_ptr, table_offset in npcs:
         if block_ptr + 4 > len(data):
             continue
@@ -68,14 +68,23 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
         header_size = struct.unpack_from("<I", data, block_ptr)[0]
         if header_size == 0:
             # No dialogues for this NPC
-            results.append({"offset": table_offset, "text": ""})
+            results.append({
+                "offset": table_offset,
+                "text": "",
+                "sub_offsets": [table_offset],
+            })
             continue
 
         num_dialogues = header_size // 4
         pointers_start = block_ptr + 4  # skip header_size field
 
-        # Read relative pointers
+        # Read relative pointers, remembering the slot position of each
+        # dialogue sub-pointer for downstream tools (even though the
+        # standalone NPC-dialogue rebuild regenerates the binary from
+        # scratch and doesn't use these offsets directly, keeping them
+        # gives every grouped entry the same shape).
         dialogues: list[str] = []
+        sub_offsets: list[int] = []
         for i in range(num_dialogues):
             ptr_pos = pointers_start + i * 4
             if ptr_pos + 4 > len(data):
@@ -88,18 +97,24 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
             raw = read_until_null(bfile)
             text = decode_game_string(raw, context=f"NPC {npc_id} dialogue {i}")
             dialogues.append(text)
+            sub_offsets.append(ptr_pos)
 
         if not dialogues:
-            results.append({"offset": table_offset, "text": ""})
+            results.append({
+                "offset": table_offset,
+                "text": "",
+                "sub_offsets": [table_offset],
+            })
             continue
 
-        # Join dialogues with <join> tags. These tags are rewritten to
-        # the translator-friendly {j} marker by the CSV/JSON exporter
-        # and parsed back here by the importer via `split_join_text`.
-        combined = dialogues[0]
-        for i, dlg in enumerate(dialogues[1:], start=1):
-            ptr_offset = pointers_start + i * 4
-            combined += f'<join at="{ptr_offset}">{dlg}'
-        results.append({"offset": table_offset, "text": combined})
+        # Sub-strings live in one cell, separated by the clean ``{j}``
+        # marker. The entry-level ``offset`` stays the NPC-table row,
+        # which is what ``rebuild_npc_dialogue`` uses as a translation
+        # key.
+        results.append({
+            "offset": table_offset,
+            "text": JOIN_MARKER.join(dialogues),
+            "sub_offsets": sub_offsets,
+        })
 
     return results

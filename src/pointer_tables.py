@@ -6,6 +6,7 @@ from typing import Optional
 
 from .binary_file import BinaryFile, InvalidPointerError
 from .common import (
+    JOIN_MARKER,
     decode_game_string,
     load_file_data,
     GAME_ENCODING,
@@ -61,14 +62,23 @@ def read_file_section(
     bfile: BinaryFile,
     start_position: int,
     length: int
-) -> list[dict[str, int | str]]:
+) -> list[dict[str, int | str | list[int]]]:
     """
     Read a part of a file and return strings found.
+
+    Grouped entries (sections where a logical string is spread across
+    several consecutive pointer slots separated by null slots) are
+    surfaced as a single row whose ``text`` contains ``{j}``-separated
+    sub-strings and whose ``sub_offsets`` list carries the slot offset
+    of each non-null sibling pointer. Non-grouped sections produce one
+    row per non-null pointer with a single-element ``sub_offsets``.
 
     :param bfile: Binary file to read from
     :param start_position: Initial position to read from
     :param length: Number of bytes to read.
-    :return: List of dicts with "offset" and "text" keys
+    :return: List of dicts with ``"offset"``, ``"text"``, and
+        ``"sub_offsets"`` keys. ``"offset"`` is the first slot of the
+        entry; ``"sub_offsets"`` is the full list.
     :raises InvalidPointerError: If any pointer points outside the file
     """
     bfile.validate_offset(start_position, context="section start")
@@ -79,40 +89,55 @@ def read_file_section(
     pointers_stream = bfile.read(length)
     # Get the list of continuous pointers
     pointers = struct.unpack(f"<{length // 4}I", pointers_stream)
-    strings: list[str] = []
-    ids: list[int] = []
-    current_id = 0
+    # Frontier separates some multiline strings (e.g. weapon descriptions)
+    # with null pointers acting as group boundaries. When any pointer in
+    # the read window is null we switch to grouped mode; otherwise every
+    # non-null pointer is its own entry.
     join_lines = 0 in pointers
-    for pointer in pointers:
-        # Frontier separates some multiline strings (e.g. weapon descriptions)
-        # with multiple \x00 paddings
-        if join_lines:
-            if pointer == 0:
-                current_id += 1
-                continue
-        else:
-            current_id += 1
-        # Validate pointer is within file bounds before seeking
-        bfile.validate_offset(pointer, context=f"string at offset 0x{pointer:x}")
-        # Move to string pointer
+
+    # Walk the pointer window once. For each non-null pointer read the
+    # target string and remember the (real) slot offset, keeping groups
+    # together across null separators.
+    output: list[dict[str, int | str | list[int]]] = []
+    current_texts: list[str] = []
+    current_offsets: list[int] = []
+
+    def _flush_group() -> None:
+        if not current_texts:
+            return
+        output.append({
+            "offset": current_offsets[0],
+            "text": JOIN_MARKER.join(current_texts),
+            "sub_offsets": list(current_offsets),
+        })
+        current_texts.clear()
+        current_offsets.clear()
+
+    for i, pointer in enumerate(pointers):
+        slot_offset = start_position + i * 4
+        if pointer == 0:
+            if join_lines:
+                # Null terminates the current group.
+                _flush_group()
+            continue
+        bfile.validate_offset(
+            pointer, context=f"string at offset 0x{pointer:x}"
+        )
         bfile.seek(pointer)
         data_stream = read_until_null(bfile)
-        strings.append(decode_game_string(data_stream, context=f"pointer 0x{pointer:x}"))
-        ids.append(current_id)
-
-    # Group output by id
-    output: list[dict[str, int | str]] = []
-    last_id = -1
-    for offset, string, current_id in zip(
-        range(start_position, start_position + length, 4),
-        strings,
-        ids
-    ):
-        if current_id == last_id:
-            output[-1]["text"] += f'<join at="{offset}">{string}'
+        text = decode_game_string(
+            data_stream, context=f"pointer 0x{pointer:x}"
+        )
+        if join_lines:
+            current_texts.append(text)
+            current_offsets.append(slot_offset)
         else:
-            output.append({"offset": offset, "text": string})
-            last_id = current_id
+            output.append({
+                "offset": slot_offset,
+                "text": text,
+                "sub_offsets": [slot_offset],
+            })
+    _flush_group()
     return output
 
 
@@ -172,21 +197,24 @@ def read_multi_pointer_entries(
     bfile: BinaryFile,
     start_position: int,
     pointers_per_entry: int
-) -> list[dict[str, int | str]]:
+) -> list[dict[str, int | str | list[int]]]:
     """
     Read null-terminated multi-pointer entries with correct grouping.
 
     Each entry has a fixed number of string pointers.  Null internal
     pointers are skipped (they don't carry a string), and the terminator
-    is an entry whose **first** pointer is 0.  Strings within the same
-    entry are joined with ``<join>`` tags.
+    is an entry whose **first** pointer is 0.  Sub-strings within a
+    single entry are joined in ``text`` with the ``{j}`` marker, and
+    their actual pointer-slot offsets (which may be non-contiguous if
+    internal slots are null) are recorded in ``sub_offsets``.
 
     :param bfile: Binary file to read from
     :param start_position: File offset of the first entry
     :param pointers_per_entry: Number of u32 pointers per entry
-    :return: List of dicts with "offset" and "text" keys
+    :return: List of dicts with ``"offset"``, ``"text"``, and
+        ``"sub_offsets"`` keys.
     """
-    results: list[dict[str, int | str]] = []
+    results: list[dict[str, int | str | list[int]]] = []
     pos = start_position
 
     while True:
@@ -201,22 +229,28 @@ def read_multi_pointer_entries(
         raw = bfile.read(pointers_per_entry * 4)
         ptrs = struct.unpack(f"<{pointers_per_entry}I", raw)
 
-        entry: dict[str, int | str] | None = None
+        sub_texts: list[str] = []
+        sub_offsets: list[int] = []
         for i, ptr in enumerate(ptrs):
             if ptr == 0:
                 continue
-            bfile.validate_offset(ptr, context=f"string pointer in entry at 0x{pos:x}")
+            bfile.validate_offset(
+                ptr, context=f"string pointer in entry at 0x{pos:x}"
+            )
             bfile.seek(ptr)
             data_stream = read_until_null(bfile)
-            text = decode_game_string(data_stream, context=f"pointer 0x{ptr:x}")
-            ptr_offset = pos + i * 4
-            if entry is None:
-                entry = {"offset": ptr_offset, "text": text}
-            else:
-                entry["text"] += f'<join at="{ptr_offset}">{text}'
+            text = decode_game_string(
+                data_stream, context=f"pointer 0x{ptr:x}"
+            )
+            sub_texts.append(text)
+            sub_offsets.append(pos + i * 4)
 
-        if entry is not None:
-            results.append(entry)
+        if sub_texts:
+            results.append({
+                "offset": sub_offsets[0],
+                "text": JOIN_MARKER.join(sub_texts),
+                "sub_offsets": sub_offsets,
+            })
 
         pos += pointers_per_entry * 4
 
@@ -273,7 +307,11 @@ def read_struct_strings(
             text = decode_game_string(
                 data_stream, context=f"struct entry {i} +0x{fo:x}"
             )
-            results.append({"offset": pointer_offset, "text": text})
+            results.append({
+                "offset": pointer_offset,
+                "text": text,
+                "sub_offsets": [pointer_offset],
+            })
     return results
 
 
@@ -377,7 +415,11 @@ def scan_region_for_strings(
                 continue
             seen_targets.add(pointer)
 
-        results.append({"offset": slot_offset, "text": text})
+        results.append({
+            "offset": slot_offset,
+            "text": text,
+            "sub_offsets": [slot_offset],
+        })
 
     return results
 
@@ -480,7 +522,8 @@ def read_quest_table(
             )
 
             # Read strings and group with joins
-            entry: dict[str, int | str] | None = None
+            sub_texts: list[str] = []
+            sub_offsets: list[int] = []
             for i, sp in enumerate(str_ptrs):
                 if sp == 0:
                     continue
@@ -492,13 +535,14 @@ def read_quest_table(
                 text = decode_game_string(
                     data_stream, context=f"quest string 0x{sp:x}"
                 )
-                ptr_offset = text_block_ptr + i * 4
-                if entry is None:
-                    entry = {"offset": ptr_offset, "text": text}
-                else:
-                    entry["text"] += f'<join at="{ptr_offset}">{text}'
-            if entry is not None:
-                results.append(entry)
+                sub_texts.append(text)
+                sub_offsets.append(text_block_ptr + i * 4)
+            if sub_texts:
+                results.append({
+                    "offset": sub_offsets[0],
+                    "text": JOIN_MARKER.join(sub_texts),
+                    "sub_offsets": sub_offsets,
+                })
 
     return results
 

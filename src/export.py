@@ -13,7 +13,6 @@ from .common import (
     encode_game_string,
     GAME_ENCODING,
     color_codes_to_csv,
-    join_codes_to_csv,
 )
 from .scenario import extract_scenario_file as _extract_scenario
 
@@ -22,12 +21,12 @@ def _to_csv_form(text: str) -> str:
     """
     Apply all on-disk escape transforms to an extracted string.
 
-    Currently rewrites inline color codes and grouped-entry join tags
-    to their translator-friendly brace forms. Order matters: color
-    codes go first so we never rewrite a ``{c..}`` inside a ``{j}``
-    segment.
+    Since 1.6.0 this only rewrites inline color codes (``‾CNN`` →
+    ``{cNN}``/``{/c}``) — the grouped-entry ``{j}`` marker is already
+    produced directly by the extractors, so there is no join rewrite
+    left to do here.
     """
-    return join_codes_to_csv(color_codes_to_csv(text))
+    return color_codes_to_csv(text)
 
 logger = logging.getLogger(__name__)
 

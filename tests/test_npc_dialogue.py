@@ -529,5 +529,143 @@ class TestNpcDialogueFullRoundTrip(unittest.TestCase):
             self.assertIsNone(result)
 
 
+class TestNpcDialogueBraceJoinMarker(unittest.TestCase):
+    """Lock in ``{j}`` wiring for the standalone NPC dialogue path.
+
+    The 1.6.0 CSV/JSON format rewrites the internal ``<join at="N">``
+    extractor form into the quote-free ``{j}`` marker at the export
+    boundary. The standalone importer round-trip must therefore accept
+    ``{j}``-form cells in both index-keyed and legacy offset-keyed
+    files, in addition to the legacy tag form.
+    """
+
+    def test_extract_emits_brace_marker_index_keyed(self):
+        """Default (index-keyed) extract writes ``{j}`` not ``<join at=``."""
+        data = build_npc_dialogue([(1, ["Hello", "World"]), (2, ["Test"])])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "source.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            csv_path, _, _ = extract_npc_dialogue_file(src, output_dir=tmpdir)
+            with open(csv_path, encoding="utf-8") as f:
+                raw = f.read()
+
+            self.assertIn("{j}", raw)
+            self.assertNotIn("<join at=", raw)
+            self.assertNotIn('""', raw)  # no CSV-escaped double quotes
+
+            # Cell content is clean via csv.reader too.
+            with open(csv_path, encoding="utf-8") as f:
+                rows = list(csv.reader(f))
+            self.assertEqual(rows[0], ["index", "source", "target"])
+            self.assertEqual(rows[1][1], "Hello{j}World")
+
+    def test_extract_emits_brace_marker_legacy_offset(self):
+        """Legacy offset-keyed extract also rewrites to ``{j}``.
+
+        Even when the user opts into ``with_index=False`` for
+        interoperability with older tooling, the join transform still
+        runs — the two transforms are independent.
+        """
+        data = build_npc_dialogue([(1, ["Hello", "World"])])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "source.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            csv_path, _, _ = extract_npc_dialogue_file(
+                src, output_dir=tmpdir, with_index=False
+            )
+            with open(csv_path, encoding="utf-8") as f:
+                raw = f.read()
+            self.assertIn("{j}", raw)
+            self.assertNotIn("<join at=", raw)
+
+    def test_roundtrip_index_keyed_with_brace_marker(self):
+        """Full round-trip through the default index-keyed path.
+
+        Confirms ``_read_standalone_translations`` → ``resolve_indexes_
+        against_entries(expand_groups=False)`` → ``rebuild_npc_dialogue``
+        → ``split_join_text`` hands through all sub-strings.
+        """
+        data = build_npc_dialogue([
+            (1, ["Original1", "Original2", "Original3"]),
+            (2, ["Keep"]),
+        ])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "source.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+
+            csv_path, _, _ = extract_npc_dialogue_file(src, output_dir=tmpdir)
+            # Sanity check that the CSV really did go through the
+            # ``{j}`` rewrite before the importer sees it.
+            with open(csv_path, encoding="utf-8") as f:
+                rows = list(csv.reader(f))
+            header = rows[0]
+            self.assertEqual(header, ["index", "source", "target"])
+            self.assertEqual(rows[1][1], "Original1{j}Original2{j}Original3")
+
+            # Translate the three-sub grouped entry; keep NPC 2 as-is.
+            rows[1][2] = "Traduit1{j}Traduit2{j}Traduit3"
+            edited = os.path.join(tmpdir, "edited.csv")
+            with open(edited, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(rows[1:])
+
+            out = os.path.join(tmpdir, "out.bin")
+            import_npc_dialogue_from_csv(edited, src, output_path=out)
+
+            result = extract_npc_dialogue(out)
+            self.assertEqual(len(result), 2)
+            self.assertEqual(
+                split_join_text(str(result[0]["text"])),
+                ["Traduit1", "Traduit2", "Traduit3"],
+            )
+            self.assertEqual(result[1]["text"], "Keep")
+
+    def test_roundtrip_legacy_offset_with_brace_marker(self):
+        """A legacy offset-keyed CSV carrying ``{j}`` markers must still
+        round-trip — this is the shape produced when the user opts into
+        ``--legacy-offset`` on a 1.6.0 extractor."""
+        data = build_npc_dialogue([(1, ["A", "B"]), (2, ["C"])])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "source.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+
+            csv_path, _, _ = extract_npc_dialogue_file(
+                src, output_dir=tmpdir, with_index=False
+            )
+            rows = []
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                for row in reader:
+                    rows.append(row)
+            self.assertEqual(header, ["location", "source", "target"])
+            self.assertEqual(rows[0][1], "A{j}B")
+
+            rows[0][2] = "X{j}Y"
+            edited = os.path.join(tmpdir, "edited.csv")
+            with open(edited, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(rows)
+
+            out = os.path.join(tmpdir, "out.bin")
+            import_npc_dialogue_from_csv(edited, src, output_path=out)
+            result = extract_npc_dialogue(out)
+            self.assertEqual(
+                split_join_text(str(result[0]["text"])),
+                ["X", "Y"],
+            )
+            self.assertEqual(result[1]["text"], "C")
+
+
 if __name__ == "__main__":
     unittest.main()

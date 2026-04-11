@@ -31,6 +31,27 @@ class CSVParseError(ValueError):
     pass
 
 
+def _entry_sub_offsets(entry: dict) -> list[int]:
+    """
+    Return the per-sub pointer-slot offsets of a live extractor entry.
+
+    1.6.0+ extractors populate ``entry["sub_offsets"]`` — a list with
+    one slot per ``{j}``-separated sub-string (length 1 for non-grouped
+    entries). Older callers that build entry dicts by hand may omit the
+    field entirely; in that case we fall back to reading per-sub
+    offsets from any legacy ``<join at="N">`` tags in the text, with a
+    final fallback to ``[entry["offset"]]``.
+    """
+    subs = entry.get("sub_offsets")
+    if subs:
+        return [int(s) for s in subs]
+    text = str(entry.get("text", ""))
+    if "<join at=" in text:
+        pairs = parse_joined_text(int(entry["offset"]), text)
+        return [int(off) for off, _ in pairs]
+    return [int(entry["offset"])]
+
+
 def parse_location(location: str) -> int:
     """
     Parse a location string from CSV format to a pointer offset.
@@ -308,10 +329,7 @@ def resolve_offsets_with_groups(
     from .common import extract_text_data_from_bytes
     live_entries = extract_text_data_from_bytes(file_data, config)
     live_by_first = {
-        int(e["offset"]): parse_joined_text(
-            int(e["offset"]), str(e["text"])
-        )
-        for e in live_entries
+        int(e["offset"]): _entry_sub_offsets(e) for e in live_entries
     }
 
     expanded: list[tuple[int, str]] = []
@@ -319,20 +337,20 @@ def resolve_offsets_with_groups(
         if not _has_join_marker(text):
             expanded.append((offset, text))
             continue
-        live_pairs = live_by_first.get(offset)
-        if live_pairs is None:
+        live_offsets = live_by_first.get(offset)
+        if live_offsets is None:
             raise ValueError(
                 f"Grouped translation at offset 0x{offset:x} does "
                 f"not match any live entry in this section"
             )
         subs = split_group_text(text)
-        if len(subs) != len(live_pairs):
+        if len(subs) != len(live_offsets):
             raise ValueError(
                 f"Grouped entry at 0x{offset:x}: translation has "
                 f"{len(subs)} sub-strings but the live section has "
-                f"{len(live_pairs)}. Re-extract and merge."
+                f"{len(live_offsets)}. Re-extract and merge."
             )
-        for (live_off, _), sub in zip(live_pairs, subs):
+        for live_off, sub in zip(live_offsets, subs):
             expanded.append((live_off, sub))
     return expanded
 
@@ -401,17 +419,22 @@ def resolve_indexes_against_entries(
         live_entry = live_entries[index]
         live_text = str(live_entry["text"])
         live_offset = int(live_entry["offset"])
-        if _has_join_marker(text) or _has_join_marker(live_text):
-            live_pairs = parse_joined_text(live_offset, live_text)
+        live_offsets = _entry_sub_offsets(live_entry)
+        # A grouped entry is anything with more than one sub-pointer
+        # in the live section — sub_offsets is the canonical source of
+        # that information now. The legacy ``{j}``-in-text check still
+        # covers hand-built entry dicts in older tests.
+        is_grouped = len(live_offsets) > 1 or _has_join_marker(text) or _has_join_marker(live_text)
+        if is_grouped:
             sub_texts = split_group_text(text)
-            if len(sub_texts) != len(live_pairs):
+            if len(sub_texts) != len(live_offsets):
                 raise ValueError(
                     f"Translation index {index}: grouped entry has "
                     f"{len(sub_texts)} sub-strings but the live {context} "
-                    f"has {len(live_pairs)}. Re-extract and merge."
+                    f"has {len(live_offsets)}. Re-extract and merge."
                 )
             if expand_groups:
-                for (live_off, _), sub in zip(live_pairs, sub_texts):
+                for live_off, sub in zip(live_offsets, sub_texts):
                     resolved.append((live_off, sub))
             else:
                 resolved.append((live_offset, JOIN_MARKER.join(sub_texts)))
@@ -610,34 +633,45 @@ def rebuild_section(
             single_translations[offset] = text
 
     # 3. Flatten all entries into (ptr_offset, text) pairs, applying
-    #    translations where available. For grouped entries we align the
-    #    translation's sub-strings positionally with the live entry's
-    #    sub-pointers so ``{j}``-form inputs (no offsets) work the same
-    #    way as legacy ``<join at="N">`` inputs.
+    #    translations where available. Per-sub slot offsets come from
+    #    ``entry["sub_offsets"]`` (populated by every 1.6.0 extractor),
+    #    and translations are aligned positionally against those
+    #    offsets — no need to parse join tags out of the live text.
     all_pairs: list[tuple[int, str]] = []
     for entry in all_entries:
         entry_offset = int(entry["offset"])
-        live_pairs = parse_joined_text(entry_offset, str(entry["text"]))
+        live_text = str(entry["text"])
+        live_subs = split_group_text(live_text)
+        live_offsets = _entry_sub_offsets(entry)
 
-        if entry_offset in group_translations and len(live_pairs) > 1:
+        if len(live_subs) != len(live_offsets):
+            logger.warning(
+                "Entry at 0x%x: %d sub-strings but %d sub_offsets. "
+                "Falling back to entry offset.",
+                entry_offset, len(live_subs), len(live_offsets),
+            )
+            live_offsets = [entry_offset] * len(live_subs)
+
+        if entry_offset in group_translations and len(live_offsets) > 1:
             trans_subs = group_translations[entry_offset]
-            if len(trans_subs) != len(live_pairs):
+            if len(trans_subs) != len(live_offsets):
                 logger.warning(
                     "Grouped entry at 0x%x: translation has %d sub-strings "
                     "but the live section has %d. Skipping and keeping "
                     "original strings — re-extract and merge the file.",
-                    entry_offset, len(trans_subs), len(live_pairs),
+                    entry_offset, len(trans_subs), len(live_offsets),
                 )
-                all_pairs.extend(live_pairs)
+                for live_off, live_sub in zip(live_offsets, live_subs):
+                    all_pairs.append((live_off, live_sub))
             else:
-                for (live_off, _), sub in zip(live_pairs, trans_subs):
+                for live_off, sub in zip(live_offsets, trans_subs):
                     all_pairs.append((live_off, sub))
         else:
-            for live_off, live_text in live_pairs:
+            for live_off, live_sub in zip(live_offsets, live_subs):
                 if live_off in single_translations:
                     all_pairs.append((live_off, single_translations[live_off]))
                 else:
-                    all_pairs.append((live_off, live_text))
+                    all_pairs.append((live_off, live_sub))
 
     # 4. Write file: copy original data, then append contiguous string block
     with open(output_path, "wb") as f:
@@ -1216,9 +1250,7 @@ def import_from_csv(
             # positional alignment, then fall through to the regular
             # append path with concrete (offset, text) pairs.
             quest_by_first_off = {
-                int(e["offset"]): parse_joined_text(
-                    int(e["offset"]), str(e["text"])
-                )
+                int(e["offset"]): _entry_sub_offsets(e)
                 for e in quest_entries
             }
             resolved_new: list[tuple[int, str]] = []
@@ -1226,8 +1258,8 @@ def import_from_csv(
                 if JOIN_MARKER not in text and "<join at=" not in text:
                     resolved_new.append((offset, text))
                     continue
-                live_pairs = quest_by_first_off.get(offset)
-                if live_pairs is None:
+                live_offsets = quest_by_first_off.get(offset)
+                if live_offsets is None:
                     raise ValueError(
                         f"Grouped translation at offset 0x{offset:x} does "
                         f"not match any quest entry in the source file "
@@ -1235,14 +1267,14 @@ def import_from_csv(
                         f"{[hex(k) for k in quest_by_first_off]})"
                     )
                 subs = split_group_text(text)
-                if len(subs) != len(live_pairs):
+                if len(subs) != len(live_offsets):
                     raise ValueError(
                         f"Grouped entry at 0x{offset:x}: translation has "
                         f"{len(subs)} sub-strings but the live quest "
-                        f"entry has {len(live_pairs)}. Re-extract and "
+                        f"entry has {len(live_offsets)}. Re-extract and "
                         f"merge the translation file."
                     )
-                for (live_off, _), sub in zip(live_pairs, subs):
+                for live_off, sub in zip(live_offsets, subs):
                     resolved_new.append((live_off, sub))
             new_strings = resolved_new
 

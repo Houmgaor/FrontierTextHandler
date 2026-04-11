@@ -70,17 +70,21 @@ def extract_ftxt(file_path: str) -> list[dict[str, int | str]]:
     bfile = BinaryFile.from_bytes(file_data)
     bfile.seek(FTXT_HEADER_SIZE)
 
-    results: list[dict[str, int | str]] = []
+    results: list[dict[str, int | str | list[int]]] = []
     for _ in range(string_count):
         offset = bfile.tell()
         data_stream = read_until_null(bfile)
         text = decode_game_string(data_stream, context=f"FTXT offset 0x{offset:x}")
-        results.append({"offset": offset, "text": text})
+        results.append({
+            "offset": offset,
+            "text": text,
+            "sub_offsets": [offset],
+        })
 
     return results
 
 
-def extract_ftxt_data(data: bytes) -> list[dict[str, int | str]]:
+def extract_ftxt_data(data: bytes) -> list[dict[str, int | str | list[int]]]:
     """
     Extract text from raw FTXT bytes (already loaded/decrypted/decompressed).
 
@@ -102,11 +106,15 @@ def extract_ftxt_data(data: bytes) -> list[dict[str, int | str]]:
     bfile = BinaryFile.from_bytes(data)
     bfile.seek(FTXT_HEADER_SIZE)
 
-    results: list[dict[str, int | str]] = []
+    results: list[dict[str, int | str | list[int]]] = []
     for _ in range(string_count):
         offset = bfile.tell()
         data_stream = read_until_null(bfile)
         text = decode_game_string(data_stream, context=f"FTXT offset 0x{offset:x}")
-        results.append({"offset": offset, "text": text})
+        results.append({
+            "offset": offset,
+            "text": text,
+            "sub_offsets": [offset],
+        })
 
     return results

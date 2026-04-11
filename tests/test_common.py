@@ -287,8 +287,12 @@ class TestReadFileSection(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertIn("First", results[0]["text"])
         self.assertIn("Second", results[0]["text"])
-        self.assertIn("<join", results[0]["text"])
+        self.assertIn("{j}", results[0]["text"])
+        # Group 0 carries both sub-pointer slot offsets so rebuild_section
+        # can rewrite every sibling slot, not just the first.
+        self.assertEqual(results[0]["sub_offsets"], [0, 4])
         self.assertEqual(results[1]["text"], "Third")
+        self.assertEqual(results[1]["sub_offsets"], [12])
 
     def test_out_of_bounds_pointer(self):
         data = struct.pack("<I", 0xFFFFFF) + b"\x00" * 4
@@ -332,8 +336,9 @@ class TestReadMultiPointerEntries(unittest.TestCase):
         results = read_multi_pointer_entries(bfile, 0, 2)
         self.assertEqual(len(results), 1)
         self.assertIn("Name", results[0]["text"])
-        self.assertIn("<join", results[0]["text"])
+        self.assertIn("{j}", results[0]["text"])
         self.assertIn("Desc", results[0]["text"])
+        self.assertEqual(results[0]["sub_offsets"], [0, 4])
 
     def test_empty_table(self):
         # Immediate null terminator
@@ -1103,35 +1108,41 @@ class TestColorCodeTransforms(unittest.TestCase):
 
 
 class TestJoinMarkerTransforms(unittest.TestCase):
-    """Tests for the internal ``<join at="N">`` → CSV ``{j}`` rewrite.
+    """Tests for ``join_codes_to_csv`` as a legacy-input fallback.
 
-    The internal form carries real ptr offsets and is what extractors
-    produce; the CSV form is the quote-free brace marker translators
-    see in extracted files. The inverse is not a plain lexical
-    replacement — ``{j}`` has no offsets and is resolved positionally
-    against the live pointer table at import time (covered by the
-    ``rebuild_section`` / ``resolve_indexes_to_offsets`` tests).
+    Since 1.6.0 the extractors emit ``{j}`` directly, so this helper
+    is only exercised when a caller hands it text that still has the
+    pre-1.6.0 ``<join at="N">`` tag form (for instance a translation
+    file extracted before the refactor). In that case the tags are
+    rewritten in place; clean ``{j}`` text passes through unchanged.
     """
 
     def _to(self, s):
         from src.common import join_codes_to_csv
         return join_codes_to_csv(s)
 
-    def test_basic_single_tag(self):
+    def test_legacy_tag_rewritten(self):
         self.assertEqual(
             self._to('first<join at="100">second'),
             "first{j}second",
         )
 
-    def test_multiple_tags(self):
+    def test_multiple_legacy_tags(self):
         self.assertEqual(
             self._to('a<join at="10">b<join at="20">c<join at="30">d'),
             "a{j}b{j}c{j}d",
         )
 
+    def test_already_clean_marker_is_a_noop(self):
+        """Extractor output already carries ``{j}``; running the
+        fallback on it must not corrupt the text."""
+        self.assertEqual(
+            self._to("Hunter Basics{j}Deliver 2 Raw Meat"),
+            "Hunter Basics{j}Deliver 2 Raw Meat",
+        )
+
     def test_large_offset(self):
-        # Real sections use offsets in the millions — matching the
-        # extracted inf/quests output, which motivated this change.
+        # Real pre-1.6.0 sections used offsets in the millions.
         self.assertEqual(
             self._to('≪Hunter Basics≫\nBasics<join at="1453412">Deliver 2 Raw Meat'),
             "≪Hunter Basics≫\nBasics{j}Deliver 2 Raw Meat",
@@ -1144,7 +1155,7 @@ class TestJoinMarkerTransforms(unittest.TestCase):
         self.assertEqual(self._to(""), "")
 
     def test_quote_hostile_legacy_form_is_gone(self):
-        """The CSV form must not contain the quote-bearing legacy tag.
+        """The legacy-tag fallback strips the quote-bearing form.
 
         Pre-1.6.0 CSVs wrote ``<join at="1453412">`` inside a double-
         quoted field, forcing each inner ``"`` to be doubled into
@@ -1186,8 +1197,13 @@ class TestCsvExportCleanness(unittest.TestCase):
         bfile = BinaryFile.from_bytes(bytes(data))
         entries = read_multi_pointer_entries(bfile, 0, 2)
         self.assertEqual(len(entries), 1)
-        # Internal form still has the offset-bearing tag.
-        self.assertIn("<join at=", str(entries[0]["text"]))
+        # The extractor now produces the clean brace form directly;
+        # the legacy tag is gone even from the internal representation.
+        self.assertIn("{j}", str(entries[0]["text"]))
+        self.assertNotIn("<join at=", str(entries[0]["text"]))
+        # Per-sub pointer slot offsets live in ``sub_offsets`` so
+        # ``rebuild_section`` knows which slots to rewrite.
+        self.assertEqual(entries[0]["sub_offsets"], [0, 4])
 
         with tempfile.NamedTemporaryFile(
             suffix=".csv", delete=False, mode="w"

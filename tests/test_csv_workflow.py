@@ -1947,7 +1947,8 @@ class TestQuestTableExtraction(unittest.TestCase):
             self.assertIn("Main Obj", result[0]["text"])
             self.assertIn("Description", result[0]["text"])
             # All 8 strings joined (7 separators → 8 parts)
-            self.assertEqual(result[0]["text"].count("<join"), 7)
+            self.assertEqual(result[0]["text"].count("{j}"), 7)
+            self.assertEqual(len(result[0]["sub_offsets"]), 8)
         finally:
             os.unlink(temp_path)
 
@@ -2241,9 +2242,12 @@ class TestReadMultiPointerEntries(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertIn("Hello", result[0]["text"])
         self.assertIn("World", result[0]["text"])
-        self.assertIn("<join", result[0]["text"])
+        self.assertIn("{j}", result[0]["text"])
         self.assertIn("Foo", result[1]["text"])
         self.assertIn("Bar", result[1]["text"])
+        # Both entries expose per-sub slot offsets for rebuild_section.
+        self.assertEqual(len(result[0]["sub_offsets"]), 2)
+        self.assertEqual(len(result[1]["sub_offsets"]), 2)
 
     def test_null_internal_pointers(self):
         """Test that null internal pointers are skipped without breaking grouping."""
@@ -2304,12 +2308,18 @@ class TestReadMultiPointerEntries(unittest.TestCase):
         self.assertTrue(text0.startswith("A"))
         self.assertIn("B", text0)
         self.assertIn("C", text0)
-        self.assertEqual(text0.count("<join"), 2)
-        # Second entry should have D and F
+        self.assertEqual(text0.count("{j}"), 2)
+        # Second entry has D and F. The middle slot is null, so
+        # sub_offsets records two non-contiguous slot addresses and
+        # the text only has one {j} marker.
         text1 = result[1]["text"]
         self.assertTrue(text1.startswith("D"))
         self.assertIn("F", text1)
-        self.assertEqual(text1.count("<join"), 1)
+        self.assertEqual(text1.count("{j}"), 1)
+        self.assertEqual(len(result[1]["sub_offsets"]), 2)
+        # Slot [D, 0, F] → sub_offsets gap-skips the null slot.
+        d_off, f_off = result[1]["sub_offsets"]
+        self.assertEqual(f_off - d_off, 8)
         # D should NOT appear in first entry
         self.assertNotIn("D", text0)
 

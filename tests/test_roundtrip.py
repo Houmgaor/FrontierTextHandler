@@ -552,15 +552,16 @@ class TestNpcDialogueRoundTrip(unittest.TestCase):
         results = extract_npc_dialogue_data(original)
         self.assertEqual(len(results), 2)
 
-        # Build translations (translate NPC 1's dialogue)
+        # Build translations (translate NPC 1's dialogue). Since 1.6.0
+        # the extractor emits the ``{j}`` marker directly, so the
+        # translation just reuses that form — ``rebuild_npc_dialogue``
+        # calls ``split_join_text`` internally and handles both markers.
         table_offset = results[0]["offset"]
         original_text = results[0]["text"]
         parts = split_join_text(original_text)
         self.assertEqual(len(parts), 2)
 
-        # Rebuild join text with translations
-        pairs = parse_joined_text(table_offset, original_text)
-        translated_text = 'Bonjour voyageur<join at="' + str(pairs[1][0]) + '">Bonne chasse'
+        translated_text = "Bonjour voyageur{j}Bonne chasse"
         new_strings = [(table_offset, translated_text)]
 
         fd, output_path = tempfile.mkstemp(suffix=".bin")
