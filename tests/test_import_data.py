@@ -390,6 +390,121 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             b = bfile.read(1)
         self.assertEqual(raw_bytes.decode(GAME_ENCODING), "Un")
 
+    def test_apply_rewrites_color_codes(self):
+        """Release-JSON targets in {cNN}/{/c} brace form land in the binary as ‾CNN bytes.
+
+        Regression: before this was wired up, apply_translations_from_release_json
+        skipped color_codes_from_csv and wrote ``{c05}foo{/c}`` verbatim into the
+        binary, so the game would render the braces as text instead of colouring.
+        """
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["PlainOriginal"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        # Pointer table starts at offset 8; one pointer for the single string.
+        json_path = self._write_release_json("fr", {
+            "dat/armors/head": [
+                (8, "PlainOriginal", "{c05}Colored{/c} text"),
+            ],
+        })
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 1)
+
+        with open(bin_path, "rb") as f:
+            patched = f.read()
+
+        bfile = BinaryFile.from_bytes(patched)
+        bfile.seek(8)
+        str_off = struct.unpack("<I", bfile.read(4))[0]
+        bfile.seek(str_off)
+        raw_bytes = bytearray()
+        b = bfile.read(1)
+        while b != b"\x00" and b != b"":
+            raw_bytes.extend(b)
+            b = bfile.read(1)
+
+        decoded = raw_bytes.decode(GAME_ENCODING)
+        # The game form uses ‾ (U+203E) because 0x7E decodes that way in
+        # shift_jisx0213. The brace form must not survive into the binary.
+        self.assertEqual(decoded, "\u203eC05Colored\u203eC00 text")
+        self.assertNotIn("{c05}", decoded)
+        self.assertNotIn("{/c}", decoded)
+
+    def test_apply_rewrites_color_codes_indexed(self):
+        """Same regression check for index-keyed release entries."""
+        from src.import_data import apply_translations_from_release_json
+
+        raw = self._build_game_binary(["Original"])
+        game_dir = os.path.join(self.tmpdir, "game")
+        dat_dir = os.path.join(game_dir, "dat")
+        os.makedirs(dat_dir)
+        bin_path = os.path.join(dat_dir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+
+        # Index-keyed entry: the xpath must exist in headers.json for the
+        # index→offset resolver to kick in. Use a real section with a single
+        # entry in our synthetic binary — we override via a custom headers.
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w") as f:
+            json.dump({
+                "dat": {
+                    "armors": {
+                        "head": {
+                            "begin_pointer": "0x0",
+                            "next_field_pointer": "0x4",
+                        }
+                    }
+                }
+            }, f)
+
+        data = {
+            "fr": {
+                "dat/armors/head": [
+                    {
+                        "index": 0,
+                        "source": "Original",
+                        "target": "{c14}Rouge{/c}",
+                    }
+                ]
+            }
+        }
+        json_path = os.path.join(self.tmpdir, "translations-translated.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+
+        results = apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False,
+            headers_path=headers_path,
+        )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 1)
+
+        with open(bin_path, "rb") as f:
+            patched = f.read()
+        bfile = BinaryFile.from_bytes(patched)
+        bfile.seek(8)
+        str_off = struct.unpack("<I", bfile.read(4))[0]
+        bfile.seek(str_off)
+        raw_bytes = bytearray()
+        b = bfile.read(1)
+        while b != b"\x00" and b != b"":
+            raw_bytes.extend(b)
+            b = bfile.read(1)
+        decoded = raw_bytes.decode(GAME_ENCODING)
+        self.assertEqual(decoded, "\u203eC14Rouge\u203eC00")
+        self.assertNotIn("{c14}", decoded)
+
     def test_missing_language_raises(self):
         """ValueError when the requested language isn't in the JSON but others exist."""
         from src.import_data import apply_translations_from_release_json

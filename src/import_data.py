@@ -614,6 +614,12 @@ def apply_translations_from_release_json(
             source = entry.get("source") or ""
             if not target or target == source:
                 continue
+            # Rewrite CSV-form color codes ({cNN}/{/c}) back to the game's
+            # ‾CNN bytes before re-encoding. Release JSONs produced from
+            # MHFrontier-Translation store the brace form since 1.6.0, so
+            # without this the braces would land in the binary as literal
+            # text and the game would render them instead of colouring.
+            target = color_codes_from_csv(target)
             if "index" in entry:
                 try:
                     section["index"].append((int(entry["index"]), target))

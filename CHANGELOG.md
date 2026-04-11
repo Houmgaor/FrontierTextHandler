@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **Color codes rewritten to brace form in CSV/JSON**: The game's inline color markers (byte `0x7E` + `C` + two digits, which decodes as `‾CNN` in Shift-JIS X 0213) are now rewritten to an ASCII-safe brace form on extraction: `‾CNN` → `{cNN}` and the reset `‾C00` → `{/c}`. The importer applies the inverse before re-encoding, so the transform is a pure lexical bijection — round-tripping an extracted CSV through the importer reproduces the original byte sequence exactly. This matches the existing `{K012}`/`{i131}`/`{u4}` keybind/icon placeholder convention already used throughout MHFrontier-Translation, and removes the only non-ASCII control character from translator-facing files (the `‾` overline was frequently mangled by editors, diff tools, and GitHub Markdown). `export_for_refrontier` is unchanged — the ReFrontier-compatible TSV still carries raw game bytes. A one-shot migration rewrote 146404 cells across 40 CSVs in `MHFrontier-Translation/translations/{en,fr}/`. Unknown color ids pass through with a warning rather than failing, so newly-observed codes surface without breaking extraction.
 
+### Fixed
+- **`apply_translations_from_release_json` honours color codes**: The release-JSON apply path now runs `color_codes_from_csv` over each `target` before writing. Prior to the fix, brace-form color codes landed in the binary as literal text (e.g. `{c05}foo{/c}` instead of the `‾C05foo‾C00` bytes), so the game rendered the braces instead of colouring. The other import paths (`get_new_strings`, `get_new_strings_from_json`, `get_new_strings_indexed`) were already correct; only this one slipped through.
+
 ## [1.5.1] - 2026-04-07
 
 ### Added
