@@ -106,23 +106,22 @@ When `--csv-to-bin` is combined with `--xpath`, only the target section is rewri
 python main.py --csv-to-bin output/dat-armors-legs.csv data/mhfdat.bin --xpath=dat/armors/legs
 ```
 
-### Stable index keys (`--with-index`, opt-in)
+### Stable index keys (default since 1.6.0)
 
-By default, extracted CSV/JSON files key each string by its raw byte offset in
-the binary (`location` column, e.g. `0x4a8f2c@mhfdat.bin`). Offsets are fragile:
-any upstream change to a string's length shifts every offset that follows it,
-which makes re-extracted files hard to merge with old translations.
-
-`--with-index` adds a stable `index` column (the slot number in the section's
-pointer table). Indexes survive length changes — slot 37 is still slot 37 even
-if earlier strings grow or shrink.
+Every extracted CSV/JSON file keys each string by its **index** — the slot
+number in the section's pointer table. Indexes survive upstream string-length
+changes that would shift raw byte offsets, so re-extracted files stay easy to
+merge with existing translations: slot 37 is still slot 37 even if earlier
+strings grow or shrink. This is the default for every extractor
+(`--extract-all`, `--xpath=…`, `--quest`, `--quest-dir`, `--scenario`,
+`--scenario-dir`, `--npc`, `--npc-dir`, `--ftxt`).
 
 ```bash
-# Extract with the new stable index column
-python main.py --xpath=dat/armors/head --with-index
+# Default 1.6.0 extraction
+python main.py --xpath=dat/armors/head data/mhfdat.bin
 
-# Extract everything with index keys
-python main.py --extract-all --with-index
+# Default batch extraction
+python main.py --extract-all
 ```
 
 The resulting CSV is three columns — no offset, no filename:
@@ -141,7 +140,7 @@ content fingerprint in metadata instead of repeating them on every row:
   "metadata": {
     "source_file": "mhfdat.bin",
     "xpath": "dat/armors/head",
-    "version": "1.4.0",
+    "version": "1.6.0",
     "fingerprint": "a1b2c3d4e5f60718"
   },
   "strings": [
@@ -161,28 +160,52 @@ user can still proceed if they know what they're doing.
 > **Note: CSV vs JSON asymmetry.** The fingerprint check fires for JSON
 > imports only — CSV files deliberately stay minimal (`index,source,target`
 > with no metadata) so they render cleanly in spreadsheets and on GitHub.
-> If you want fingerprint protection, import the JSON sidecar that
-> `--with-index` writes alongside every CSV; if you only need the
-> human-friendly format, the CSV is enough but you lose the cross-version
+> If you want fingerprint protection, import the JSON sidecar that the
+> extractor writes alongside every CSV; if you only need the human-
+> friendly format, the CSV is enough but you lose the cross-version
 > safety net. The xpath inference (from filename) still works for both.
 
-When importing an index-keyed file, the importer auto-detects the format and
-infers the section xpath from (1) the JSON `metadata.xpath` field or (2) the
-CSV/JSON filename — `dat-armors-head.csv` resolves to `dat/armors/head` if that
-xpath exists in `headers.json`. So this just works:
+When importing an index-keyed file against a `headers.json`-backed section,
+the importer auto-detects the format and infers the xpath from (1) the JSON
+`metadata.xpath` field or (2) the CSV/JSON filename — `dat-armors-head.csv`
+resolves to `dat/armors/head` if that xpath exists in `headers.json`. So this
+just works:
 
 ```bash
 python main.py --csv-to-bin output/dat-armors-head.csv data/mhfdat.bin \
     --compress --encrypt
 ```
 
-Pass `--xpath` explicitly only if the file has been renamed or you want to
-override the inference.
+For standalone file formats (FTXT, NPC dialogue, scenario, quest files),
+the importer re-extracts the source binary with the matching format-specific
+extractor and aligns index-keyed translations positionally against the live
+entries — no xpath needed:
 
-This is opt-in for now and the legacy offset-only format remains the default.
-Index keys are intended to become the long-term default once the workflow has
-been validated against real translation projects. The ReFrontier-compatible TSV
-output is unchanged.
+```bash
+# Quest file: extract, edit, re-import, round-trip in index form
+python main.py --quest data/quests/quest_001.bin
+# …edit output/quest-quest_001.csv…
+python main.py --csv-to-bin output/quest-quest_001.csv data/quests/quest_001.bin
+```
+
+#### Opting back into the legacy offset format
+
+Pass `--legacy-offset` to emit the pre-1.6.0 `location,source,target`
+shape instead:
+
+```bash
+python main.py --legacy-offset --xpath=dat/armors/head data/mhfdat.bin
+```
+
+Use this only when you need to interoperate with tooling that hasn't yet
+adopted the index format; the importer accepts both forms either way, so
+mixing is fine during a migration.
+
+The `--with-index` flag that was opt-in in 1.5.0 is still accepted as a
+silent no-op alias, so scripts written against the 1.5.0 behaviour keep
+working. The ReFrontier-compatible TSV output (`export_for_refrontier`)
+and the `refrontier_to_csv` helper stay offset-keyed because their inputs
+carry raw ReFrontier offsets and have no section context to index against.
 
 ### Decrypt files
 
@@ -494,7 +517,8 @@ The input file was not found. Make sure to:
 #### `InterruptedError: file.csv has less than one line!`
 
 The CSV file is empty or has no data rows. Ensure your CSV file has:
-1. A header row: `location,source,target`
+1. A header row — `index,source,target` (the 1.6.0 default) or
+   `location,source,target` (legacy, opt-in via `--legacy-offset`)
 2. At least one data row
 
 #### `EncodingError: Failed to encode string to Shift-JIS`

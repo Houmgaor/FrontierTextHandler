@@ -260,7 +260,7 @@ class TestExportAsCsv(unittest.TestCase):
     """Tests for export_as_csv function."""
 
     def test_export_basic(self):
-        """Test basic CSV export."""
+        """Default CSV export uses the 1.6.0 index-keyed header."""
         data = [
             {"offset": 0x100, "text": "Hello"},
             {"offset": 0x200, "text": "World"},
@@ -271,7 +271,28 @@ class TestExportAsCsv(unittest.TestCase):
             lines = export_as_csv(data, f.name, "test.bin")
             self.assertEqual(lines, 2)
 
-            # Verify content
+            with open(f.name, "r", encoding="utf-8") as csvfile:
+                reader = csv.reader(csvfile)
+                header = next(reader)
+                self.assertEqual(header, ["index", "source", "target"])
+                row1 = next(reader)
+                self.assertEqual(row1[0], "0")
+                self.assertEqual(row1[1], "Hello")
+        finally:
+            os.unlink(f.name)
+
+    def test_export_basic_legacy_offset(self):
+        """``with_index=False`` still emits the pre-1.6.0 offset header."""
+        data = [
+            {"offset": 0x100, "text": "Hello"},
+            {"offset": 0x200, "text": "World"},
+        ]
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.name
+        try:
+            lines = export_as_csv(data, f.name, "test.bin", with_index=False)
+            self.assertEqual(lines, 2)
+
             with open(f.name, "r", encoding="utf-8") as csvfile:
                 reader = csv.reader(csvfile)
                 header = next(reader)
@@ -2967,7 +2988,7 @@ class TestJsonExportImport(unittest.TestCase):
         ]
 
     def test_export_as_json(self):
-        """Test that export_as_json produces valid JSON with correct structure."""
+        """Default JSON export uses the 1.6.0 index-keyed shape."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
@@ -2980,23 +3001,45 @@ class TestJsonExportImport(unittest.TestCase):
             with open(json_path, "r", encoding="utf-8") as f:
                 result = json.load(f)
 
-            # Check metadata
             self.assertIn("metadata", result)
             self.assertEqual(result["metadata"]["source_file"], "mhfdat.bin")
             self.assertIn("version", result["metadata"])
 
-            # Check strings
             self.assertIn("strings", result)
             self.assertEqual(len(result["strings"]), 3)
 
             entry = result["strings"][0]
-            self.assertEqual(entry["location"], "0x64@mhfdat.bin")
+            self.assertEqual(entry["index"], 0)
             self.assertEqual(entry["source"], "テスト")
             self.assertEqual(entry["target"], "テスト")
+            self.assertNotIn("location", entry)
 
             entry2 = result["strings"][1]
-            self.assertEqual(entry2["location"], "0x68@mhfdat.bin")
+            self.assertEqual(entry2["index"], 1)
             self.assertEqual(entry2["source"], "Hello")
+        finally:
+            os.unlink(json_path)
+
+    def test_export_as_json_legacy_offset(self):
+        """``with_index=False`` still writes the legacy ``location`` entries."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json_path = f.name
+
+        try:
+            count = export_as_json(
+                self.test_data, json_path, "mhfdat.bin", with_index=False,
+            )
+            self.assertEqual(count, 3)
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                result = json.load(f)
+
+            entry = result["strings"][0]
+            self.assertEqual(entry["location"], "0x64@mhfdat.bin")
+            self.assertEqual(entry["source"], "テスト")
+            self.assertNotIn("index", entry)
         finally:
             os.unlink(json_path)
 
@@ -3027,15 +3070,20 @@ class TestJsonExportImport(unittest.TestCase):
             os.unlink(json_path)
 
     def test_json_round_trip(self):
-        """Test export then import round-trip preserves data."""
+        """Legacy-form JSON round-trip still works via the explicit
+        ``with_index=False`` opt-out and ``get_new_strings_from_json``
+        (which only understands ``location``-keyed entries)."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
             json_path = f.name
 
         try:
-            # Export
-            export_as_json(self.test_data, json_path, "mhfdat.bin")
+            # Export in legacy offset-keyed form so the legacy JSON
+            # parser used below finds its ``location`` keys.
+            export_as_json(
+                self.test_data, json_path, "mhfdat.bin", with_index=False,
+            )
 
             # Modify one target to simulate translation
             with open(json_path, "r", encoding="utf-8") as f:
@@ -3044,7 +3092,7 @@ class TestJsonExportImport(unittest.TestCase):
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False)
 
-            # Import
+            # Import via the legacy ``location``-keyed parser.
             result = get_new_strings_from_json(json_path)
             self.assertEqual(len(result), 1)
             self.assertEqual(result[0], (0x64, "Translated"))

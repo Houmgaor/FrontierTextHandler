@@ -246,13 +246,15 @@ class TestNpcDialogueCsvExport(unittest.TestCase):
             self.assertTrue(os.path.exists(csv_path))
             self.assertIn("npc-stage_dialogue", csv_path)
 
-            # Verify CSV content
+            # Verify CSV content (1.6.0 default: index-keyed)
             with open(csv_path, "r", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 header = next(reader)
-                self.assertEqual(header, ["location", "source", "target"])
+                self.assertEqual(header, ["index", "source", "target"])
                 rows = list(reader)
                 self.assertEqual(len(rows), 2)
+                self.assertEqual(rows[0][0], "0")
+                self.assertEqual(rows[1][0], "1")
 
     def test_batch_export(self):
         """Test batch extraction from directory."""

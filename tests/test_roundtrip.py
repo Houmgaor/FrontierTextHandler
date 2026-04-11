@@ -617,17 +617,20 @@ class TestJsonRoundTrip(unittest.TestCase):
         return bytes(data), config
 
     def test_json_roundtrip(self):
-        """Extract → JSON → import with translations → re-extract."""
+        """Legacy-form JSON round-trip via the ``with_index=False``
+        opt-out. Kept for backward compatibility of the offset-keyed
+        JSON parser ``get_new_strings_from_json``."""
         original_strings = ["Item A", "Item B"]
         data, config = self._build_binary(original_strings)
 
         results = extract_text_data_from_bytes(data, config)
 
-        # Export as JSON
+        # Export as legacy offset-keyed JSON so the legacy parser
+        # finds ``location`` keys below.
         fd, json_path = tempfile.mkstemp(suffix=".json")
         os.close(fd)
         self.addCleanup(os.unlink, json_path)
-        export_as_json(results, json_path, "test.bin")
+        export_as_json(results, json_path, "test.bin", with_index=False)
 
         # Modify JSON to add translations
         import json
@@ -638,7 +641,7 @@ class TestJsonRoundTrip(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(json_data, f)
 
-        # Import
+        # Import via the legacy ``location``-keyed parser.
         new_strings = get_new_strings_from_json(json_path)
         self.assertEqual(len(new_strings), 2)
 

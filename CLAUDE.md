@@ -90,18 +90,7 @@ Note: These are pointers-to-pointers. The file stores addresses that point to th
 
 ## CSV Format
 
-**Legacy (default), offset-keyed:**
-
-```csv
-location,source,target
-0x64@mhfdat.bin,Original Japanese,New Translation
-```
-
-- `location`: Pointer offset in hex @ filename
-- `source`: Original string (for reference)
-- `target`: New string (only imported if different from source)
-
-**New (opt-in via `--with-index`), index-keyed:**
+**Default (1.6.0+), index-keyed:**
 
 ```csv
 index,source,target
@@ -109,19 +98,47 @@ index,source,target
 ```
 
 - `index`: Stable slot number in the section's pointer table. Survives
-  string-length changes that would shift raw offsets.
-- `source` / `target`: same as legacy.
-- No `location` column. The source binary and xpath are recoverable from
-  the CSV filename / `--xpath` at import time. JSON output records them
-  in the `metadata` block (`source_file`, `xpath`).
+  string-length changes that would shift raw offsets, so re-extractions
+  and merges stay meaningful.
+- `source` / `target`: Original and translated strings. A row is only
+  imported if `target` differs from `source`.
+- No `location` column. The source binary and xpath are recoverable
+  from the JSON `metadata` block (`source_file`, `xpath`,
+  `fingerprint`) or the CSV filename (`dat-armors-head.csv` →
+  `dat/armors/head`), so `--xpath` only needs to be passed explicitly
+  when the filename can't carry the mapping.
 
-The importer auto-detects which format a CSV/JSON uses. For index-keyed
-imports, the section xpath is inferred from the JSON `metadata.xpath` field
-or from the CSV/JSON filename (e.g. `dat-armors-head.csv` → `dat/armors/head`),
-so `--xpath` only needs to be passed explicitly to override the inference.
-Index-keying is the intended long-term default; the legacy format will remain
-supported for backward compatibility. The ReFrontier-compatible TSV format
-(`export_for_refrontier`) is unchanged and stays offset-keyed.
+**Legacy (opt-in via `--legacy-offset`), offset-keyed:**
+
+```csv
+location,source,target
+0x64@mhfdat.bin,Original Japanese,New Translation
+```
+
+- `location`: Pointer offset in hex `@ filename`.
+- Same semantics as the default for `source` / `target`. Use this
+  format only when you need to interoperate with tooling that hasn't
+  yet adopted the index form.
+
+The importer auto-detects which format a CSV/JSON uses, so a mix of
+legacy and index-keyed translations can coexist in a single project.
+The ReFrontier-compatible TSV format (`export_for_refrontier`) and
+`refrontier_to_csv` stay offset-keyed regardless — they operate on
+pre-existing ReFrontier offsets that have no section context to
+index against.
+
+**Scope of the default flip.** Every extraction entry point emits the
+new format by default: `--extract-all`, `--xpath=…`, `--quest`,
+`--scenario`, `--npc`, `--ftxt`, and the matching `--quest-dir`,
+`--scenario-dir`, `--npc-dir` batch modes. The standalone file
+importers (`import_ftxt_from_csv`, `import_npc_dialogue_from_csv`,
+`import_scenario_from_csv`, and the quest-file path through
+`import_from_csv`) resolve index-keyed translations by re-extracting
+the source binary and aligning positionally against live entries —
+round-trips work in both formats.
+
+The `--with-index` flag from 1.5.0 is still accepted as a silent
+no-op alias so existing scripts keep working.
 
 ### Inline escapes
 

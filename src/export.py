@@ -36,7 +36,7 @@ def export_as_csv(
     data: Iterable[dict[str, int | str]],
     output_file: str,
     location_name: str = "",
-    with_index: bool = False,
+    with_index: bool = True,
 ) -> int:
     """
     Export data in a CSV file with standard compatibility format.
@@ -44,11 +44,14 @@ def export_as_csv(
     :param data: Extracted strings, format is usually {"offset": offset, "text": string}
     :param output_file: Output file path
     :param location_name: File in which to find the source
-    :param with_index: If True, write the new index-keyed format
-        ``index,source,target`` — three columns, no offset/filename. The
-        index is the slot in the section's pointer table and is stable
-        across upstream string-length changes. If False, write the legacy
-        ``location,source,target`` format for backward compatibility.
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed format ``index,source,target`` — three columns, no
+        offset/filename. The index is the slot in the section's
+        pointer table and is stable across upstream string-length
+        changes that would shift raw offsets. If False, write the
+        legacy ``location,source,target`` format for backward
+        compatibility (the pre-1.6.0 default, still selectable via
+        ``--legacy-offset`` on the CLI).
     :return: Number of lines written
     """
     lines = 0
@@ -107,7 +110,7 @@ def export_as_json(
     data: Iterable[dict[str, int | str]],
     output_file: str,
     location_name: str = "",
-    with_index: bool = False,
+    with_index: bool = True,
     xpath: str = "",
     fingerprint: str = "",
 ) -> int:
@@ -117,10 +120,12 @@ def export_as_json(
     :param data: Extracted strings, format is usually {"offset": offset, "text": string}
     :param output_file: Output file path
     :param location_name: File in which to find the source
-    :param with_index: If True, write the new index-keyed format. Entries
-        are ``{index, source, target}`` and the source binary / xpath live
-        in ``metadata`` instead of being repeated per-row. If False, write
-        the legacy ``{location, source, target}`` entries.
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed format. Entries are ``{index, source, target}``
+        and the source binary / xpath live in ``metadata`` instead of
+        being repeated per-row. If False, write the legacy
+        ``{location, source, target}`` entries for backward
+        compatibility.
     :param xpath: Section xpath to record in metadata (index-keyed mode only).
     :param fingerprint: Optional binary fingerprint to record in metadata
         (index-keyed mode only). Used by the importer to detect when a
@@ -172,7 +177,8 @@ def export_as_json(
 def extract_ftxt_file(
     input_file: str,
     output_file: str = "",
-    output_dir: str = "output"
+    output_dir: str = "output",
+    with_index: bool = True,
 ) -> tuple[str, str, str]:
     """
     Extract text from an FTXT standalone text file.
@@ -180,6 +186,9 @@ def extract_ftxt_file(
     :param input_file: Path to the FTXT file
     :param output_file: Output file path (auto-generated if empty)
     :param output_dir: Directory for output files
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format for backward compatibility.
     :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = common.extract_ftxt(input_file)
@@ -198,9 +207,15 @@ def extract_ftxt_file(
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
-    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_as_csv(
+        file_section, output_file, os.path.basename(input_file),
+        with_index=with_index,
+    )
     export_for_refrontier(file_section, refrontier_path)
-    export_as_json(file_section, json_path, os.path.basename(input_file))
+    export_as_json(
+        file_section, json_path, os.path.basename(input_file),
+        with_index=with_index,
+    )
 
     return output_file, refrontier_path, json_path
 
@@ -212,6 +227,7 @@ def _batch_extract(
     prefix: str,
     extract_fn,
     export_json: bool = False,
+    with_index: bool = True,
 ) -> list[str]:
     """
     Shared batch extraction helper.
@@ -225,6 +241,9 @@ def _batch_extract(
     :param prefix: Filename prefix for output CSV (e.g., "quest")
     :param extract_fn: Callable(filepath) → list[dict] of extracted entries
     :param export_json: If True, also export a JSON file per input file
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format.
     :return: List of generated CSV file paths
     """
     if not os.path.isdir(input_dir):
@@ -251,10 +270,15 @@ def _batch_extract(
 
             basename = os.path.splitext(filename)[0]
             csv_path = os.path.join(output_dir, f"{prefix}-{basename}.csv")
-            export_as_csv(file_section, csv_path, filename)
+            export_as_csv(
+                file_section, csv_path, filename, with_index=with_index,
+            )
             if export_json:
                 json_path = os.path.join(output_dir, f"{prefix}-{basename}.json")
-                export_as_json(file_section, json_path, filename)
+                export_as_json(
+                    file_section, json_path, filename,
+                    with_index=with_index,
+                )
             generated.append(csv_path)
             logger.info("Extracted %s '%s' to '%s'", label, filename, csv_path)
         except (ValueError, common.EncodingError) as exc:
@@ -273,7 +297,8 @@ def extract_quest_files(
     output_dir: str = "output",
     quest_type_flags_offset: int = 0x00,
     quest_strings_offset: int = 0xE8,
-    text_pointers_count: int = 8
+    text_pointers_count: int = 8,
+    with_index: bool = True,
 ) -> list[str]:
     """
     Batch extract text from all quest .bin files in a directory.
@@ -283,6 +308,9 @@ def extract_quest_files(
     :param quest_type_flags_offset: Offset of questTypeFlagsPtr in quest header
     :param quest_strings_offset: Offset of QuestStringsPtr in main quest props
     :param text_pointers_count: Number of string pointers per quest (default 8)
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format for backward compatibility.
     :return: List of generated CSV file paths
     """
     def _extract(filepath):
@@ -291,7 +319,10 @@ def extract_quest_files(
             quest_strings_offset, text_pointers_count
         )
 
-    return _batch_extract(quest_dir, output_dir, "quest", "quest", _extract)
+    return _batch_extract(
+        quest_dir, output_dir, "quest", "quest", _extract,
+        with_index=with_index,
+    )
 
 
 def extract_single_quest_file(
@@ -300,7 +331,8 @@ def extract_single_quest_file(
     output_dir: str = "output",
     quest_type_flags_offset: int = 0x00,
     quest_strings_offset: int = 0xE8,
-    text_pointers_count: int = 8
+    text_pointers_count: int = 8,
+    with_index: bool = True,
 ) -> tuple[str, str, str]:
     """
     Extract text from a single quest .bin file.
@@ -311,6 +343,9 @@ def extract_single_quest_file(
     :param quest_type_flags_offset: Offset of questTypeFlagsPtr in quest header
     :param quest_strings_offset: Offset of QuestStringsPtr in main quest props
     :param text_pointers_count: Number of string pointers per quest (default 8)
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format for backward compatibility.
     :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = common.extract_quest_file(
@@ -331,9 +366,15 @@ def extract_single_quest_file(
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
-    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_as_csv(
+        file_section, output_file, os.path.basename(input_file),
+        with_index=with_index,
+    )
     export_for_refrontier(file_section, refrontier_path)
-    export_as_json(file_section, json_path, os.path.basename(input_file))
+    export_as_json(
+        file_section, json_path, os.path.basename(input_file),
+        with_index=with_index,
+    )
 
     return output_file, refrontier_path, json_path
 
@@ -341,7 +382,8 @@ def extract_single_quest_file(
 def extract_npc_dialogue_file(
     input_file: str,
     output_file: str = "",
-    output_dir: str = "output"
+    output_dir: str = "output",
+    with_index: bool = True,
 ) -> tuple[str, str, str]:
     """
     Extract NPC dialogue text from a stage dialogue binary file.
@@ -349,6 +391,12 @@ def extract_npc_dialogue_file(
     :param input_file: Path to the dialogue file
     :param output_file: Output file path (auto-generated if empty)
     :param output_dir: Directory for output files
+    :param with_index: If True, write the 1.6.0 index-keyed CSV/JSON
+        format. Defaults to False for standalone file formats because
+        the matching import path doesn't yet resolve index keys;
+        passing True works but the resulting file can't be round-
+        tripped through ``import_from_csv`` without also teaching the
+        importer about the file's layout.
     :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = common.extract_npc_dialogue(input_file)
@@ -367,34 +415,46 @@ def extract_npc_dialogue_file(
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
-    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_as_csv(
+        file_section, output_file, os.path.basename(input_file),
+        with_index=with_index,
+    )
     export_for_refrontier(file_section, refrontier_path)
-    export_as_json(file_section, json_path, os.path.basename(input_file))
+    export_as_json(
+        file_section, json_path, os.path.basename(input_file),
+        with_index=with_index,
+    )
 
     return output_file, refrontier_path, json_path
 
 
 def extract_npc_dialogue_files(
     npc_dir: str,
-    output_dir: str = "output"
+    output_dir: str = "output",
+    with_index: bool = True,
 ) -> list[str]:
     """
     Batch extract NPC dialogue from all .bin files in a directory.
 
     :param npc_dir: Directory containing stage dialogue .bin files
     :param output_dir: Directory for output files
+    :param with_index: If True (the default), write the 1.6.0
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format.
     :return: List of generated CSV file paths
     """
     return _batch_extract(
         npc_dir, output_dir, "NPC dialogue", "npc",
         common.extract_npc_dialogue,
+        with_index=with_index,
     )
 
 
 def extract_scenario_file(
     input_file: str,
     output_file: str = "",
-    output_dir: str = "output"
+    output_dir: str = "output",
+    with_index: bool = True,
 ) -> tuple[str, str, str]:
     """
     Extract text from a single scenario .bin file.
@@ -402,6 +462,12 @@ def extract_scenario_file(
     :param input_file: Path to the scenario file
     :param output_file: Output file path (auto-generated if empty)
     :param output_dir: Directory for output files
+    :param with_index: If True, write the 1.6.0 index-keyed CSV/JSON
+        format. Defaults to False for standalone file formats because
+        the matching import path doesn't yet resolve index keys;
+        passing True works but the resulting file can't be round-
+        tripped through ``import_from_csv`` without also teaching the
+        importer about the file's layout.
     :return: Tuple of (csv_path, refrontier_path, json_path)
     """
     file_section = _extract_scenario(input_file)
@@ -420,27 +486,38 @@ def extract_scenario_file(
     refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
-    export_as_csv(file_section, output_file, os.path.basename(input_file))
+    export_as_csv(
+        file_section, output_file, os.path.basename(input_file),
+        with_index=with_index,
+    )
     export_for_refrontier(file_section, refrontier_path)
-    export_as_json(file_section, json_path, os.path.basename(input_file))
+    export_as_json(
+        file_section, json_path, os.path.basename(input_file),
+        with_index=with_index,
+    )
 
     return output_file, refrontier_path, json_path
 
 
 def extract_scenario_files(
     scenario_dir: str,
-    output_dir: str = "output"
+    output_dir: str = "output",
+    with_index: bool = True,
 ) -> list[str]:
     """
     Batch extract text from all scenario .bin files in a directory.
 
     :param scenario_dir: Directory containing scenario .bin files
     :param output_dir: Directory for output files
+    :param with_index: If True (the default), write the 1.6.0
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format.
     :return: List of generated CSV file paths
     """
     return _batch_extract(
         scenario_dir, output_dir, "scenario", "scenario",
         _extract_scenario, export_json=True,
+        with_index=with_index,
     )
 
 
@@ -466,7 +543,7 @@ def extract_from_file(
     output_file: str,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
-    with_index: bool = False,
+    with_index: bool = True,
 ) -> tuple[str, str, str]:
     """
     Extract data from a single file.
@@ -476,6 +553,9 @@ def extract_from_file(
     :param output_file: Output file path (used as fallback if xpath not provided)
     :param output_dir: Directory for output files
     :param headers_path: Path to headers.json configuration file
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format for backward compatibility.
     :return: Tuple of (csv_path, refrontier_path, json_path) for the exported files
     """
     # Read data using config-based extraction (supports all formats).
@@ -522,7 +602,7 @@ def extract_all(
     input_files: dict[str, str] = None,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
-    with_index: bool = False,
+    with_index: bool = True,
 ) -> list[str]:
     """
     Extract all sections defined in headers.json.
@@ -531,6 +611,9 @@ def extract_all(
         If None, uses FILE_TYPE_DEFAULTS.
     :param output_dir: Directory for output files
     :param headers_path: Path to headers.json configuration file
+    :param with_index: If True (the default since 1.6.0), write the
+        index-keyed CSV/JSON format. False selects the legacy
+        offset-keyed format for backward compatibility.
     :return: List of generated CSV file paths
     """
     if input_files is None:

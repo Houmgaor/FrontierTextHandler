@@ -337,6 +337,89 @@ def resolve_offsets_with_groups(
     return expanded
 
 
+def resolve_indexes_against_entries(
+    indexed: list[tuple[int, str]],
+    live_entries: list[dict],
+    *,
+    context: str = "section",
+    expand_groups: bool = True,
+) -> list[tuple[int, str]]:
+    """
+    Resolve ``(index, text)`` pairs to ``(offset, text)`` via positional
+    alignment against a pre-extracted list of live entries.
+
+    This is the format-agnostic core used by both the config-driven
+    path (:func:`resolve_indexes_to_offsets`) and the standalone-file
+    paths (FTXT, NPC dialogue, scenario, quest). Every extractor in
+    the project returns entries in the same ``{"offset": int,
+    "text": str}`` shape, so the alignment logic is identical.
+
+    Two output modes are supported:
+
+    - ``expand_groups=True`` (default): grouped entries are fanned out
+      into one ``(live_ptr_offset, sub_text)`` pair per sub-string.
+      The caller sees fully-expanded pointers and doesn't have to
+      re-parse join markers. Used by ``rebuild_section`` and
+      ``append_to_binary`` callers (where each pair is a standalone
+      pointer update).
+    - ``expand_groups=False``: grouped entries stay as a single
+      ``(entry_offset, joined_text)`` pair with ``{j}`` markers
+      between sub-strings. Used by ``rebuild_ftxt``,
+      ``rebuild_npc_dialogue``, and ``rebuild_scenario_file``, which
+      key their internal translation map by entry-level offset and
+      split the joined text themselves.
+
+    In both modes, a grouped entry whose sub-string count does not
+    match the live entry raises a ``ValueError`` — this is the
+    primary integrity check for index-keyed imports.
+
+    :param indexed: List of ``(index, text)`` tuples
+    :param live_entries: Pre-extracted entries, typically the output
+        of the same extractor that produced the CSV/JSON in the first
+        place (``extract_text_data_from_bytes``, ``extract_ftxt_data``,
+        ``extract_npc_dialogue_data``, ``extract_scenario_file_data``,
+        or ``extract_quest_file_data``).
+    :param context: Short label for error messages (e.g. ``"FTXT"``,
+        ``"NPC dialogue"``, ``"scenario"``, ``"quest file"``).
+    :param expand_groups: If True (default), expand grouped entries
+        into per-sub ``(ptr_offset, sub_text)`` pairs. If False,
+        return one ``(entry_offset, joined_text)`` pair per grouped
+        entry with the canonical ``{j}`` marker between sub-strings.
+    :return: List of ``(offset, text)`` tuples
+    :raises ValueError: If any index is out of range, or if a grouped
+        entry's sub-string count does not match the live entry.
+    """
+    resolved: list[tuple[int, str]] = []
+    for index, text in indexed:
+        if index < 0 or index >= len(live_entries):
+            raise ValueError(
+                f"Translation index {index} is out of range for {context} "
+                f"with {len(live_entries)} entries. The source file may "
+                f"have changed; re-extract and merge translations to "
+                f"update the file."
+            )
+        live_entry = live_entries[index]
+        live_text = str(live_entry["text"])
+        live_offset = int(live_entry["offset"])
+        if _has_join_marker(text) or _has_join_marker(live_text):
+            live_pairs = parse_joined_text(live_offset, live_text)
+            sub_texts = split_group_text(text)
+            if len(sub_texts) != len(live_pairs):
+                raise ValueError(
+                    f"Translation index {index}: grouped entry has "
+                    f"{len(sub_texts)} sub-strings but the live {context} "
+                    f"has {len(live_pairs)}. Re-extract and merge."
+                )
+            if expand_groups:
+                for (live_off, _), sub in zip(live_pairs, sub_texts):
+                    resolved.append((live_off, sub))
+            else:
+                resolved.append((live_offset, JOIN_MARKER.join(sub_texts)))
+        else:
+            resolved.append((live_offset, text))
+    return resolved
+
+
 def resolve_indexes_to_offsets(
     indexed: list[tuple[int, str]],
     file_data: bytes,
@@ -344,7 +427,15 @@ def resolve_indexes_to_offsets(
 ) -> list[tuple[int, str]]:
     """
     Resolve ``(index, text)`` pairs to ``(offset, text)`` by re-extracting
-    the live section's pointer table.
+    the live section's pointer table via a headers.json config.
+
+    Thin wrapper around :func:`resolve_indexes_against_entries` that
+    also handles the extraction step. Used by the xpath-driven
+    ``import_from_csv`` / ``apply_translations_from_release_json``
+    paths where the section's layout is described in ``headers.json``.
+    Standalone file imports (FTXT, NPC dialogue, scenario, quest)
+    call ``resolve_indexes_against_entries`` directly with entries
+    produced by their format-specific extractors.
 
     :param indexed: List of ``(index, text)`` tuples
     :param file_data: Decrypted/decompressed binary data
@@ -355,41 +446,7 @@ def resolve_indexes_to_offsets(
     from .common import extract_text_data_from_bytes
 
     entries = extract_text_data_from_bytes(file_data, config)
-    resolved: list[tuple[int, str]] = []
-    for index, text in indexed:
-        if index < 0 or index >= len(entries):
-            raise ValueError(
-                f"Translation index {index} is out of range for section "
-                f"with {len(entries)} entries. The section may have shrunk; "
-                f"re-extract and merge translations to update the file."
-            )
-        live_entry = entries[index]
-        # Grouped entries are serialized with a ``{j}`` marker (1.6.0+)
-        # CSV/JSON output, or the legacy ``<join at="N">`` form in
-        # older translation files. Either way the per-sub ptr offsets
-        # in the translation input are discarded — we realign the
-        # sub-strings positionally against the freshly-extracted live
-        # entry, then emit one (live_off, sub_text) pair per sub so
-        # every downstream caller (``rebuild_section``,
-        # ``append_to_binary``) sees fully-expanded pointers without
-        # having to re-parse join markers.
-        live_text = str(live_entry["text"])
-        if _has_join_marker(text) or _has_join_marker(live_text):
-            live_pairs = parse_joined_text(
-                int(live_entry["offset"]), live_text
-            )
-            sub_texts = split_group_text(text)
-            if len(sub_texts) != len(live_pairs):
-                raise ValueError(
-                    f"Translation index {index}: grouped entry has "
-                    f"{len(sub_texts)} sub-strings but the live section "
-                    f"has {len(live_pairs)}. Re-extract and merge."
-                )
-            for (live_off, _), sub in zip(live_pairs, sub_texts):
-                resolved.append((live_off, sub))
-        else:
-            resolved.append((int(live_entry["offset"]), text))
-    return resolved
+    return resolve_indexes_against_entries(indexed, entries, context="section")
 
 
 def get_new_strings_auto(input_file: str) -> list[tuple[int, str]]:
@@ -991,17 +1048,38 @@ def import_from_csv(
             )
 
     fmt = detect_translation_format(input_file)
+    # When a translation file is index-keyed we need to know the section's
+    # layout to resolve slot→offset. Prefer an explicit --xpath, fall back
+    # to the filename/metadata-based inference, and if that still fails
+    # peek at the source binary: standalone quest files don't live in
+    # headers.json but have their own extractor, so we detect them here
+    # and handle their indexed imports via the quest-file branch of the
+    # legacy-append path further down.
+    indexed_standalone_quest = False
     if fmt == "index":
         if xpath is None:
             inferred = infer_xpath(input_file, headers_path)
             if inferred is None:
-                raise ValueError(
-                    f"'{input_file}' uses index-based locations and no "
-                    "xpath could be inferred from its metadata or filename. "
-                    "Pass --xpath=<section> explicitly."
-                )
-            xpath = inferred
-            logger.info("Inferred xpath '%s' from %s", xpath, input_file)
+                # Last resort: is the source a standalone quest file?
+                try:
+                    with open(output_file, "rb") as _fh:
+                        _probe = _fh.read()
+                    _probe_data = _probe
+                    if is_encrypted_file(_probe_data):
+                        _probe_data, _ = decrypt(_probe_data)
+                    if is_jkr_file(_probe_data):
+                        _probe_data = decompress_jkr(_probe_data)
+                    common.extract_quest_file_data(_probe_data)
+                    indexed_standalone_quest = True
+                except (ValueError, common.EncodingError, OSError):
+                    raise ValueError(
+                        f"'{input_file}' uses index-based locations and no "
+                        "xpath could be inferred from its metadata or filename. "
+                        "Pass --xpath=<section> explicitly."
+                    )
+            else:
+                xpath = inferred
+                logger.info("Inferred xpath '%s' from %s", xpath, input_file)
         indexed_strings = get_new_strings_indexed(input_file)
         logger.info(
             "Found %d translations to write (index-based)", len(indexed_strings)
@@ -1069,6 +1147,16 @@ def import_from_csv(
         logger.warning(
             "Source file was compressed but --compress was not specified. "
             "Output will NOT be game-ready. Add --compress to produce a usable file."
+        )
+
+    if indexed_standalone_quest:
+        # Standalone quest file with an indexed CSV/JSON: resolve the
+        # slot numbers against a fresh quest extraction and fall
+        # through to the legacy append path, which already knows how
+        # to update grouped quest pointers.
+        quest_entries = common.extract_quest_file_data(file_data)
+        new_strings = resolve_indexes_against_entries(
+            indexed_strings, quest_entries, context="quest file",
         )
 
     if xpath is not None:
@@ -1210,6 +1298,55 @@ def import_from_csv(
     return output_path
 
 
+def _read_standalone_translations(
+    input_file: str,
+    live_entries_fn,
+    context: str,
+) -> list[tuple[int, str]]:
+    """
+    Read translations for a standalone-format file (FTXT, NPC dialogue,
+    scenario, quest) and return resolved ``(offset, text)`` pairs.
+
+    Auto-detects the CSV/JSON format (``index`` vs legacy ``location``)
+    and dispatches accordingly:
+
+    - **Index-keyed** (1.6.0 default): load the (index, text) pairs via
+      :func:`get_new_strings_indexed`, then resolve them against the
+      entries returned by *live_entries_fn()* using
+      :func:`resolve_indexes_against_entries`. This gives
+      format-specific standalone imports the same positional-alignment
+      behaviour that headers.json-backed sections get through
+      :func:`resolve_indexes_to_offsets`.
+    - **Legacy offset-keyed**: load via :func:`get_new_strings_auto`.
+      The entries already carry live ptr offsets; no re-extraction
+      needed.
+
+    :param input_file: Path to the translation CSV/JSON.
+    :param live_entries_fn: Zero-arg callable that re-extracts the
+        source binary and returns ``list[dict]`` of live entries
+        (each with ``offset`` / ``text``). Called at most once, and
+        only when the translation file is index-keyed.
+    :param context: Short label for error messages (e.g. ``"FTXT"``).
+    :return: Resolved ``(offset, text)`` pairs ready to hand to the
+        format's ``rebuild_*`` function.
+    """
+    fmt = detect_translation_format(input_file)
+    if fmt == "index":
+        indexed = get_new_strings_indexed(input_file)
+        if not indexed:
+            return []
+        # Keep grouped entries joined: the standalone rebuild_*
+        # functions key their translation map by entry-level offset
+        # and call split_join_text on the text themselves, so a
+        # single ``(entry_offset, "a{j}b{j}c")`` pair is exactly the
+        # shape they expect.
+        return resolve_indexes_against_entries(
+            indexed, live_entries_fn(),
+            context=context, expand_groups=False,
+        )
+    return get_new_strings_auto(input_file)
+
+
 def import_ftxt_from_csv(
     input_file: str,
     output_file: str,
@@ -1224,6 +1361,10 @@ def import_ftxt_from_csv(
     FTXT strings are sequential (not pointer-based), so the text block
     is rebuilt entirely rather than using the append strategy.
 
+    Accepts both index-keyed (1.6.0 default) and legacy offset-keyed
+    CSV/JSON. Index-keyed files are resolved against a fresh
+    re-extraction of *output_file* via :func:`_read_standalone_translations`.
+
     :param input_file: Path to CSV file with translations
     :param output_file: Path to source FTXT binary file
     :param output_path: Path for the modified file. If None, auto-generated.
@@ -1232,7 +1373,14 @@ def import_ftxt_from_csv(
     :param key_index: ECD key index (0-5, default 4)
     :return: Path to the modified file, or None if no changes
     """
-    new_strings = get_new_strings_auto(input_file)
+    from .common import load_file_data, extract_ftxt_data
+
+    def _live_entries():
+        return extract_ftxt_data(load_file_data(output_file))
+
+    new_strings = _read_standalone_translations(
+        input_file, _live_entries, context="FTXT",
+    )
     logger.info("Found %d translations to write", len(new_strings))
 
     if not new_strings:
@@ -1480,6 +1628,10 @@ def import_scenario_from_csv(
     """
     Import translations from CSV into a scenario file.
 
+    Accepts both index-keyed (1.6.0 default) and legacy offset-keyed
+    CSV/JSON. Index-keyed files are resolved against a fresh
+    re-extraction of *output_file* via :func:`_read_standalone_translations`.
+
     :param input_file: Path to CSV file with translations
     :param output_file: Path to source scenario binary file
     :param output_path: Path for the modified file. If None, auto-generated.
@@ -1488,7 +1640,14 @@ def import_scenario_from_csv(
     :param key_index: ECD key index (0-5, default 4)
     :return: Path to the modified file, or None if no changes
     """
-    new_strings = get_new_strings_auto(input_file)
+    from .scenario import extract_scenario_file
+
+    def _live_entries():
+        return extract_scenario_file(output_file)
+
+    new_strings = _read_standalone_translations(
+        input_file, _live_entries, context="scenario",
+    )
     logger.info("Found %d scenario translations to write", len(new_strings))
 
     if not new_strings:
@@ -1541,6 +1700,10 @@ def import_npc_dialogue_from_csv(
     NPC dialogue uses internal relative pointers, so the binary is
     fully rebuilt rather than using the append strategy.
 
+    Accepts both index-keyed (1.6.0 default) and legacy offset-keyed
+    CSV/JSON. Index-keyed files are resolved against a fresh
+    re-extraction of *output_file* via :func:`_read_standalone_translations`.
+
     :param input_file: Path to CSV file with translations
     :param output_file: Path to source NPC dialogue binary file
     :param output_path: Path for the modified file. If None, auto-generated.
@@ -1549,7 +1712,14 @@ def import_npc_dialogue_from_csv(
     :param key_index: ECD key index (0-5, default 4)
     :return: Path to the modified file, or None if no changes
     """
-    new_strings = get_new_strings_auto(input_file)
+    from .common import load_file_data, extract_npc_dialogue_data
+
+    def _live_entries():
+        return extract_npc_dialogue_data(load_file_data(output_file))
+
+    new_strings = _read_standalone_translations(
+        input_file, _live_entries, context="NPC dialogue",
+    )
     logger.info("Found %d NPC dialogue translations to write", len(new_strings))
 
     if not new_strings:

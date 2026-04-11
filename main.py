@@ -204,15 +204,22 @@ def parse_inputs() -> argparse.ArgumentParser:
         help="Root directory of the game installation (required by --apply-translations).",
     )
     parser.add_argument(
-        "--with-index",
+        "--legacy-offset",
         action="store_true",
         help=(
-            "Include a stable per-section 'index' column in extracted CSV/JSON. "
-            "Index-keyed files survive upstream string-length changes that would "
-            "shift raw offsets. Importing an index-keyed file requires --xpath. "
-            "This is the future default; the legacy offset-only format remains "
-            "supported for backward compatibility."
+            "Emit the legacy offset-keyed CSV/JSON format "
+            "(``location,source,target`` with a ``0xNNN@file.bin`` "
+            "first column) instead of the 1.6.0 default index-keyed "
+            "format (``index,source,target``). Use this only if you "
+            "need to interoperate with tooling that hasn't yet "
+            "adopted the index format; the importer accepts both "
+            "forms either way."
         ),
+    )
+    parser.add_argument(
+        "--with-index",
+        action="store_true",
+        help=argparse.SUPPRESS,  # no-op alias: 1.5.0 opt-in is the default in 1.6.0+
     )
     parser.add_argument(
         "--save-meta",
@@ -347,9 +354,15 @@ def main(args: argparse.Namespace) -> None:
 
         return
 
+    # Index-keyed CSV/JSON is the 1.6.0 default; ``--legacy-offset``
+    # opts back into the pre-1.6.0 ``location,source,target`` shape.
+    # ``--with-index`` is accepted as a silent no-op alias so scripts
+    # written against 1.5.0 keep working.
+    with_index = not args.legacy_offset
+
     if args.extract_all:
         # Batch extraction mode - extract all sections from headers.json
-        files = src.extract_all(with_index=args.with_index)
+        files = src.extract_all(with_index=with_index)
         if files:
             print(f"Extracted {len(files)} files to output/")
         else:
@@ -359,7 +372,7 @@ def main(args: argparse.Namespace) -> None:
     if args.quest_dir:
         # Batch quest extraction mode
         from src.export import extract_quest_files
-        files = extract_quest_files(args.quest_dir)
+        files = extract_quest_files(args.quest_dir, with_index=with_index)
         if files:
             print(f"Extracted {len(files)} quest files to output/")
         else:
@@ -369,7 +382,7 @@ def main(args: argparse.Namespace) -> None:
     if args.npc_dir:
         # Batch NPC dialogue extraction mode
         from src.export import extract_npc_dialogue_files
-        files = extract_npc_dialogue_files(args.npc_dir)
+        files = extract_npc_dialogue_files(args.npc_dir, with_index=with_index)
         if files:
             print(f"Extracted {len(files)} NPC dialogue files to output/")
         else:
@@ -379,7 +392,7 @@ def main(args: argparse.Namespace) -> None:
     if args.scenario_dir:
         # Batch scenario extraction mode
         from src.export import extract_scenario_files
-        files = extract_scenario_files(args.scenario_dir)
+        files = extract_scenario_files(args.scenario_dir, with_index=with_index)
         if files:
             print(f"Extracted {len(files)} scenario files to output/")
         else:
@@ -403,7 +416,9 @@ def main(args: argparse.Namespace) -> None:
     elif args.scenario:
         # Single scenario extraction mode
         from src.export import extract_scenario_file
-        csv_path, ref_path, json_path = extract_scenario_file(args.input_file)
+        csv_path, ref_path, json_path = extract_scenario_file(
+            args.input_file, with_index=with_index,
+        )
         print(f"Extracted scenario text to {csv_path}")
     elif args.npc_to_bin:
         # NPC dialogue import mode
@@ -417,17 +432,23 @@ def main(args: argparse.Namespace) -> None:
     elif args.npc:
         # Single NPC dialogue extraction mode
         from src.export import extract_npc_dialogue_file
-        csv_path, ref_path, json_path = extract_npc_dialogue_file(args.input_file)
+        csv_path, ref_path, json_path = extract_npc_dialogue_file(
+            args.input_file, with_index=with_index,
+        )
         print(f"Extracted NPC dialogue to {csv_path}")
     elif args.ftxt:
         # FTXT extraction mode
         from src.export import extract_ftxt_file
-        csv_path, ref_path, json_path = extract_ftxt_file(args.input_file)
+        csv_path, ref_path, json_path = extract_ftxt_file(
+            args.input_file, with_index=with_index,
+        )
         print(f"Extracted FTXT to {csv_path}")
     elif args.quest:
         # Single quest file extraction mode
         from src.export import extract_single_quest_file
-        csv_path, ref_path, json_path = extract_single_quest_file(args.input_file)
+        csv_path, ref_path, json_path = extract_single_quest_file(
+            args.input_file, with_index=with_index,
+        )
         print(f"Extracted quest text to {csv_path}")
     elif args.refrontier_to_csv:
         src.refrontier_to_csv(args.input_file, args.output_file)
@@ -465,7 +486,7 @@ def main(args: argparse.Namespace) -> None:
         xpath = args.xpath if args.xpath is not None else "dat/armors/head"
         src.extract_from_file(
             args.input_file, xpath, args.output_file,
-            with_index=args.with_index,
+            with_index=with_index,
         )
 
 

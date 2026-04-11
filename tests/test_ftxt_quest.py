@@ -311,9 +311,11 @@ class TestExtractFtxtFile(unittest.TestCase):
             with open(csv_path, "r", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 header = next(reader)
-                self.assertEqual(header, ["location", "source", "target"])
+                # 1.6.0 default: index-keyed
+                self.assertEqual(header, ["index", "source", "target"])
                 rows = list(reader)
                 self.assertEqual(len(rows), 3)
+                self.assertEqual(rows[0][0], "0")
                 self.assertEqual(rows[0][1], "Item1")
                 self.assertEqual(rows[1][1], "Item2")
                 self.assertEqual(rows[2][1], "Item3")

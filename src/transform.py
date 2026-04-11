@@ -31,9 +31,19 @@ def refrontier_to_csv(input_file: str, output_file: str) -> int:
     """
     Take a file with ReFrontier format, converts it to standard CSV.
 
+    Emits the legacy offset-keyed format (``location,source,target``)
+    because the ReFrontier input already carries raw ptr offsets and
+    the whole point of this conversion is to let ReFrontier-based
+    workflows feed into ``import_from_csv`` without going through a
+    headers.json section. The 1.6.0 index-keyed default does not
+    apply here — there is no section context to index against.
+
     :param input_file: Path to ReFrontier format file
     :param output_file: Path to output CSV file
     :return: Number of lines written
     """
     data = import_from_refrontier(input_file)
-    return export.export_as_csv(data, output_file, os.path.basename(input_file))
+    return export.export_as_csv(
+        data, output_file, os.path.basename(input_file),
+        with_index=False,
+    )

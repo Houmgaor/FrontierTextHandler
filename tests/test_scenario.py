@@ -212,9 +212,12 @@ class TestScenarioCsvExport(unittest.TestCase):
             with open(csv_path, "r", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 header = next(reader)
-                self.assertEqual(header, ["location", "source", "target"])
+                # 1.6.0 default: index-keyed
+                self.assertEqual(header, ["index", "source", "target"])
                 rows = list(reader)
                 self.assertEqual(len(rows), 2)
+                self.assertEqual(rows[0][0], "0")
+                self.assertEqual(rows[1][0], "1")
 
     def test_export_json(self):
         """Test JSON export from a single scenario file."""
