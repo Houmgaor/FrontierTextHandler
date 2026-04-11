@@ -3013,7 +3013,18 @@ class TestJsonExportImport(unittest.TestCase):
 
             self.assertIn("metadata", result)
             self.assertEqual(result["metadata"]["source_file"], "mhfdat.bin")
-            self.assertIn("version", result["metadata"])
+            # Tool version comes from src.__version__ — we only check
+            # it's present and non-empty so future bumps don't need to
+            # touch this test.
+            self.assertTrue(result["metadata"]["version"])
+            # Format version is a separate shape-only field, currently
+            # "1.6". Pinning the value means any accidental rename in
+            # src/__init__.py shows up here first.
+            from src import FORMAT_VERSION
+            self.assertEqual(
+                result["metadata"]["format_version"], FORMAT_VERSION
+            )
+            self.assertEqual(FORMAT_VERSION, "1.6")
 
             self.assertIn("strings", result)
             self.assertEqual(len(result["strings"]), 3)

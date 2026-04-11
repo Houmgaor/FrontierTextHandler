@@ -131,7 +131,7 @@ def export_as_json(
         translation file is being applied to a different binary version.
     :return: Number of entries written
     """
-    from . import __version__
+    from . import __version__, FORMAT_VERSION
 
     strings = []
     if with_index:
@@ -151,9 +151,14 @@ def export_as_json(
                 "target": display,
             })
 
+    # ``version`` is the tool version (bumped on any release); readers
+    # that care about the on-disk shape should look at ``format_version``
+    # instead so a patch-release of the tool doesn't read as a format
+    # change. See ``docs/translation-format.md`` for the shape spec.
     metadata = {
         "source_file": location_name,
         "version": __version__,
+        "format_version": FORMAT_VERSION,
     }
     if with_index and xpath:
         metadata["xpath"] = xpath

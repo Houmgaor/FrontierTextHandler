@@ -22,12 +22,17 @@ index,source,target
   upstream string-length changes that would shift raw offsets, so
   re-extractions and merges stay meaningful.
 - `source` / `target` — original and translated text. A row is only
-  imported if `target` differs from `source`.
+  imported if `target` differs from `source` (see *`source` is a
+  lock, not a document* below).
 - No `location` column; the source binary and xpath live in the JSON
-  `metadata` block (`source_file`, `xpath`, `fingerprint`) or are
-  inferred from the CSV filename (`dat-armors-head.csv` →
-  `dat/armors/head`). `--xpath` only needs to be passed explicitly
-  when the filename can't carry the mapping.
+  `metadata` block (`source_file`, `version`, `format_version`,
+  `xpath`, `fingerprint`) or are inferred from the CSV filename
+  (`dat-armors-head.csv` → `dat/armors/head`). `--xpath` only needs
+  to be passed explicitly when the filename can't carry the
+  mapping. `version` is the tool version that produced the file;
+  `format_version` is the shape version (currently `"1.6"`) so
+  readers can detect on-disk changes without having to map tool
+  versions.
 
 ### Legacy offset-keyed (opt-in via `--legacy-offset`)
 
@@ -110,6 +115,96 @@ The importer accepts the legacy `<join at="N">` tag form as well,
 for translation files written before 1.6.0 (see *Backward
 compatibility* below).
 
+### Placeholders to leave alone — `{K…}` / `{i…}` / `{u…}`
+
+Some strings contain ASCII placeholders that the game substitutes at
+runtime with the current keybind, an icon glyph, or an underlined
+label. They come straight from the original game bytes — the tool
+passes them through unchanged on both extract and import, and
+translators should treat them as opaque markers:
+
+| Placeholder | What the game substitutes |
+|-------------|---------------------------|
+| `{K012}`    | the key currently bound to action `012` |
+| `{i131}`    | the inline icon glyph `131` |
+| `{u4}`      | an underlined-label region of level 4 |
+
+Rules of thumb for translators:
+
+- **Never change the number.** `{K012}` means a specific action;
+  renaming it to `{K013}` picks a different keybind at runtime.
+- **Never translate or delete the placeholder itself.** Deleting a
+  `{K012}` turns "Press {K012} to open the map" into "Press  to open
+  the map" with a stray space and no runtime substitution. The tool
+  has no way to warn about this today (see the *Placeholder
+  validation* discussion at the end of this doc).
+- **Surrounding text is free game.** Reorder, translate, or rewrite
+  the words around the placeholder however the target language
+  demands.
+
+The same "leave it alone" rule applies to `{cNN}` / `{/c}` and `{j}`.
+
+## Shift-JIS character set limitations
+
+Translations eventually get encoded to Shift-JIS-2004 because that's
+what the game reads. This imposes two separate constraints — one
+about *encoding* (what Python can write), one about *rendering*
+(what the game can draw).
+
+### Encoding: the source of truth is Unicode
+
+CSV and JSON files are UTF-8, so translators can use any Unicode
+character they like in a `target` cell. On re-encode, any character
+that has no Shift-JIS-2004 mapping fails with an `EncodingError` and
+the tool names the offending row so you can fix it. The *source of
+truth* stays in full Unicode — there's no lossy pre-normalisation
+step at read time.
+
+### Rendering: the in-game font is incomplete
+
+The PC version of MHFrontier ships with custom bitmap fonts that
+cover JIS X 0208 plus a small ASCII range. They do **not** cover
+Latin glyphs with diacritics (`é è ê à â ô ù û î ç œ « »` …) nor
+several common typographic punctuation marks. Writing those
+characters as their proper Shift-JIS-2004 codepoints encodes
+losslessly but renders as missing-glyph boxes or wrong glyphs
+in-game.
+
+### `--fold-unsupported-chars` (opt-in)
+
+For European-language imports there's an opt-in flag on every
+import command:
+
+```bash
+python main.py --csv-to-bin fr/dat-weapons-melee-name.csv data/mhfdat.bin \
+    --fold-unsupported-chars --compress --encrypt
+```
+
+With this flag the importer runs a lossy character-folding pass just
+before Shift-JIS encoding:
+
+| Input | Folded |
+|-------|--------|
+| `é è ê ë` | `e e e e` |
+| `à â`     | `a a`     |
+| `ç`       | `c`       |
+| `œ Œ`     | `oe Oe`   |
+| `« »`     | `" "`     |
+| `…`       | `...`     |
+| `— –`     | `- -`     |
+
+Full rules live in [`src/text_folding.py`](../src/text_folding.py).
+The fold is intentionally restricted to the Latin-1 Supplement,
+Latin Extended-A, and Latin Extended-B ranges — CJK text is
+left untouched, so the same flag is safe on a binary that still
+contains Japanese strings.
+
+Translators should still author their CSVs with proper diacritics.
+The fold happens *only* on the way to the binary, so the on-disk
+translation file keeps full typographic quality and can be
+re-emitted with diacritics once the custom font grows the missing
+glyphs.
+
 ## Extractor entry shape
 
 Every 1.6.0 extractor returns entries with this shape:
@@ -163,6 +258,28 @@ extractor produced the file:
 The resolver fails loudly when a grouped translation's sub-string
 count doesn't match the live entry's — the file has drifted from the
 binary and a re-extract + merge is required.
+
+### `source` is a lock, not a document
+
+The importer only writes rows where `target != source`. That's a
+deliberate design choice — it lets a translation file carry every
+row (translated and untranslated alike) without the importer having
+to guess which ones are "real". Two consequences translators should
+know about:
+
+- **Do not edit `source`.** The fresh extractor writes `source` and
+  `target` as identical cells. Your job is to overwrite `target` and
+  leave `source` alone. A row where you accidentally pasted your
+  translation into `source` will silently drop out at import time
+  (because `target == source` is still true).
+- **Clearing `target` keeps the original.** If you clear a `target`
+  cell back to its matching `source` value the row is treated as
+  untranslated and the original game string is preserved.
+
+If a merge-from-upstream genuinely changed the source text, the
+`--merge` command handles it: it carries forward your `target` and
+flags the row for manual review, instead of silently writing a stale
+translation on top of a new source.
 
 ### Binary fingerprint check
 

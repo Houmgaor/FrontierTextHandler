@@ -2,7 +2,15 @@
 Definition of the FrontierTextHandler module.
 """
 
-__version__ = "1.5.1"
+__version__ = "1.6.0"
+
+# Major.minor version of the CSV/JSON translation format. Bumped only
+# when an on-disk shape changes in a way readers need to detect; the
+# 1.5 → 1.6 bump covered the switch to index-keyed as default, the
+# ``{cNN}`` / ``{/c}`` colour codes, and the ``{j}`` join marker. It
+# lives alongside the tool ``__version__`` so patch-releases of the
+# tool don't make every extracted file look like a format change.
+FORMAT_VERSION = "1.6"
 
 from .export import (
     export_as_json,
