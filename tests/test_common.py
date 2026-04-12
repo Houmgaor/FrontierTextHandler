@@ -33,6 +33,7 @@ from src.common import (
     split_join_text,
     validate_file,
 )
+from src.pointer_tables import resolve_entry_count
 from src.binary_file import BinaryFile, InvalidPointerError
 from src.crypto import encode_ecd
 from src.jkr_compress import compress_jkr_hfi, compress_jkr_raw
@@ -206,6 +207,18 @@ class TestIsExtractionLeaf(unittest.TestCase):
         node = {"begin_pointer": "0x10", "entry_count": 5, "entry_size": 12, "field_offset": 4}
         self.assertTrue(_is_extraction_leaf(node))
 
+    def test_entry_count_flat(self):
+        node = {"begin_pointer": "0x10", "entry_count": 100}
+        self.assertTrue(_is_extraction_leaf(node))
+
+    def test_entry_count_versioned(self):
+        node = {"begin_pointer": "0x10", "entry_count": {"zz": 100, "ko": 50}}
+        self.assertTrue(_is_extraction_leaf(node))
+
+    def test_scan_region(self):
+        node = {"begin_pointer": "0x10", "scan_region": True, "scan_end_pointer": "0x14"}
+        self.assertTrue(_is_extraction_leaf(node))
+
     def test_count_base_pointer(self):
         node = {"begin_pointer": "0x10", "count_base_pointer": "0x14", "count_offset": "0x0"}
         self.assertTrue(_is_extraction_leaf(node))
@@ -217,6 +230,38 @@ class TestIsExtractionLeaf(unittest.TestCase):
     def test_intermediate_node(self):
         node = {"head": {"begin_pointer": "0x10", "next_field_pointer": "0x14"}}
         self.assertFalse(_is_extraction_leaf(node))
+
+
+class TestResolveEntryCount(unittest.TestCase):
+    """Test resolve_entry_count with scalar and versioned maps."""
+
+    def test_scalar(self):
+        self.assertEqual(resolve_entry_count(42), 42)
+
+    def test_scalar_ignores_version(self):
+        self.assertEqual(resolve_entry_count(42, "ko"), 42)
+
+    def test_versioned_default(self):
+        self.assertEqual(resolve_entry_count({"zz": 100, "ko": 50}), 100)
+
+    def test_versioned_explicit(self):
+        self.assertEqual(resolve_entry_count({"zz": 100, "ko": 50}, "ko"), 50)
+
+    def test_versioned_case_insensitive(self):
+        self.assertEqual(resolve_entry_count({"zz": 100}, "ZZ"), 100)
+
+    def test_versioned_missing_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            resolve_entry_count({"zz": 100}, "g10")
+        self.assertIn("g10", str(ctx.exception))
+        self.assertIn("zz", str(ctx.exception))
+
+    def test_wrong_type_raises(self):
+        with self.assertRaises(TypeError):
+            resolve_entry_count("bad")
+
+    def test_zero(self):
+        self.assertEqual(resolve_entry_count(0), 0)
 
 
 class TestReadFileSection(unittest.TestCase):
@@ -665,6 +710,82 @@ class TestExtractTextDataFromBytes(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0]["text"], "Cat")
         self.assertEqual(results[1]["text"], "Dog")
+
+    def test_entry_count_flat(self):
+        """Flat pointer array via entry_count (no entry_size)."""
+        # @0x00: ptr to table start
+        # @0x04: pointer table (3 entries)
+        strings = ["Red", "Green", "Blue"]
+        table_start = 4
+        strings_start = table_start + len(strings) * 4
+
+        encoded = []
+        offsets = []
+        current = strings_start
+        for s in strings:
+            offsets.append(current)
+            enc = s.encode(GAME_ENCODING) + b"\x00"
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray()
+        data.extend(struct.pack("<I", table_start))
+        for off in offsets:
+            data.extend(struct.pack("<I", off))
+        for enc in encoded:
+            data.extend(enc)
+
+        config = {
+            "begin_pointer": "0x0",
+            "entry_count": 3,
+        }
+        results = extract_text_data_from_bytes(bytes(data), config)
+        self.assertEqual(len(results), 3)
+        self.assertEqual(results[0]["text"], "Red")
+        self.assertEqual(results[1]["text"], "Green")
+        self.assertEqual(results[2]["text"], "Blue")
+
+    def test_entry_count_flat_versioned(self):
+        """Flat pointer array with versioned entry_count map."""
+        strings = ["A", "B", "C"]
+        table_start = 4
+        strings_start = table_start + len(strings) * 4
+
+        encoded = []
+        offsets = []
+        current = strings_start
+        for s in strings:
+            offsets.append(current)
+            enc = s.encode(GAME_ENCODING) + b"\x00"
+            encoded.append(enc)
+            current += len(enc)
+
+        data = bytearray()
+        data.extend(struct.pack("<I", table_start))
+        for off in offsets:
+            data.extend(struct.pack("<I", off))
+        for enc in encoded:
+            data.extend(enc)
+
+        # ZZ version sees all 3, "ko" would only see 2
+        config = {
+            "begin_pointer": "0x0",
+            "entry_count": {"zz": 3, "ko": 2},
+        }
+        results_zz = extract_text_data_from_bytes(bytes(data), config, "zz")
+        self.assertEqual(len(results_zz), 3)
+
+        results_ko = extract_text_data_from_bytes(bytes(data), config, "ko")
+        self.assertEqual(len(results_ko), 2)
+        self.assertEqual(results_ko[0]["text"], "A")
+        self.assertEqual(results_ko[1]["text"], "B")
+
+    def test_entry_count_flat_zero(self):
+        """entry_count=0 returns empty list."""
+        data = struct.pack("<I", 4)
+        config = {"begin_pointer": "0x0", "entry_count": 0}
+        results = extract_text_data_from_bytes(bytes(data), config)
+        self.assertEqual(results, [])
 
     def test_unknown_config_raises(self):
         config = {"begin_pointer": "0x0"}

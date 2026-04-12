@@ -37,6 +37,7 @@ from .import_data import (
     CSVParseError,
 )
 from .common import (
+    DEFAULT_GAME_VERSION,
     EncodingError,
     encode_game_string,
     decode_game_string,
@@ -56,6 +57,7 @@ from .common import (
     ValidationResult,
     validate_file,
 )
+from .pointer_tables import resolve_entry_count
 from .scenario import (
     extract_scenario_file,
     extract_scenario_file_data,

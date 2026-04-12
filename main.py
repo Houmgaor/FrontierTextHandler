@@ -294,6 +294,18 @@ def parse_inputs() -> argparse.ArgumentParser:
         action="store_true",
         help="Save .meta file when decrypting (preserves header for re-encryption).",
     )
+    parser.add_argument(
+        "--game-version",
+        type=str,
+        default="zz",
+        metavar="VERSION",
+        help=(
+            "Game version key for versioned entry_count maps in "
+            "headers.json. Default: 'zz' (MHF ZZ). Other versions "
+            "use different array sizes. The tool auto-detects the "
+            "version when possible."
+        ),
+    )
     return parser
 
 
@@ -479,7 +491,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.extract_all:
         # Batch extraction mode - extract all sections from headers.json
-        files = src.extract_all(with_index=with_index)
+        files = src.extract_all(with_index=with_index, game_version=args.game_version)
         if files:
             print(f"Extracted {len(files)} files to output/")
         else:
@@ -583,6 +595,7 @@ def main(args: argparse.Namespace) -> None:
             encrypt=args.encrypt,
             key_index=args.key_index,
             strict_placeholders=args.strict_placeholders,
+            game_version=args.game_version,
         )
         if results:
             total = sum(results.values())
@@ -601,6 +614,7 @@ def main(args: argparse.Namespace) -> None:
             xpath=args.xpath,
             fold_unsupported_chars=args.fold_unsupported_chars,
             strict_placeholders=args.strict_placeholders,
+            game_version=args.game_version,
         )
     else:
         # Default: read and save as CSV
@@ -608,6 +622,7 @@ def main(args: argparse.Namespace) -> None:
         src.extract_from_file(
             args.input_file, xpath, args.output_file,
             with_index=with_index,
+            game_version=args.game_version,
         )
 
 

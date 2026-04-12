@@ -12,7 +12,11 @@ from .common import (
     GAME_ENCODING,
 )
 
+DEFAULT_GAME_VERSION = "zz"
+
 __all__ = [
+    "DEFAULT_GAME_VERSION",
+    "resolve_entry_count",
     "read_until_null",
     "read_next_string",
     "read_file_section",
@@ -24,6 +28,37 @@ __all__ = [
     "extract_text_data",
     "extract_text_data_from_bytes",
 ]
+
+
+def resolve_entry_count(
+    entry_count_value: int | dict[str, int],
+    game_version: str = DEFAULT_GAME_VERSION,
+) -> int:
+    """
+    Resolve an ``entry_count`` field from headers.json.
+
+    Accepts either a plain integer (version-independent) or a dict
+    mapping game version keys to counts.
+
+    :param entry_count_value: Scalar count or ``{"zz": N, "ko": M, …}`` map.
+    :param game_version: Which game version to look up (default ``"zz"``).
+    :return: The resolved integer count.
+    :raises ValueError: If the version is missing from the map.
+    :raises TypeError: If the value is neither int nor dict.
+    """
+    if isinstance(entry_count_value, int):
+        return entry_count_value
+    if isinstance(entry_count_value, dict):
+        version = game_version.lower()
+        if version in entry_count_value:
+            return entry_count_value[version]
+        raise ValueError(
+            f"No entry_count for game version '{version}'. "
+            f"Available: {sorted(entry_count_value.keys())}"
+        )
+    raise TypeError(
+        f"entry_count must be int or dict, got {type(entry_count_value).__name__}"
+    )
 
 
 
@@ -549,31 +584,37 @@ def read_quest_table(
 
 def extract_text_data(
     file_path: str,
-    config: dict
+    config: dict,
+    game_version: str = DEFAULT_GAME_VERSION,
 ) -> list[dict[str, int | str]]:
     """
     Extract text from a game file based on extraction config.
 
     Supports these extraction modes:
+    - Flat pointer array (begin_pointer + entry_count)
+    - Struct-strided fields (begin_pointer + entry_count + entry_size)
+    - Null-terminated (begin_pointer + null_terminated)
+    - Quest table (begin_pointer + quest_table)
+    - Scan region (begin_pointer + scan_region)
+
+    Legacy modes (deprecated, will be removed):
     - Standard pointer-pair (begin_pointer + next_field_pointer)
     - Count-based pointer table (begin_pointer + count_pointer)
-    - Indirect count flat (begin_pointer + count_base_pointer, no entry_size)
-    - Indirect count strided (begin_pointer + count_base_pointer + entry_size)
-    - Null-terminated (begin_pointer + null_terminated)
-    - Struct-strided fields (begin_pointer + entry_count + entry_size)
-    - Quest table (begin_pointer + quest_table)
+    - Indirect count (begin_pointer + count_base_pointer)
 
     :param file_path: Path to the game file
     :param config: Extraction config dict from headers.json
+    :param game_version: Game version key for versioned entry_count maps.
     :return: List of dicts with "offset" and "text" keys
     """
     file_data = load_file_data(file_path)
-    return extract_text_data_from_bytes(file_data, config)
+    return extract_text_data_from_bytes(file_data, config, game_version)
 
 
 def extract_text_data_from_bytes(
     file_data: bytes,
-    config: dict
+    config: dict,
+    game_version: str = DEFAULT_GAME_VERSION,
 ) -> list[dict[str, int | str]]:
     """
     Extract text from raw binary data based on extraction config.
@@ -584,6 +625,7 @@ def extract_text_data_from_bytes(
 
     :param file_data: Raw binary data
     :param config: Extraction config dict from headers.json
+    :param game_version: Game version key for versioned entry_count maps.
     :return: List of dicts with "offset" and "text" keys
     :raises ValueError: If config is missing required keys
     """
@@ -604,15 +646,16 @@ def extract_text_data_from_bytes(
         # Scan mode: walk every 4-byte slot in [begin, end), emit only
         # pointers that land on a clean Shift-JIS char boundary. Used for
         # mixed struct regions interleaved with fragments and numeric IDs.
-        if "next_field_pointer" not in config:
+        scan_end = config.get("scan_end_pointer") or config.get("next_field_pointer")
+        if scan_end is None:
             raise ValueError(
-                "scan_region mode requires 'next_field_pointer' to bound "
-                "the region"
+                "scan_region mode requires 'scan_end_pointer' (or legacy "
+                "'next_field_pointer') to bound the region"
             )
-        next_field_pointer = int(config["next_field_pointer"], 16)
+        scan_end_pointer = int(scan_end, 16)
         bfile.seek(begin_pointer)
         region_start = bfile.read_int()
-        bfile.seek(next_field_pointer)
+        bfile.seek(scan_end_pointer)
         region_end = bfile.read_int()
         dedupe = config.get("dedupe", True)
         min_length = config.get("min_length", 4)
@@ -623,6 +666,83 @@ def extract_text_data_from_bytes(
             max_length=max_length,
             dedupe=dedupe,
         )
+
+    elif "entry_count" in config and "entry_size" in config:
+        # Struct-strided: read string pointers at fixed intervals in struct array
+        entry_count = resolve_entry_count(config["entry_count"], game_version)
+        entry_size = config["entry_size"]
+        field_offset = config["field_offset"]
+
+        if config.get("literal_base"):
+            # begin_pointer is treated as a literal file offset (no deref)
+            base_offset = begin_pointer
+        else:
+            bfile.seek(begin_pointer)
+            base_offset = bfile.read_int()
+        return read_struct_strings(
+            bfile, base_offset, entry_count, entry_size, field_offset
+        )
+
+    elif "entry_count" in config:
+        # Flat pointer array: begin_pointer → start, entry_count × ppe pointers
+        entry_count = resolve_entry_count(config["entry_count"], game_version)
+        pointers_per_entry = config.get("pointers_per_entry", 1)
+        if entry_count == 0:
+            return []
+
+        bfile.validate_offset(begin_pointer + 3, context="begin_pointer dereference")
+        bfile.seek(begin_pointer)
+        start_position = bfile.read_int()
+        read_length = entry_count * pointers_per_entry * 4
+        return read_file_section(bfile, start_position, read_length)
+
+    elif config.get("quest_table"):
+        # Quest table: multi-level category table (mhfinf.bin)
+        count = _read_indirect_count(bfile, config)
+        if count == 0:
+            return []
+
+        bfile.seek(begin_pointer)
+        category_table_ptr = bfile.read_int()
+        quest_text_offset = int(config.get("quest_text_offset", "0x28"), 16)
+        text_pointers_count = config.get("text_pointers_count", 8)
+        return read_quest_table(
+            bfile, category_table_ptr, count,
+            quest_text_offset, text_pointers_count
+        )
+
+    elif config.get("null_terminated"):
+        # Null-terminated: scan pointer groups until first pointer of group is 0
+        pointers_per_entry = config.get("pointers_per_entry", 1)
+        group_bytes = pointers_per_entry * 4
+
+        bfile.seek(begin_pointer)
+        start_position = bfile.read_int()
+
+        if config.get("grouped_entries") and pointers_per_entry > 1:
+            # Grouped mode: read fixed-size entries with correct boundaries
+            return read_multi_pointer_entries(
+                bfile, start_position, pointers_per_entry
+            )
+
+        # Legacy mode: scan to find array length, use flat read_file_section
+        pos = start_position
+        while True:
+            bfile.validate_offset(pos, context="null-terminated scan")
+            bfile.seek(pos)
+            first_ptr = bfile.read_int()
+            if first_ptr == 0:
+                break
+            pos += group_bytes
+
+        read_length = pos - start_position
+        if read_length == 0:
+            return []
+        return read_file_section(bfile, start_position, read_length)
+
+    # ── Legacy modes (deprecated) ──────────────────────────────────────
+    # These will be removed once all headers.json sections are migrated
+    # to entry_count. Kept for backward compatibility during transition.
 
     elif "next_field_pointer" in config:
         # Standard: pointer pair defining start and end of pointer table
@@ -656,21 +776,6 @@ def extract_text_data_from_bytes(
         read_length = count * 4
         return read_file_section(bfile, start_position, read_length)
 
-    elif config.get("quest_table"):
-        # Quest table: multi-level category table (mhfinf.bin)
-        count = _read_indirect_count(bfile, config)
-        if count == 0:
-            return []
-
-        bfile.seek(begin_pointer)
-        category_table_ptr = bfile.read_int()
-        quest_text_offset = int(config.get("quest_text_offset", "0x28"), 16)
-        text_pointers_count = config.get("text_pointers_count", 8)
-        return read_quest_table(
-            bfile, category_table_ptr, count,
-            quest_text_offset, text_pointers_count
-        )
-
     elif "count_base_pointer" in config and "entry_size" in config:
         # Indirect count strided: count from indirect table, struct-strided read
         entry_size = config["entry_size"]
@@ -697,54 +802,9 @@ def extract_text_data_from_bytes(
         read_length = count * pointers_per_entry * 4
         return read_file_section(bfile, start_position, read_length)
 
-    elif config.get("null_terminated"):
-        # Null-terminated: scan pointer groups until first pointer of group is 0
-        pointers_per_entry = config.get("pointers_per_entry", 1)
-        group_bytes = pointers_per_entry * 4
-
-        bfile.seek(begin_pointer)
-        start_position = bfile.read_int()
-
-        if config.get("grouped_entries") and pointers_per_entry > 1:
-            # Grouped mode: read fixed-size entries with correct boundaries
-            return read_multi_pointer_entries(
-                bfile, start_position, pointers_per_entry
-            )
-
-        # Legacy mode: scan to find array length, use flat read_file_section
-        pos = start_position
-        while True:
-            bfile.validate_offset(pos, context="null-terminated scan")
-            bfile.seek(pos)
-            first_ptr = bfile.read_int()
-            if first_ptr == 0:
-                break
-            pos += group_bytes
-
-        read_length = pos - start_position
-        if read_length == 0:
-            return []
-        return read_file_section(bfile, start_position, read_length)
-
-    elif "entry_count" in config:
-        # Struct-strided: read string pointers at fixed intervals in struct array
-        entry_count = config["entry_count"]
-        entry_size = config["entry_size"]
-        field_offset = config["field_offset"]
-
-        if config.get("literal_base"):
-            # begin_pointer is treated as a literal file offset (no deref)
-            base_offset = begin_pointer
-        else:
-            bfile.seek(begin_pointer)
-            base_offset = bfile.read_int()
-        return read_struct_strings(
-            bfile, base_offset, entry_count, entry_size, field_offset
-        )
-
     else:
         raise ValueError(
             f"Unknown extraction config format: {list(config.keys())}. "
-            f"Expected one of: next_field_pointer, count_pointer, quest_table, "
-            f"count_base_pointer, null_terminated, or entry_count."
+            f"Expected one of: entry_count, null_terminated, quest_table, "
+            f"or scan_region."
         )

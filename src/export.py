@@ -548,6 +548,7 @@ def extract_from_file(
     output_dir: str = DEFAULT_OUTPUT_DIR,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     with_index: bool = True,
+    game_version: str = "zz",
 ) -> tuple[str, str, str]:
     """
     Extract data from a single file.
@@ -560,6 +561,7 @@ def extract_from_file(
     :param with_index: If True (the default since 1.6.0), write the
         index-keyed CSV/JSON format. False selects the legacy
         offset-keyed format for backward compatibility.
+    :param game_version: Game version key for versioned entry_count maps.
     :return: Tuple of (csv_path, refrontier_path, json_path) for the exported files
     """
     # Read data using config-based extraction (supports all formats).
@@ -567,7 +569,7 @@ def extract_from_file(
     # rather than reading the file twice.
     config = common.read_extraction_config(xpath, headers_path)
     file_data = common.load_file_data(input_file)
-    file_section = common.extract_text_data_from_bytes(file_data, config)
+    file_section = common.extract_text_data_from_bytes(file_data, config, game_version)
     fingerprint = common.compute_binary_fingerprint(file_data) if with_index else ""
 
     if not file_section:
@@ -607,6 +609,7 @@ def extract_all(
     output_dir: str = DEFAULT_OUTPUT_DIR,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     with_index: bool = True,
+    game_version: str = "zz",
 ) -> list[str]:
     """
     Extract all sections defined in headers.json.
@@ -618,6 +621,7 @@ def extract_all(
     :param with_index: If True (the default since 1.6.0), write the
         index-keyed CSV/JSON format. False selects the legacy
         offset-keyed format for backward compatibility.
+    :param game_version: Game version key for versioned entry_count maps.
     :return: List of generated CSV file paths
     """
     if input_files is None:
@@ -651,7 +655,7 @@ def extract_all(
         try:
             csv_path, _, _ = extract_from_file(
                 input_file, xpath, "", output_dir, headers_path,
-                with_index=with_index,
+                with_index=with_index, game_version=game_version,
             )
             generated_files.append(csv_path)
             logger.info("Extracted '%s' to '%s'", xpath, csv_path)

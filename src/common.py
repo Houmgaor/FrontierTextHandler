@@ -265,23 +265,29 @@ def _is_extraction_leaf(value: dict) -> bool:
 
     Leaf nodes must have ``begin_pointer`` plus one of these mode indicators:
 
+    - Flat pointer array: ``entry_count`` (no ``entry_size``)
+    - Struct-strided fields: ``entry_count`` + ``entry_size`` + ``field_offset``
+    - Null-terminated: ``null_terminated``
+    - Quest table: ``quest_table``
+    - Scan region: ``scan_region``
+
+    Legacy modes (deprecated, still supported during transition):
+
     - Standard pointer-pair: ``next_field_pointer``
     - Count-based pointer table: ``count_pointer``
-    - Struct-strided fields: ``entry_count`` + ``entry_size`` + ``field_offset``
-    - Indirect count (flat or strided): ``count_base_pointer`` + ``count_offset``
-    - Null-terminated: ``null_terminated``
-    - Null-terminated grouped: ``null_terminated`` + ``grouped_entries``
-    - Quest table: ``quest_table``
+    - Indirect count: ``count_base_pointer``
     """
     if "begin_pointer" not in value:
         return False
     return (
-        "next_field_pointer" in value
-        or "count_pointer" in value
-        or "entry_count" in value
-        or "count_base_pointer" in value
+        "entry_count" in value
         or value.get("null_terminated") is True
         or value.get("quest_table") is True
+        or value.get("scan_region") is True
+        # Legacy modes (deprecated)
+        or "next_field_pointer" in value
+        or "count_pointer" in value
+        or "count_base_pointer" in value
     )
 
 
@@ -575,6 +581,8 @@ def validate_file(file_path: str) -> ValidationResult:
 # ---------------------------------------------------------------------------
 
 from .pointer_tables import (  # noqa: E402, F401
+    DEFAULT_GAME_VERSION,
+    resolve_entry_count,
     read_until_null,
     read_next_string,
     read_file_section,

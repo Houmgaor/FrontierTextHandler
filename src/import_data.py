@@ -370,6 +370,7 @@ def resolve_offsets_with_groups(
     entries: list[tuple[int, str]],
     file_data: bytes,
     config: dict,
+    game_version: str = "zz",
 ) -> list[tuple[int, str]]:
     """
     Expand ``{j}``-marker grouped translations against a live section.
@@ -387,7 +388,7 @@ def resolve_offsets_with_groups(
         match any live entry, or the sub-string count differs
     """
     from .common import extract_text_data_from_bytes
-    live_entries = extract_text_data_from_bytes(file_data, config)
+    live_entries = extract_text_data_from_bytes(file_data, config, game_version)
     live_by_first = {
         int(e["offset"]): _entry_sub_offsets(e) for e in live_entries
     }
@@ -507,6 +508,7 @@ def resolve_indexes_to_offsets(
     indexed: list[tuple[int, str]],
     file_data: bytes,
     config: dict,
+    game_version: str = "zz",
 ) -> list[tuple[int, str]]:
     """
     Resolve ``(index, text)`` pairs to ``(offset, text)`` by re-extracting
@@ -528,7 +530,7 @@ def resolve_indexes_to_offsets(
     """
     from .common import extract_text_data_from_bytes
 
-    entries = extract_text_data_from_bytes(file_data, config)
+    entries = extract_text_data_from_bytes(file_data, config, game_version)
     return resolve_indexes_against_entries(indexed, entries, context="section")
 
 
@@ -665,7 +667,8 @@ def rebuild_section(
     file_data: bytes,
     config: dict,
     new_strings: list[tuple[int, str]],
-    output_path: str
+    output_path: str,
+    game_version: str = "zz",
 ) -> str:
     """
     Rebuild a binary section with translations applied in-place.
@@ -688,7 +691,7 @@ def rebuild_section(
     from .common import extract_text_data_from_bytes
 
     # 1. Extract all entries from the section
-    all_entries = extract_text_data_from_bytes(file_data, config)
+    all_entries = extract_text_data_from_bytes(file_data, config, game_version)
 
     # 2. Index new_strings by their first (entry-level) offset. Grouped
     #    entries are stored as a list of sub-strings so we can align
@@ -858,6 +861,7 @@ def apply_translations_from_release_json(
     key_index: int = DEFAULT_KEY_INDEX,
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     strict_placeholders: bool = False,
+    game_version: str = "zz",
 ) -> dict[str, int]:
     """
     Apply translations from a MHFrontier-Translation release JSON to game files.
@@ -1051,7 +1055,7 @@ def apply_translations_from_release_json(
                 else:
                     try:
                         loc_entries = resolve_offsets_with_groups(
-                            loc_entries, file_data, loc_config,
+                            loc_entries, file_data, loc_config, game_version,
                         )
                     except ValueError as exc:
                         logger.warning(
@@ -1078,7 +1082,9 @@ def apply_translations_from_release_json(
                 continue
             try:
                 all_strings.extend(
-                    resolve_indexes_to_offsets(section["index"], file_data, config)
+                    resolve_indexes_to_offsets(
+                        section["index"], file_data, config, game_version,
+                    )
                 )
             except ValueError as exc:
                 logger.warning(
@@ -1132,6 +1138,7 @@ def import_from_csv(
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     fold_unsupported_chars: bool = False,
     strict_placeholders: bool = False,
+    game_version: str = "zz",
 ) -> Optional[str]:
     """
     Use the CSV file to edit the binary file.
@@ -1318,9 +1325,9 @@ def import_from_csv(
                         actual_fp,
                     )
             new_strings = resolve_indexes_to_offsets(
-                indexed_strings, file_data, config
+                indexed_strings, file_data, config, game_version
             )
-        rebuild_section(file_data, config, new_strings, output_path)
+        rebuild_section(file_data, config, new_strings, output_path, game_version)
         logger.info("Rebuilt section '%s' in %s", xpath, output_path)
     else:
         # Legacy append strategy (backward compatible).
