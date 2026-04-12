@@ -26,6 +26,37 @@ re-compress and re-encrypt on write via `--compress --encrypt`.
 `--extract-all` auto-routes every xpath to the right file. With
 `--xpath` the tool uses the prefix to pick the binary in `data/`.
 
+## Extraction modes
+
+Each section in `headers.json` uses one of these modes to locate its
+pointer table:
+
+| Mode | `headers.json` fields | Description |
+|------|----------------------|-------------|
+| **Flat pointer array** | `begin_pointer` + `entry_count` | Pointer to array start + number of entries. Each entry is a 4-byte pointer to a null-terminated Shift-JIS string. Supports `pointers_per_entry` for multi-pointer groups. |
+| **Struct-strided** | `begin_pointer` + `entry_count` + `entry_size` + `field_offset` | String pointers embedded at a fixed byte offset within repeated structs. |
+| **Null-terminated** | `begin_pointer` + `null_terminated` | Scans pointer groups until the first pointer of a group is zero. Supports `pointers_per_entry` for grouped arrays. |
+| **Quest table** | `begin_pointer` + `quest_table` + `count_base_pointer` | Multi-level parser: walks a category table, follows quest struct pointers, reads text sub-pointers per quest. |
+| **Scan region** | `begin_pointer` + `scan_region` + `scan_end_pointer` | Walks every 4-byte slot in a bounded region, emits only pointers landing on valid Shift-JIS boundaries. Used for mixed struct regions. |
+
+`entry_count` accepts either a plain integer or a versioned map
+(`{"zz": 14594, "ko": 1290}`) for multi-version support.
+
+## Coverage summary
+
+| File | Strings extracted | Status |
+|------|------------------|--------|
+| `mhfdat.bin` | ~17,000+ (weapons, armors, items, monsters, ranks, HH) | Complete |
+| `mhfpac.bin` | ~3,600 (skills + ~3,365 UI/dialogue tables) | Complete |
+| `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
+| `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
+| `mhfgao.bin` | 2,122 (Felyne equipment, dialogue, skills) | Complete |
+| `mhfsqd.bin` | 190 (NPC names, squad skills, labels) | Complete |
+| `mhfrcc.bin` | 28 (event titles + descriptions) | Complete |
+| `mhfmsx.bin` | 34 (Festa item names + effects) | Complete |
+
+All known translator-useful text in `client/pc/dat/*.bin` is extracted.
+
 ---
 
 ## `mhfdat.bin` — Core game data
@@ -235,9 +266,31 @@ effect descriptions.
 
 ## `mhfnav.bin` — Hunter Navi
 
-Hunter Navi data. Text fields are not yet documented in the ImHex
-patterns and no extraction sections are defined. Listed here for
-completeness.
+Hunter Navi data. Contains task reward tables (item ID + quantity),
+character index lists, and numerical metadata. ImHex patterns confirm
+no `s32p` string fields. Binary scan of the decrypted file found zero
+readable strings.
+
+---
+
+## Files without extractable text
+
+These `client/pc/dat/` files were checked and contain no translatable
+text:
+
+| File | Content |
+|------|---------|
+| `mhfemd.bin` | Monster stat tables (numeric only) |
+| `mhfmec.bin` | 960 bytes, numeric/float data |
+| `mhfmfd.bin` | Coordinate/float data |
+| `mhfsch.bin` | Schedule data (dates) |
+| `mhfsdt.bin` | Sound/animation data |
+| `rengoku_data.bin` | Hunter's Road spawn tables (numeric) |
+| `guildcard.bin` | Empty file (0 bytes) |
+| `effect.bin`, `mhf.bin`, `mhf_90c.bin` | Archives or binary blobs |
+| `micon*.bin`, `mytra.bin`, `result.bin` | Image data |
+| `wallpaper_*.bin` | Image archives (MOMO/MHA) |
+| `*.txb` | PNG image containers (some ECD-wrapped) |
 
 ---
 
