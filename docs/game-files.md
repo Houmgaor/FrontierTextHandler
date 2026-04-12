@@ -136,10 +136,21 @@ strings" for now.
 ## `mhfinf.bin` — Quest data
 
 ### `inf/quests`
-Multi-level quest table. Each quest carries 8 text strings (objective,
-sub-objective, failure condition, client name, client request, etc.).
-Driven by `quest_table: true` mode in the extractor — see
-[`extraction-modes.md`](extraction-modes.md) if/when added.
+Multi-level quest table. Each quest carries 8 text strings, exported
+as a single `{j}`-joined row per quest. The fields in order:
+
+| # | Label | In-game location |
+|:-:|-------|------------------|
+| 1 | title | Quest name in the list |
+| 2 | textMain | Main objective text |
+| 3 | textSubA | Sub-objective A |
+| 4 | textSubB | Sub-objective B |
+| 5 | successCond | Clear / success condition |
+| 6 | failCond | Failure condition |
+| 7 | contractor | Quest client name |
+| 8 | description | Client request / flavour text |
+
+Driven by `quest_table: true` mode in the extractor.
 
 ---
 

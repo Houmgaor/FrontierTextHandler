@@ -117,6 +117,66 @@ The importer accepts the legacy `<join at="N">` tag form as well,
 for translation files written before 1.6.0 (see *Backward
 compatibility* below).
 
+#### Grouped fields reference
+
+The table below lists every section that uses `{j}` and what each
+sub-string means. Keep the `{j}` count exactly as it appears in
+`source` — the importer rejects rows whose sub-string count doesn't
+match the live binary.
+
+**Quest text** (`inf/quests`) — 8 fields per quest:
+
+| Position | Label | In-game location |
+|:--------:|-------|------------------|
+| 1 | title | Quest name in the list |
+| 2 | textMain | Main objective text |
+| 3 | textSubA | Sub-objective A |
+| 4 | textSubB | Sub-objective B |
+| 5 | successCond | Clear / success condition |
+| 6 | failCond | Failure condition |
+| 7 | contractor | Quest client name |
+| 8 | description | Client request / flavour text |
+
+Example row:
+
+```
+Hunter Basics{j}Deliver 2 Raw Meat{j}{j}{j}Deliver the goods{j}Time Over{j}Guild Master{j}As a Hunter you need to know...
+```
+
+**Multi-line descriptions** — these sections split a single
+description across multiple display lines. Each `{j}` sub-string
+is one line; translate each line but keep the same number of `{j}`
+markers:
+
+| Section | Lines | Notes |
+|---------|:-----:|-------|
+| `dat/weapons/ranged/description` | 3–4 | Bowgun / bow descriptions |
+| `dat/equipment/description` | 3 | Armor set descriptions |
+| `gao/armor_desc` | 3 | Felyne armor descriptions |
+| `gao/weapon_desc` | 3 | Felyne weapon descriptions |
+
+Example row:
+
+```
+A cheap Bowgun, mass-{j}produced at the Smithy.{j}Ideal for first-time users.
+```
+
+**Reception events** (`rcc/events_full`) — 4 fields per event row:
+
+| Position | Field | Notes |
+|:--------:|-------|-------|
+| 1 | title | Event title (English) |
+| 2 | alt title | Description or alternate title |
+| 3 | extra 1 | Usually `−` placeholder |
+| 4 | extra 2 | Usually `−` placeholder |
+
+**UI text tables** (`pac/text_*`) — groups of 2 to 92 sub-strings.
+These tables hold menu prompts, status messages, and internal labels.
+The exact meaning of each sub-string is not yet fully mapped. When
+translating, preserve every `{j}` and translate each sub-string
+independently — they are distinct UI strings that happen to be
+stored together.
+
 ### Placeholders to leave alone — `{K…}` / `{i…}` / `{u…}`
 
 Some strings contain ASCII placeholders that the game substitutes at
