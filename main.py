@@ -245,6 +245,51 @@ def parse_inputs() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--measure-line-lengths",
+        action="store_true",
+        help=(
+            "Extract every section from the game binaries, measure the "
+            "maximum display width and sub-string count per section, "
+            "and write the results into headers.json. Run this once "
+            "on the original Japanese binaries to populate the limits "
+            "that --validate-line-lengths and the import-time checks use."
+        ),
+    )
+    parser.add_argument(
+        "--validate-line-lengths",
+        type=str,
+        metavar="FILE",
+        help=(
+            "Lint a translation CSV/JSON: check that every translated "
+            "row's display width stays within the section's measured "
+            "limit (from headers.json). Prints a report and exits "
+            "non-zero when any row exceeds the limit. Run "
+            "--measure-line-lengths first to populate the limits."
+        ),
+    )
+    parser.add_argument(
+        "--strict-line-lengths",
+        action="store_true",
+        help=(
+            "Treat display-width violations as hard errors during "
+            "import. By default the importers log a warning summary "
+            "and proceed; with this flag the first violation aborts "
+            "the import."
+        ),
+    )
+    parser.add_argument(
+        "--max-expansion",
+        type=float,
+        default=1.0,
+        metavar="N",
+        help=(
+            "Multiplier on the measured max_display_width when "
+            "validating line lengths. Default 1.0 (no expansion "
+            "allowed beyond the original Japanese strings). "
+            "Use e.g. 1.1 for 10%% slack."
+        ),
+    )
+    parser.add_argument(
         "--save-meta",
         action="store_true",
         help="Save .meta file when decrypting (preserves header for re-encryption).",
@@ -307,6 +352,37 @@ def main(args: argparse.Namespace) -> None:
         print(
             f"FAIL: {validator.issue_count} row(s) in "
             f"{args.validate_placeholders} have placeholder mismatches:"
+        )
+        for row_id, issues in validator.rows:
+            for issue in issues:
+                print(f"  {row_id}: {issue.describe()}")
+        raise SystemExit(1)
+
+    if args.measure_line_lengths:
+        from src.line_length import measure_all_sections, update_headers_with_limits
+        print("Measuring display-width limits from original binaries...")
+        limits = measure_all_sections()
+        if not limits:
+            print("No sections measured. Are the game binaries in data/?")
+            return
+        count = update_headers_with_limits(limits)
+        print(f"Updated {count} section(s) in headers.json with "
+              "max_display_width and max_sub_count.")
+        return
+
+    if args.validate_line_lengths:
+        from src.line_length import validate_translation_file_line_lengths
+        validator = validate_translation_file_line_lengths(
+            args.validate_line_lengths,
+            xpath=args.xpath,
+            margin=args.max_expansion,
+        )
+        if validator.issue_count == 0:
+            print(f"OK: no line-length violations in {args.validate_line_lengths}")
+            return
+        print(
+            f"FAIL: {validator.issue_count} row(s) in "
+            f"{args.validate_line_lengths} exceed display-width limits:"
         )
         for row_id, issues in validator.rows:
             for issue in issues:
