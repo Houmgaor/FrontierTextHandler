@@ -280,8 +280,8 @@ class TestValidateTranslationFileCSV(unittest.TestCase):
         path = self._write_csv(
             [
                 ["0", "clean", "clean"],
-                ["1", "{K012}", ""],
-                ["2", "{K013}", ""],
+                ["1", "{K012}", "missing placeholder"],
+                ["2", "{K013}", "also missing"],
             ],
             ["index", "source", "target"],
         )
@@ -402,7 +402,7 @@ class TestInlineHookInReaders(unittest.TestCase):
                         {
                             "location": "0x10@f.bin",
                             "source": "{K012}",
-                            "target": "",
+                            "target": "missing placeholder",
                         }
                     ],
                 },

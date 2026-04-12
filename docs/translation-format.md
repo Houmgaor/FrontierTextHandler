@@ -15,15 +15,17 @@ Every extractor produces one of two shapes, selected at the CLI:
 ```csv
 index,source,target
 0,Original Japanese,New Translation
-1,Another string,Another translation
+1,Another string,
 ```
 
 - `index` — slot number in the section's pointer table. Stable across
   upstream string-length changes that would shift raw offsets, so
   re-extractions and merges stay meaningful.
-- `source` / `target` — original and translated text. A row is only
-  imported if `target` differs from `source` (see *`source` is a
-  lock, not a document* below).
+- `source` — original text from the game binary. Treat as read-only.
+- `target` — translator's output. Empty on fresh extract; fill it in
+  to translate. Only non-empty rows where `target` differs from
+  `source` are imported (see *`source` is a lock, not a document*
+  below).
 - No `location` column; the source binary and xpath live in the JSON
   `metadata` block (`source_file`, `version`, `format_version`,
   `xpath`, `fingerprint`) or are inferred from the CSV filename
@@ -214,6 +216,9 @@ What it does **not** catch (by design):
   matched by the regex, so it can't produce false positives on
   literal English-prose brace tokens.
 
+Rows with an empty `target` (untranslated) are skipped by the
+validator — they can't have a mismatch by construction.
+
 Callers that need programmatic access can use
 `src.validate_placeholders(source, target)` (pure function,
 returns a list of `PlaceholderIssue`) or
@@ -337,20 +342,18 @@ binary and a re-extract + merge is required.
 
 ### `source` is a lock, not a document
 
-The importer only writes rows where `target != source`. That's a
-deliberate design choice — it lets a translation file carry every
-row (translated and untranslated alike) without the importer having
-to guess which ones are "real". Two consequences translators should
-know about:
+The importer skips rows where `target` is empty or equals `source`.
+That's a deliberate design choice — it lets a translation file carry
+every row (translated and untranslated alike) without the importer
+having to guess which ones are "real". Two consequences translators
+should know about:
 
-- **Do not edit `source`.** The fresh extractor writes `source` and
-  `target` as identical cells. Your job is to overwrite `target` and
-  leave `source` alone. A row where you accidentally pasted your
-  translation into `source` will silently drop out at import time
-  (because `target == source` is still true).
+- **Do not edit `source`.** The fresh extractor writes `source` with
+  the original text and leaves `target` empty. Your job is to fill
+  in `target` and leave `source` alone.
 - **Clearing `target` keeps the original.** If you clear a `target`
-  cell back to its matching `source` value the row is treated as
-  untranslated and the original game string is preserved.
+  cell (set it to empty) the row is treated as untranslated and the
+  original game string is preserved.
 
 If a merge-from-upstream genuinely changed the source text, the
 `--merge` command handles it: it carries forward your `target` and
@@ -389,6 +392,10 @@ translators don't have to touch slot numbers or pointer offsets.
 FrontierTextHandler reads every pre-1.6.0 translation file without
 any migration step:
 
+- **Legacy `target == source` convention** — pre-1.6.0 files use
+  `target == source` for untranslated rows instead of an empty
+  `target`. The importer accepts both: it skips rows where `target`
+  is empty *or* equals `source`.
 - **Legacy offset-keyed CSV/JSON** — still readable; `--legacy-offset`
   exports the same shape for round-tripping.
 - **Legacy `<join at="NNN">` tags** — `_JOIN_SPLIT_RE` matches both

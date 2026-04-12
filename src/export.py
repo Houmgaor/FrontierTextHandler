@@ -60,7 +60,7 @@ def export_as_csv(
             writer.writerow(["index", "source", "target"])
             for index, datum in enumerate(data):
                 display = _to_csv_form(str(datum["text"]))
-                writer.writerow([index, display, display])
+                writer.writerow([index, display, ""])
                 lines += 1
         else:
             writer.writerow(["location", "source", "target"])
@@ -140,7 +140,7 @@ def export_as_json(
             strings.append({
                 "index": index,
                 "source": display,
-                "target": display,
+                "target": "",
             })
     else:
         for datum in data:

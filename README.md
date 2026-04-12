@@ -146,7 +146,7 @@ The resulting CSV is three columns — no offset, no filename:
 ```csv
 index,source,target
 0,オリジナル,Traduction
-1,...,...
+1,未翻訳,
 ```
 
 JSON output uses the same shape and records the source binary, xpath, and a

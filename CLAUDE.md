@@ -95,13 +95,15 @@ Note: `begin_pointer` is a pointer-to-pointer. The file stores an address that p
 ```csv
 index,source,target
 0,Original Japanese,New Translation
+1,Untranslated string,
 ```
 
 - `index`: Stable slot number in the section's pointer table. Survives
   string-length changes that would shift raw offsets, so re-extractions
   and merges stay meaningful.
-- `source` / `target`: Original and translated strings. A row is only
-  imported if `target` differs from `source`.
+- `source`: Original text from the game binary (read-only).
+- `target`: Translation. Empty on fresh extract; only non-empty rows
+  are imported.
 - No `location` column. The source binary and xpath are recoverable
   from the JSON `metadata` block (`source_file`, `xpath`,
   `fingerprint`) or the CSV filename (`dat-armors-head.csv` →

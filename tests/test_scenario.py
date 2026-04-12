@@ -240,11 +240,8 @@ class TestScenarioCsvExport(unittest.TestCase):
             self.assertEqual(len(json_data["strings"]), 2)
             self.assertEqual(json_data["strings"][0]["source"], "Line1")
             self.assertEqual(json_data["strings"][1]["source"], "Line2")
-            # source == target when freshly extracted
-            self.assertEqual(
-                json_data["strings"][0]["source"],
-                json_data["strings"][0]["target"],
-            )
+            # target is empty when freshly extracted
+            self.assertEqual(json_data["strings"][0]["target"], "")
 
     def test_batch_export(self):
         """Test batch extraction from directory."""

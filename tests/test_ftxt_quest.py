@@ -654,8 +654,8 @@ class TestQuestFileImport(unittest.TestCase):
                     rows.append(row)
             # The first data row contains joined strings; modify the target
             if len(rows) > 1:
-                # Replace the joined text with modified version
-                rows[1][2] = rows[1][2].replace("Original Title", "New Title")
+                # Target is empty on fresh extract; copy source and edit
+                rows[1][2] = rows[1][1].replace("Original Title", "New Title")
 
             edited_csv = os.path.join(tmpdir, "edited.csv")
             with open(edited_csv, "w", newline="", encoding="utf-8") as f:

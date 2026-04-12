@@ -194,7 +194,7 @@ class TestMergeTranslations(unittest.TestCase):
         result, rows = merge_translations(self._old_path(), self._new_path())
         self.assertEqual(result.unchanged, 1)
         self.assertEqual(result.carried, 0)
-        self.assertEqual(rows[0]["target"], "Hello")
+        self.assertEqual(rows[0]["target"], "")
 
     def test_modified_source(self):
         """Same offset + different source -> do not carry, flag for review."""
@@ -207,7 +207,7 @@ class TestMergeTranslations(unittest.TestCase):
         result, rows = merge_translations(self._old_path(), self._new_path())
         self.assertEqual(len(result.modified_source), 1)
         self.assertEqual(result.carried, 0)
-        self.assertEqual(rows[0]["target"], "Hello World")
+        self.assertEqual(rows[0]["target"], "")
         # Check modified_source details
         offset, old_src, new_src, old_tgt = result.modified_source[0]
         self.assertEqual(offset, "0x10")
@@ -226,7 +226,7 @@ class TestMergeTranslations(unittest.TestCase):
         ])
         result, rows = merge_translations(self._old_path(), self._new_path())
         self.assertEqual(result.new_strings, 1)
-        self.assertEqual(rows[1]["target"], "New text")
+        self.assertEqual(rows[1]["target"], "")
 
     def test_removed_string(self):
         """Offset only in old file -> removed."""
@@ -266,11 +266,11 @@ class TestMergeTranslations(unittest.TestCase):
         # Verify carried translation
         self.assertEqual(rows[0]["target"], "Porté")
         # Verify unchanged
-        self.assertEqual(rows[1]["target"], "Unchanged")
+        self.assertEqual(rows[1]["target"], "")
         # Verify modified source not carried
-        self.assertEqual(rows[2]["target"], "Modified v2")
+        self.assertEqual(rows[2]["target"], "")
         # Verify new string
-        self.assertEqual(rows[3]["target"], "Brand new")
+        self.assertEqual(rows[3]["target"], "")
 
     def test_empty_old_csv(self):
         """Empty old file means everything is new."""
@@ -513,9 +513,9 @@ class TestEndToEndMerge(unittest.TestCase):
 
         csv_rows = _read_csv_rows(out_path)
         self.assertEqual(csv_rows[0][2], "Épée")       # carried
-        self.assertEqual(csv_rows[1][2], "Shield")      # unchanged
-        self.assertEqual(csv_rows[2][2], "Bow v2")      # not carried
-        self.assertEqual(csv_rows[3][2], "Lance")       # new
+        self.assertEqual(csv_rows[1][2], "")            # unchanged
+        self.assertEqual(csv_rows[2][2], "")            # not carried
+        self.assertEqual(csv_rows[3][2], "")            # new
 
     def test_json_round_trip(self):
         """Full workflow: merge JSONs and write output."""
@@ -541,7 +541,7 @@ class TestEndToEndMerge(unittest.TestCase):
 
         strings = _read_json_strings(out_path)
         self.assertEqual(strings[0]["target"], "Épée")
-        self.assertEqual(strings[2]["target"], "Lance")
+        self.assertEqual(strings[2]["target"], "")
 
 
 if __name__ == "__main__":

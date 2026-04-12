@@ -284,7 +284,7 @@ def validate_translation_file_line_lengths(
                 continue
             source = entry.get("source") or ""
             target = entry.get("target") or ""
-            if source == target:
+            if not target or source == target:
                 continue
             validator.check(f"entry {i}", target)
         return validator
@@ -300,7 +300,7 @@ def validate_translation_file_line_lengths(
                 continue
             source = row[1]
             target = row[2]
-            if source == target:
+            if not target or source == target:
                 continue
             validator.check(f"line {line_num}", target)
     return validator

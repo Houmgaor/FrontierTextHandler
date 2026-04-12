@@ -177,8 +177,8 @@ def get_new_strings_from_json(
                 )
                 break
         else:
-            # Skip if translation is same as source
-            if entry["source"] == entry["target"]:
+            # Skip untranslated rows (empty target or same as source)
+            if not entry["target"] or entry["source"] == entry["target"]:
                 continue
             validator.check(f"entry {i}", entry["source"], entry["target"])
             try:
@@ -253,7 +253,7 @@ def get_new_strings_indexed(
                 continue
             source = entry.get("source") or ""
             target = entry.get("target") or ""
-            if source == target:
+            if not target or source == target:
                 continue
             validator.check(f"entry {i}", source, target)
             try:
@@ -273,7 +273,7 @@ def get_new_strings_indexed(
                 continue
             source = row.get("source") or ""
             target = row.get("target") or ""
-            if source == target:
+            if not target or source == target:
                 continue
             validator.check(f"line {line_num}", source, target)
             try:

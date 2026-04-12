@@ -17,6 +17,11 @@ translation files import unchanged.
   Removes 6 config keys and the fragile pointer-borrowing hack where
   adjacent sections shared boundary pointers with manual byte trimming.
   Legacy config formats are still accepted during transition.
+- **Empty `target` for untranslated rows**: Fresh extracts leave the
+  `target` column empty instead of duplicating `source`. Halves file
+  size and makes translation progress visible at a glance. The
+  importer skips rows where `target` is empty; pre-1.6.0 files that
+  use `target == source` for untranslated rows still import correctly.
 - Index-keyed CSV/JSON (`index,source,target`) is the default for
   every extractor. `--legacy-offset` re-enables the pre-1.6.0
   offset-keyed shape; the 1.5.0 `--with-index` flag stays as a

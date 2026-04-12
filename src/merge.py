@@ -105,7 +105,7 @@ def merge_translations(
         if key in old_data:
             old_source, old_target = old_data[key]
             if old_source == new_source:
-                if old_target != old_source:
+                if old_target and old_target != old_source:
                     # Carry over translation
                     merged_rows.append({
                         "location": row["location"],
@@ -118,7 +118,7 @@ def merge_translations(
                     merged_rows.append({
                         "location": row["location"],
                         "source": new_source,
-                        "target": new_source,
+                        "target": "",
                     })
                     result.unchanged += 1
             else:
@@ -126,7 +126,7 @@ def merge_translations(
                 merged_rows.append({
                     "location": row["location"],
                     "source": new_source,
-                    "target": new_source,
+                    "target": "",
                 })
                 result.modified_source.append((key, old_source, new_source, old_target))
         else:
@@ -134,7 +134,7 @@ def merge_translations(
             merged_rows.append({
                 "location": row["location"],
                 "source": new_source,
-                "target": new_source,
+                "target": "",
             })
             result.new_strings += 1
 

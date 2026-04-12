@@ -76,7 +76,7 @@ class TestStandardPointerRoundTrip(unittest.TestCase):
         self.addCleanup(os.unlink, csv_path)
         export_as_csv(results, csv_path, "test.bin")
 
-        # Import (source == target, so no changes)
+        # Import (target is empty, so no changes)
         new_strings = get_new_strings(csv_path)
         self.assertEqual(new_strings, [])  # No changes
 

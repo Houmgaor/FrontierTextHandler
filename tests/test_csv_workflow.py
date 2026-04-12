@@ -3032,7 +3032,7 @@ class TestJsonExportImport(unittest.TestCase):
             entry = result["strings"][0]
             self.assertEqual(entry["index"], 0)
             self.assertEqual(entry["source"], "テスト")
-            self.assertEqual(entry["target"], "テスト")
+            self.assertEqual(entry["target"], "")
             self.assertNotIn("location", entry)
 
             entry2 = result["strings"][1]
