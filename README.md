@@ -271,6 +271,32 @@ python main.py --scenario-dir data/scenarios/
 python main.py --scenario-to-bin output/scenario-0_0_0_0_S17_T2_C0.csv data/scenarios/0_0_0_0_S17_T2_C0.bin
 ```
 
+### Validate line lengths
+
+MH Frontier has fixed-width UI elements. Translations that exceed the
+original Japanese display width may overflow in-game text boxes.
+
+```bash
+# Measure limits from original JP binaries and store in headers.json
+python main.py --measure-line-lengths
+
+# Validate a translation file against stored limits
+python main.py --validate-line-lengths output/dat-armors-head.csv
+
+# Strict mode: abort on first violation (for CI pipelines)
+python main.py --validate-line-lengths output/dat-armors-head.csv --strict-line-lengths
+
+# Allow 10% expansion over JP max
+python main.py --validate-line-lengths output/dat-armors-head.csv --max-expansion 1.1
+```
+
+Display width uses Unicode East Asian Width: CJK / fullwidth characters
+count as 2 cells, everything else as 1. Inline placeholders (`{cNN}`,
+`{/c}`, `{j}`, `{K…}`, `{i…}`, `{u…}`) are stripped before measurement.
+For grouped entries (`{j}`-separated), each sub-string is measured
+independently and the sub-string count is checked against the section
+maximum.
+
 ### Validate files
 
 Inspect the structure of a game file (encryption layer, compression layer, format):
@@ -390,6 +416,31 @@ Supported encryption formats:
 
 All known MHF files use key index 4 (the default). Use `--key-index` to specify a different key (0–5).
 
+### Game version support
+
+Different game versions (Season 6, Forward.5, ZZ, etc.) have different
+numbers of items, armors, weapons, and other entries. The tool defaults
+to ZZ but supports other versions through `--game-version`:
+
+```bash
+# Extract using ZZ array sizes (default)
+python main.py --extract-all
+
+# Extract from a Korean-version binary
+python main.py --extract-all --game-version ko
+
+# Import with explicit version
+python main.py --csv-to-bin output/dat-armors-head.csv data/mhfdat.bin --game-version ko
+```
+
+The entry counts for each version are stored in `headers.json`. When
+only one version is known, the count is a plain integer; when multiple
+versions are documented, it becomes a map:
+
+```json
+"entry_count": {"zz": 14594, "ko": 1290}
+```
+
 ## Configuration: headers.json
 
 The `headers.json` file defines where text data is located within each binary file. Understanding this format allows you to add support for new data sections.
@@ -402,8 +453,7 @@ The `headers.json` file defines where text data is located within each binary fi
     "category": {
       "subcategory": {
         "begin_pointer": "0x64",
-        "next_field_pointer": "0x60",
-        "crop_end": 24
+        "entry_count": 14594
       }
     }
   }
@@ -412,7 +462,7 @@ The `headers.json` file defines where text data is located within each binary fi
 
 ### Pointer Table Format
 
-Monster Hunter Frontier stores text as **pointer tables** - arrays of 4-byte offsets that point to null-terminated Shift-JIS strings elsewhere in the file.
+Monster Hunter Frontier stores text as **pointer tables** — arrays of 4-byte offsets that point to null-terminated Shift-JIS strings elsewhere in the file.
 
 ```
 Binary file layout:
@@ -436,20 +486,13 @@ Binary file layout:
 | Field | Type | Description |
 |-------|------|-------------|
 | `begin_pointer` | Hex string | Offset to a pointer that points to the **start** of the pointer table |
-| `next_field_pointer` | Hex string | Offset to a pointer that points to the **end** of the pointer table (or start of next section) |
-| `crop_end` | Integer | Number of bytes to exclude from the end of the calculated range (optional, default: 0) |
+| `entry_count` | Integer or map | Number of entries in the pointer table. Plain integer for a single version, or `{"zz": N, "ko": M}` for multi-version |
+| `pointers_per_entry` | Integer | Number of consecutive pointer slots per logical entry (default: 1). Used for sections like weapon descriptions with 4 sub-pointers per weapon |
+| `null_terminated` | Boolean | If `true`, scan forward until a null pointer instead of using `entry_count` for the length |
+| `entry_size` | Integer | Byte size of each struct entry (for struct-strided sections where strings are embedded in fixed-size records) |
+| `field_offset` | Integer | Byte offset of the string pointer within each struct entry |
 
-**Important:** These are *pointers to pointers*. The values at `begin_pointer` and `next_field_pointer` contain the actual addresses of the pointer table boundaries.
-
-### Understanding crop_end
-
-The `crop_end` parameter handles cases where the pointer table contains trailing entries that shouldn't be processed:
-
-- **Padding bytes**: Some sections have null padding at the end
-- **Metadata entries**: Some tables end with non-string pointers (counts, flags, etc.)
-- **Overlap prevention**: Prevents reading into the next section's data
-
-For example, with `crop_end: 24`, the last 24 bytes (6 pointers) of the calculated range are excluded.
+**Important:** `begin_pointer` is a *pointer to a pointer*. The value at `begin_pointer` contains the actual address of the pointer table start.
 
 ### Adding New Sections
 
@@ -457,17 +500,16 @@ To add support for a new text section:
 
 1. **Find the pointer table** using a hex editor or [ImHex](https://imhex.werwolv.net/) with [MHF patterns](https://github.com/var-username/Monster-Hunter-Frontier-Patterns)
 
-2. **Identify the boundaries**:
+2. **Identify the start and count**:
    - Find where the file stores the table's start address (`begin_pointer`)
-   - Find where the file stores the table's end address (`next_field_pointer`)
+   - Count the number of entries in the pointer table
 
 3. **Add the entry** to `headers.json`:
    ```json
    "monsters": {
      "names": {
        "begin_pointer": "0x200",
-       "next_field_pointer": "0x1FC",
-       "crop_end": 0
+       "entry_count": 142
      }
    }
    ```
@@ -487,17 +529,15 @@ The armor head names section in mhfdat.bin:
 "armors": {
   "head": {
     "begin_pointer": "0x64",
-    "next_field_pointer": "0x60",
-    "crop_end": 24
+    "entry_count": 14594
   }
 }
 ```
 
 This means:
 - Read the 4-byte value at offset `0x64` → this gives the pointer table start
-- Read the 4-byte value at offset `0x60` → this gives the pointer table end
-- Subtract 24 bytes from the range to exclude trailing metadata
-- Each 4-byte entry in this range is a pointer to a null-terminated armor name
+- Read 14594 × 4 bytes of pointer entries
+- Each 4-byte entry is a pointer to a null-terminated armor name
 
 ### Multiline Strings
 

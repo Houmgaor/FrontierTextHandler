@@ -11,6 +11,12 @@ Translator-facing format spec:
 translation files import unchanged.
 
 ### Changed
+- **`headers.json` config simplified**: Replaced `next_field_pointer` +
+  `crop_end`, `count_base_pointer` + `count_offset` + `count_type`,
+  and `count_pointer` with a single `entry_count` field per section.
+  Removes 6 config keys and the fragile pointer-borrowing hack where
+  adjacent sections shared boundary pointers with manual byte trimming.
+  Legacy config formats are still accepted during transition.
 - Index-keyed CSV/JSON (`index,source,target`) is the default for
   every extractor. `--legacy-offset` re-enables the pre-1.6.0
   offset-keyed shape; the 1.5.0 `--with-index` flag stays as a
@@ -29,6 +35,21 @@ translation files import unchanged.
   count mismatch keeps the originals rather than corrupting siblings.
 
 ### Added
+- **Line-length validation** for translations via `--validate-line-lengths`
+  and `--measure-line-lengths` CLI commands. Measures the maximum
+  display width and sub-string count of each section from the original
+  Japanese binaries, stores limits in `headers.json`
+  (`max_display_width`, `max_sub_count`), and validates translations
+  against those limits. Uses Unicode East Asian Width (CJK = 2 cells,
+  ASCII = 1), strips inline placeholders before measurement.
+  `--max-expansion N` applies a margin multiplier (default 1.0).
+  `--strict-line-lengths` turns violations into hard errors for CI.
+- **Multi-version game support** via `--game-version VERSION` flag and
+  versioned `entry_count` in `headers.json`. Different MH Frontier
+  versions (Season 6, Forward.5, ZZ, etc.) have different numbers of
+  items, armors, and weapons. Entry counts can be a plain integer
+  (single version) or a version map (`{"zz": 14594, "ko": 1290}`).
+  Defaults to ZZ.
 - **Placeholder validation** across every importer and as a new
   standalone `--validate-placeholders FILE` CLI command. Runs a
   multiset comparison of brace-form markers (`{cNN}`, `{/c}`, `{j}`,

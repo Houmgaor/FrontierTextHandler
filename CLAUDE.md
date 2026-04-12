@@ -83,10 +83,10 @@ Encrypted (ECD) → Decrypted → Compressed (JPK) → Decompressed → Extract 
 **Configuration (`headers.json`):**
 Defines pointer offsets for each data section. Structure: `{file_type}/{category}/{subcategory}` with:
 - `begin_pointer`: Hex offset to a pointer that points to the start of the pointer table
-- `next_field_pointer`: Hex offset to a pointer that points to the end of the pointer table
-- `crop_end`: Optional bytes to exclude from end (for padding/metadata, default: 0)
+- `entry_count`: Number of entries — plain integer or versioned map (`{"zz": 14594, "ko": 1290}`)
+- Optional: `pointers_per_entry`, `null_terminated`, `entry_size`/`field_offset` for struct-strided sections
 
-Note: These are pointers-to-pointers. The file stores addresses that point to the actual table boundaries.
+Note: `begin_pointer` is a pointer-to-pointer. The file stores an address that points to the actual table start. Use `--game-version` to select entry counts for non-ZZ versions.
 
 ## CSV Format
 
