@@ -98,6 +98,23 @@ This creates `output/mhfdat-modified.bin` with JKR compression applied. The comp
 python main.py --csv-to-bin output/translations.csv data/mhfdat.bin --compress --encrypt
 ```
 
+### Accent folding for European languages
+
+MH Frontier's custom bitmap font covers JIS X 0208 + basic ASCII but
+not the accented Latin characters that European languages need (é, è, à,
+ô, ç, œ, etc.). Until the in-game font is extended, use
+`--fold-unsupported-chars` to fold diacritics down to their nearest
+ASCII equivalents on import:
+
+```bash
+python main.py --csv-to-bin output/dat-armors-head.csv data/mhfdat.bin \
+    --fold-unsupported-chars --compress --encrypt
+```
+
+The folding is intentionally lossy and only happens on the way to the
+binary. Keep your source CSV with proper accents — the folding can be
+removed once the font supports the missing glyphs.
+
 ### In-place section rebuild
 
 When `--csv-to-bin` is combined with `--xpath`, only the target section is rewritten in the binary file. This is useful when you want to update a single section without touching the rest of the file:

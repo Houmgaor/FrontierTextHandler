@@ -50,6 +50,11 @@ translation files import unchanged.
   items, armors, and weapons. Entry counts can be a plain integer
   (single version) or a version map (`{"zz": 14594, "ko": 1290}`).
   Defaults to ZZ.
+- **Accent folding** via `--fold-unsupported-chars` for European-language
+  imports. MH Frontier's bitmap font lacks Latin diacritics (é, è, à, ç,
+  œ, etc.); this flag folds them to ASCII equivalents on import so they
+  render in-game until the custom font is extended. Lossy and opt-in —
+  source CSVs keep full typographic quality.
 - **Placeholder validation** across every importer and as a new
   standalone `--validate-placeholders FILE` CLI command. Runs a
   multiset comparison of brace-form markers (`{cNN}`, `{/c}`, `{j}`,
