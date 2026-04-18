@@ -69,13 +69,43 @@ class TestExtractFromFile(unittest.TestCase):
         })
 
         output_dir = os.path.join(self.tmpdir, "out")
+        # ReFrontier TSV is opt-in since 1.7.0; pass refrontier_tsv=True
+        # to keep coverage that the legacy path still works.
         csv_path, ref_path, json_path = extract_from_file(
-            bin_path, "test/items", "", output_dir, headers_path
+            bin_path, "test/items", "", output_dir, headers_path,
+            refrontier_tsv=True,
         )
 
         self.assertTrue(os.path.exists(csv_path))
         self.assertTrue(os.path.exists(ref_path))
         self.assertTrue(os.path.exists(json_path))
+
+    def test_refrontier_tsv_off_by_default(self):
+        data = self._build_standard_binary(["Foo", "Bar"])
+        bin_path = os.path.join(self.tmpdir, "test.bin")
+        with open(bin_path, "wb") as f:
+            f.write(data)
+
+        headers_path = self._write_headers({
+            "test": {
+                "items": {
+                    "begin_pointer": "0x0",
+                    "next_field_pointer": "0x4",
+                }
+            }
+        })
+
+        output_dir = os.path.join(self.tmpdir, "out_default")
+        csv_path, ref_path, json_path = extract_from_file(
+            bin_path, "test/items", "", output_dir, headers_path
+        )
+
+        self.assertTrue(os.path.exists(csv_path))
+        self.assertTrue(os.path.exists(json_path))
+        self.assertEqual(ref_path, "")
+        self.assertFalse(
+            os.path.exists(os.path.join(output_dir, "refrontier.csv"))
+        )
 
     def test_no_data_raises(self):
         # Binary with pointer table pointing to nothing

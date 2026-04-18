@@ -222,6 +222,19 @@ def parse_inputs() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,  # no-op alias: 1.5.0 opt-in is the default in 1.6.0+
     )
     parser.add_argument(
+        "--refrontier-tsv",
+        action="store_true",
+        help=(
+            "Also write the legacy ReFrontier Shift-JIS TSV "
+            "(``output/refrontier.csv``) alongside the modern UTF-8 "
+            "CSV/JSON outputs. Off by default since 1.7.0 — the modern "
+            "outputs cover every round-trip the importer needs, and "
+            "the strict Shift-JIS re-encode crashed extraction on "
+            "inputs containing bytes that decoded through ``\\ufffd`` "
+            "placeholders (e.g. some stage dialogue files)."
+        ),
+    )
+    parser.add_argument(
         "--validate-placeholders",
         type=str,
         metavar="FILE",
@@ -491,7 +504,10 @@ def main(args: argparse.Namespace) -> None:
 
     if args.extract_all:
         # Batch extraction mode - extract all sections from headers.json
-        files = src.extract_all(with_index=with_index, game_version=args.game_version)
+        files = src.extract_all(
+            with_index=with_index, game_version=args.game_version,
+            refrontier_tsv=args.refrontier_tsv,
+        )
         if files:
             print(f"Extracted {len(files)} files to output/")
         else:
@@ -548,6 +564,7 @@ def main(args: argparse.Namespace) -> None:
         from src.export import extract_scenario_file
         csv_path, ref_path, json_path = extract_scenario_file(
             args.input_file, with_index=with_index,
+            refrontier_tsv=args.refrontier_tsv,
         )
         print(f"Extracted scenario text to {csv_path}")
     elif args.npc_to_bin:
@@ -565,6 +582,7 @@ def main(args: argparse.Namespace) -> None:
         from src.export import extract_npc_dialogue_file
         csv_path, ref_path, json_path = extract_npc_dialogue_file(
             args.input_file, with_index=with_index,
+            refrontier_tsv=args.refrontier_tsv,
         )
         print(f"Extracted NPC dialogue to {csv_path}")
     elif args.ftxt:
@@ -572,6 +590,7 @@ def main(args: argparse.Namespace) -> None:
         from src.export import extract_ftxt_file
         csv_path, ref_path, json_path = extract_ftxt_file(
             args.input_file, with_index=with_index,
+            refrontier_tsv=args.refrontier_tsv,
         )
         print(f"Extracted FTXT to {csv_path}")
     elif args.quest:
@@ -579,6 +598,7 @@ def main(args: argparse.Namespace) -> None:
         from src.export import extract_single_quest_file
         csv_path, ref_path, json_path = extract_single_quest_file(
             args.input_file, with_index=with_index,
+            refrontier_tsv=args.refrontier_tsv,
         )
         print(f"Extracted quest text to {csv_path}")
     elif args.refrontier_to_csv:
@@ -623,6 +643,7 @@ def main(args: argparse.Namespace) -> None:
             args.input_file, xpath, args.output_file,
             with_index=with_index,
             game_version=args.game_version,
+            refrontier_tsv=args.refrontier_tsv,
         )
 
 

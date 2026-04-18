@@ -33,7 +33,7 @@ To extract the data:
 - **Extraction:** Auto-decrypts ECD/EXF and auto-decompresses JKR
 - **Reimport:** Use ``--compress --encrypt`` to produce game-ready files
 
-Output data will be in ``output/*.csv``. The file ``output/refrontier.csv`` is compatible with ReFrontier.
+Output data will be in ``output/*.csv`` (UTF-8) and ``output/*.json``. Pass ``--refrontier-tsv`` if you also want the legacy ``output/refrontier.csv`` (Shift-JIS TSV) for ReFrontier interop — it is opt-in since 1.7.0.
 
 ### Extract all data
 
@@ -223,6 +223,10 @@ silent no-op alias, so scripts written against the 1.5.0 behaviour keep
 working. The ReFrontier-compatible TSV output (`export_for_refrontier`)
 and the `refrontier_to_csv` helper stay offset-keyed because their inputs
 carry raw ReFrontier offsets and have no section context to index against.
+Since 1.7.0 the TSV is opt-in via `--refrontier-tsv` (or
+`refrontier_tsv=True` on the Python API); the modern UTF-8 CSV/JSON
+covers every round-trip the importer needs and the strict Shift-JIS
+re-encode crashed extraction on inputs containing `\ufffd` bytes.
 
 ### Decrypt files
 

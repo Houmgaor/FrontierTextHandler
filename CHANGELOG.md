@@ -4,6 +4,27 @@ All notable changes to FrontierTextHandler will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- **ReFrontier TSV is now opt-in.** The legacy
+  `output/refrontier.csv` (Shift-JIS TSV with `Offset/Hash/JString`)
+  was emitted by every single-file extractor (`--xpath`, `--ftxt`,
+  `--quest`, `--npc`, `--scenario`, `--extract-all`) regardless of
+  whether anyone consumed it. It is now off by default; pass
+  `--refrontier-tsv` to opt back in. Programmatic callers of
+  `extract_from_file` / `extract_*_file` / `extract_all` can pass
+  `refrontier_tsv=True` for the same effect; the returned
+  `refrontier_path` is an empty string when the flag is off.
+  Modern UTF-8 CSV/JSON outputs cover every round-trip the importer
+  needs.
+
+### Fixed
+- `--npc` no longer crashes on stage dialogue files containing bytes
+  that decoded through `\ufffd` placeholders (issue #4). The strict
+  Shift-JIS re-encode in `export_for_refrontier` was the only failing
+  path; it is no longer in the default extraction pipeline.
+
 ## [1.6.0] - 2026-04-12
 
 Translator-facing format spec:

@@ -127,7 +127,9 @@ legacy and index-keyed translations can coexist in a single project.
 The ReFrontier-compatible TSV format (`export_for_refrontier`) and
 `refrontier_to_csv` stay offset-keyed regardless — they operate on
 pre-existing ReFrontier offsets that have no section context to
-index against.
+index against. Since 1.7.0 the TSV is opt-in via `--refrontier-tsv`
+on the CLI (or `refrontier_tsv=True` on the Python API); extractors
+return an empty `refrontier_path` when the flag is off.
 
 **Scope of the default flip.** Every extraction entry point emits the
 new format by default: `--extract-all`, `--xpath=…`, `--quest`,

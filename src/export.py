@@ -183,6 +183,7 @@ def extract_ftxt_file(
     output_file: str = "",
     output_dir: str = "output",
     with_index: bool = True,
+    refrontier_tsv: bool = False,
 ) -> tuple[str, str, str]:
     """
     Extract text from an FTXT standalone text file.
@@ -193,7 +194,15 @@ def extract_ftxt_file(
     :param with_index: If True (the default since 1.6.0), write the
         index-keyed CSV/JSON format. False selects the legacy
         offset-keyed format for backward compatibility.
-    :return: Tuple of (csv_path, refrontier_path, json_path)
+    :param refrontier_tsv: If True, also write the legacy ReFrontier
+        Shift-JIS TSV (``output_dir/refrontier.csv``). Off by default
+        since 1.7.0 — the modern UTF-8 CSV/JSON outputs cover every
+        round-trip the importer needs, and the strict Shift-JIS
+        re-encode crashed on inputs containing bytes that round-tripped
+        through ``\\ufffd`` placeholders.
+    :return: Tuple of (csv_path, refrontier_path, json_path).
+        ``refrontier_path`` is an empty string when ``refrontier_tsv``
+        is False.
     """
     file_section = common.extract_ftxt(input_file)
 
@@ -208,14 +217,16 @@ def extract_ftxt_file(
         basename = os.path.splitext(os.path.basename(input_file))[0]
         output_file = os.path.join(output_dir, f"ftxt-{basename}.csv")
 
-    refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(
         file_section, output_file, os.path.basename(input_file),
         with_index=with_index,
     )
-    export_for_refrontier(file_section, refrontier_path)
+    refrontier_path = ""
+    if refrontier_tsv:
+        refrontier_path = os.path.join(output_dir, "refrontier.csv")
+        export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
         with_index=with_index,
@@ -337,6 +348,7 @@ def extract_single_quest_file(
     quest_strings_offset: int = 0xE8,
     text_pointers_count: int = 8,
     with_index: bool = True,
+    refrontier_tsv: bool = False,
 ) -> tuple[str, str, str]:
     """
     Extract text from a single quest .bin file.
@@ -350,7 +362,12 @@ def extract_single_quest_file(
     :param with_index: If True (the default since 1.6.0), write the
         index-keyed CSV/JSON format. False selects the legacy
         offset-keyed format for backward compatibility.
-    :return: Tuple of (csv_path, refrontier_path, json_path)
+    :param refrontier_tsv: If True, also write the legacy ReFrontier
+        Shift-JIS TSV alongside the CSV/JSON. Off by default since
+        1.7.0.
+    :return: Tuple of (csv_path, refrontier_path, json_path).
+        ``refrontier_path`` is an empty string when ``refrontier_tsv``
+        is False.
     """
     file_section = common.extract_quest_file(
         input_file, quest_type_flags_offset,
@@ -367,14 +384,16 @@ def extract_single_quest_file(
         basename = os.path.splitext(os.path.basename(input_file))[0]
         output_file = os.path.join(output_dir, f"quest-{basename}.csv")
 
-    refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(
         file_section, output_file, os.path.basename(input_file),
         with_index=with_index,
     )
-    export_for_refrontier(file_section, refrontier_path)
+    refrontier_path = ""
+    if refrontier_tsv:
+        refrontier_path = os.path.join(output_dir, "refrontier.csv")
+        export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
         with_index=with_index,
@@ -388,6 +407,7 @@ def extract_npc_dialogue_file(
     output_file: str = "",
     output_dir: str = "output",
     with_index: bool = True,
+    refrontier_tsv: bool = False,
 ) -> tuple[str, str, str]:
     """
     Extract NPC dialogue text from a stage dialogue binary file.
@@ -401,7 +421,14 @@ def extract_npc_dialogue_file(
         passing True works but the resulting file can't be round-
         tripped through ``import_from_csv`` without also teaching the
         importer about the file's layout.
-    :return: Tuple of (csv_path, refrontier_path, json_path)
+    :param refrontier_tsv: If True, also write the legacy ReFrontier
+        Shift-JIS TSV alongside the CSV/JSON. Off by default since
+        1.7.0 — stage dialogue files frequently contain bytes that
+        decode through ``\\ufffd`` placeholders, which made the strict
+        Shift-JIS re-encode crash the whole extraction (issue #4).
+    :return: Tuple of (csv_path, refrontier_path, json_path).
+        ``refrontier_path`` is an empty string when ``refrontier_tsv``
+        is False.
     """
     file_section = common.extract_npc_dialogue(input_file)
 
@@ -416,14 +443,16 @@ def extract_npc_dialogue_file(
         basename = os.path.splitext(os.path.basename(input_file))[0]
         output_file = os.path.join(output_dir, f"npc-{basename}.csv")
 
-    refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(
         file_section, output_file, os.path.basename(input_file),
         with_index=with_index,
     )
-    export_for_refrontier(file_section, refrontier_path)
+    refrontier_path = ""
+    if refrontier_tsv:
+        refrontier_path = os.path.join(output_dir, "refrontier.csv")
+        export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
         with_index=with_index,
@@ -459,6 +488,7 @@ def extract_scenario_file(
     output_file: str = "",
     output_dir: str = "output",
     with_index: bool = True,
+    refrontier_tsv: bool = False,
 ) -> tuple[str, str, str]:
     """
     Extract text from a single scenario .bin file.
@@ -472,7 +502,12 @@ def extract_scenario_file(
         passing True works but the resulting file can't be round-
         tripped through ``import_from_csv`` without also teaching the
         importer about the file's layout.
-    :return: Tuple of (csv_path, refrontier_path, json_path)
+    :param refrontier_tsv: If True, also write the legacy ReFrontier
+        Shift-JIS TSV alongside the CSV/JSON. Off by default since
+        1.7.0.
+    :return: Tuple of (csv_path, refrontier_path, json_path).
+        ``refrontier_path`` is an empty string when ``refrontier_tsv``
+        is False.
     """
     file_section = _extract_scenario(input_file)
 
@@ -487,14 +522,16 @@ def extract_scenario_file(
         basename = os.path.splitext(os.path.basename(input_file))[0]
         output_file = os.path.join(output_dir, f"scenario-{basename}.csv")
 
-    refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(output_file)[0] + ".json"
 
     export_as_csv(
         file_section, output_file, os.path.basename(input_file),
         with_index=with_index,
     )
-    export_for_refrontier(file_section, refrontier_path)
+    refrontier_path = ""
+    if refrontier_tsv:
+        refrontier_path = os.path.join(output_dir, "refrontier.csv")
+        export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
         with_index=with_index,
@@ -549,6 +586,7 @@ def extract_from_file(
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     with_index: bool = True,
     game_version: str = "zz",
+    refrontier_tsv: bool = False,
 ) -> tuple[str, str, str]:
     """
     Extract data from a single file.
@@ -562,7 +600,12 @@ def extract_from_file(
         index-keyed CSV/JSON format. False selects the legacy
         offset-keyed format for backward compatibility.
     :param game_version: Game version key for versioned entry_count maps.
-    :return: Tuple of (csv_path, refrontier_path, json_path) for the exported files
+    :param refrontier_tsv: If True, also write the legacy ReFrontier
+        Shift-JIS TSV (``output_dir/refrontier.csv``). Off by default
+        since 1.7.0.
+    :return: Tuple of (csv_path, refrontier_path, json_path) for the
+        exported files. ``refrontier_path`` is an empty string when
+        ``refrontier_tsv`` is False.
     """
     # Read data using config-based extraction (supports all formats).
     # Load the file once so we can reuse the bytes for fingerprinting
@@ -588,14 +631,16 @@ def extract_from_file(
     else:
         export_name = output_file
 
-    refrontier_path = os.path.join(output_dir, "refrontier.csv")
     json_path = os.path.splitext(export_name)[0] + ".json"
 
     export_as_csv(
         file_section, export_name, os.path.basename(input_file),
         with_index=with_index,
     )
-    export_for_refrontier(file_section, refrontier_path)
+    refrontier_path = ""
+    if refrontier_tsv:
+        refrontier_path = os.path.join(output_dir, "refrontier.csv")
+        export_for_refrontier(file_section, refrontier_path)
     export_as_json(
         file_section, json_path, os.path.basename(input_file),
         with_index=with_index, xpath=xpath, fingerprint=fingerprint,
@@ -610,6 +655,7 @@ def extract_all(
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     with_index: bool = True,
     game_version: str = "zz",
+    refrontier_tsv: bool = False,
 ) -> list[str]:
     """
     Extract all sections defined in headers.json.
@@ -622,6 +668,9 @@ def extract_all(
         index-keyed CSV/JSON format. False selects the legacy
         offset-keyed format for backward compatibility.
     :param game_version: Game version key for versioned entry_count maps.
+    :param refrontier_tsv: If True, also write the legacy ReFrontier
+        Shift-JIS TSV (``output_dir/refrontier.csv``) for the last
+        section processed. Off by default since 1.7.0.
     :return: List of generated CSV file paths
     """
     if input_files is None:
@@ -656,6 +705,7 @@ def extract_all(
             csv_path, _, _ = extract_from_file(
                 input_file, xpath, "", output_dir, headers_path,
                 with_index=with_index, game_version=game_version,
+                refrontier_tsv=refrontier_tsv,
             )
             generated_files.append(csv_path)
             logger.info("Extracted '%s' to '%s'", xpath, csv_path)
