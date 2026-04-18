@@ -187,6 +187,43 @@ class TestExtractNpcDialogue(unittest.TestCase):
         result = extract_npc_dialogue_data(b"\x00\x00")
         self.assertEqual(result, [])
 
+    def test_rejects_missing_terminator(self):
+        # Two valid-looking pairs followed by 32 bytes of padding — no
+        # (0xFFFFFFFF, 0xFFFFFFFF) terminator anywhere in the stream.
+        data = struct.pack("<IIII", 1, 16, 2, 16) + b"\x00" * 32
+        with self.assertRaises(ValueError) as ctx:
+            extract_npc_dialogue_data(data)
+        self.assertIn("terminator", str(ctx.exception))
+
+    def test_rejects_block_ptr_past_eof(self):
+        # block_ptr in second entry points past the file
+        data = struct.pack(
+            "<IIIIII",
+            1, 16,           # valid: ptr to position 16 (within file)
+            2, 0xDEADBEEF,   # invalid: block_ptr past EOF
+            0xFFFFFFFF, 0xFFFFFFFF,
+        )
+        with self.assertRaises(ValueError) as ctx:
+            extract_npc_dialogue_data(data)
+        self.assertIn("past end of file", str(ctx.exception))
+
+    def test_rejects_implausible_header_size(self):
+        # Single NPC pointing to a block whose header_size is garbage
+        # (1 GB, the same kind of value seen on stage geometry files)
+        data = bytearray()
+        data.extend(struct.pack("<II", 1, 16))                   # NPC entry
+        data.extend(struct.pack("<II", 0xFFFFFFFF, 0xFFFFFFFF))  # terminator
+        data.extend(struct.pack("<I", 0x40000000))               # garbage header_size
+        with self.assertRaises(ValueError) as ctx:
+            extract_npc_dialogue_data(bytes(data))
+        self.assertIn("header_size", str(ctx.exception))
+
+    def test_rejects_random_bytes(self):
+        # Pure random-looking bytes should not parse as an NPC file
+        data = bytes(range(256)) * 4
+        with self.assertRaises(ValueError):
+            extract_npc_dialogue_data(data)
+
     def test_extract_from_file(self):
         """Test extraction from a file path with auto-decrypt/decompress."""
         data = build_npc_dialogue([(5, ["File test"])])

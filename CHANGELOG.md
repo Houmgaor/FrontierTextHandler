@@ -24,6 +24,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   that decoded through `\ufffd` placeholders (issue #4). The strict
   Shift-JIS re-encode in `export_for_refrontier` was the only failing
   path; it is no longer in the default extraction pipeline.
+- `--npc` now validates the NPC table and per-block structure and
+  raises a clear `ValueError` ("input is likely not an NPC dialogue
+  file") instead of producing hundreds of garbage rows when run on
+  the wrong file type (e.g. a stage geometry `.pac`). The format has
+  no magic bytes, so the previous parser walked into random data
+  until it coincidentally hit a `(0xFFFFFFFF, 0xFFFFFFFF)`
+  pseudo-terminator. Caps: ≤10000 NPCs per file, ≤1024 dialogues per
+  NPC, header_size must be a multiple of 4 within file bounds. Issue
+  #4's `st200-hd.pac` reproducer was a stage geometry file, not a
+  dialogue file — it now fails loudly at the table walk.
 
 ## [1.6.0] - 2026-04-12
 

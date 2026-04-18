@@ -3,6 +3,7 @@ NPC dialogue text extraction for Monster Hunter Frontier.
 
 Handles stage dialogue binary files with NPC table and per-NPC dialogue blocks.
 """
+import logging
 import struct
 
 from .binary_file import BinaryFile
@@ -13,6 +14,19 @@ __all__ = [
     "extract_npc_dialogue",
     "extract_npc_dialogue_data",
 ]
+
+logger = logging.getLogger(__name__)
+
+# Sanity caps used to reject obviously-invalid inputs (e.g. running
+# ``--npc`` on a stage geometry ``.pac`` instead of a stage dialogue
+# file). The format has no magic bytes, so without these the parser
+# happily reinterprets random binary as ``(npc_id, pointer)`` pairs and
+# produces multi-hundred-kilobyte garbage rows. Real stages have at
+# most a handful of dozen NPCs and a couple of dozen dialogue lines
+# each — these caps are several orders of magnitude beyond that.
+_MAX_NPC_TABLE_ENTRIES = 10000
+_MAX_DIALOGUES_PER_NPC = 1024
+_MAX_HEADER_SIZE_BYTES = _MAX_DIALOGUES_PER_NPC * 4
 
 
 def extract_npc_dialogue(file_path: str) -> list[dict[str, int | str]]:
@@ -27,6 +41,7 @@ def extract_npc_dialogue(file_path: str) -> list[dict[str, int | str]]:
 
     :param file_path: Path to the dialogue file (auto-decrypts/decompresses)
     :return: List of dicts with "offset" and "text" keys
+    :raises ValueError: If *data* doesn't look like an NPC dialogue file
     """
     file_data = load_file_data(file_path)
     return extract_npc_dialogue_data(file_data)
@@ -38,34 +53,71 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
 
     :param data: Raw dialogue binary data
     :return: List of dicts with "offset" and "text" keys
+    :raises ValueError: If *data* doesn't look like an NPC dialogue file —
+        the format has no magic bytes, so the parser validates the table
+        and per-block structure and refuses to walk into garbage.
     """
     if len(data) < 8:
         return []
 
     bfile = BinaryFile.from_bytes(data)
 
-    # Read NPC table: (npc_id, pointer) pairs until 0xFFFFFFFF terminator
+    # Walk the NPC table: (npc_id, pointer) pairs until the
+    # (0xFFFFFFFF, 0xFFFFFFFF) terminator. Cap the iteration count and
+    # validate each block_ptr is within file bounds — running ``--npc``
+    # on the wrong file type produces millions of plausible-looking
+    # pairs, and without these checks the parser would happily process
+    # them and emit garbage rows.
     npcs: list[tuple[int, int, int]] = []  # (npc_id, block_pointer, table_offset)
     pos = 0
+    terminated = False
     while pos + 8 <= len(data):
+        if len(npcs) >= _MAX_NPC_TABLE_ENTRIES:
+            raise ValueError(
+                f"NPC table did not terminate within "
+                f"{_MAX_NPC_TABLE_ENTRIES} entries — input is likely "
+                "not an NPC dialogue file."
+            )
         bfile.seek(pos)
         npc_id = struct.unpack_from("<I", data, pos)[0]
         block_ptr = struct.unpack_from("<I", data, pos + 4)[0]
         if npc_id == 0xFFFFFFFF and block_ptr == 0xFFFFFFFF:
+            terminated = True
             break
+        if block_ptr + 4 > len(data):
+            raise ValueError(
+                f"NPC table entry {len(npcs)} at offset {pos:#x} has "
+                f"block_ptr={block_ptr:#x} past end of file "
+                f"({len(data):#x} bytes) — input is likely not an NPC "
+                "dialogue file."
+            )
         npcs.append((npc_id, block_ptr, pos))
         pos += 8
+
+    if not terminated:
+        raise ValueError(
+            "NPC table terminator (0xFFFFFFFF, 0xFFFFFFFF) not found — "
+            "input is likely not an NPC dialogue file."
+        )
 
     if not npcs:
         return []
 
     results: list[dict[str, int | str | list[int]]] = []
     for npc_id, block_ptr, table_offset in npcs:
-        if block_ptr + 4 > len(data):
-            continue
-
-        # Read header_size at the start of the NPC block
+        # Read header_size at the start of the NPC block.
+        # Validate it before trusting it as a length: ``--npc`` on a
+        # stage geometry file gives header_size values in the billions
+        # which would then drive ``num_dialogues`` into 8-figure
+        # territory and read megabytes of binary as text.
         header_size = struct.unpack_from("<I", data, block_ptr)[0]
+        if header_size > _MAX_HEADER_SIZE_BYTES or header_size % 4 != 0:
+            raise ValueError(
+                f"NPC {npc_id:#x} block at {block_ptr:#x} has implausible "
+                f"header_size={header_size} (cap "
+                f"{_MAX_HEADER_SIZE_BYTES}, must be multiple of 4) — "
+                "input is likely not an NPC dialogue file."
+            )
         if header_size == 0:
             # No dialogues for this NPC
             results.append({
@@ -77,6 +129,13 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
 
         num_dialogues = header_size // 4
         pointers_start = block_ptr + 4  # skip header_size field
+        if pointers_start + header_size > len(data):
+            raise ValueError(
+                f"NPC {npc_id:#x} block at {block_ptr:#x} declares "
+                f"{num_dialogues} pointers but only "
+                f"{len(data) - pointers_start} bytes remain — input is "
+                "likely not an NPC dialogue file."
+            )
 
         # Read relative pointers, remembering the slot position of each
         # dialogue sub-pointer for downstream tools (even though the
