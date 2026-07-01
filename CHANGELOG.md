@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-01
+
+### Added
+- **`pac/menu/*` section mappings** for the town/box UI string tables:
+  `pac/menu/item_box`, `pac/menu/change_equip`, `pac/menu/smith`, and
+  `pac/menu/options` (item box, equipment-change, blacksmith, and
+  options menus). Translation files for these sections **require this
+  release or newer** — older builds raise `KeyError: 'menu'` on import
+  because their `headers.json` predates the mapping.
+
 ### Changed
 - **ReFrontier TSV is now opt-in.** The legacy
   `output/refrontier.csv` (Shift-JIS TSV with `Offset/Hash/JString`)
@@ -20,6 +30,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   needs.
 
 ### Fixed
+- **Scenario import handles JKR-compressed chunks.** Scenario files
+  with a JKR-compressed chunk1 (NPC dialog) or chunk2 (menu/title)
+  crashed `--scenario-to-bin` with `IndexError: bytearray index out of
+  range`: those chunks are extracted from a decompressed buffer, so
+  string offsets pointed past the end of the still-compressed file. The
+  container is now rebuilt chunk by chunk — uncompressed chunks patched
+  in place, JKR chunks decompressed, patched, recompressed with the
+  original compression type, and their size headers rewritten. Malformed
+  or oversized chunk tables copy through unchanged instead of crashing.
+  (Refs #5)
+- **Clearer error when a translation file's section is unknown to the
+  installed `headers.json`.** Importing a file whose `metadata.xpath`
+  (or filename) resolves to a section this build doesn't define now
+  raises a `KeyError` that hints the section may be newer than the
+  installed FrontierTextHandler and to update, instead of a bare
+  `KeyError: '<segment>'`.
 - `--npc` no longer crashes on stage dialogue files containing bytes
   that decoded through `\ufffd` placeholders (issue #4). The strict
   Shift-JIS re-encode in `export_for_refrontier` was the only failing

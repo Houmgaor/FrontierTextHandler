@@ -1302,7 +1302,19 @@ def import_from_csv(
         )
 
     if xpath is not None:
-        config = common.read_extraction_config(xpath, headers_path)
+        try:
+            config = common.read_extraction_config(xpath, headers_path)
+        except KeyError as exc:
+            # The xpath came from the translation file (metadata.xpath or its
+            # filename) but this install's headers.json has no such section.
+            # The usual cause is a translation file for a section that was
+            # added in a newer FrontierTextHandler than the one importing it.
+            raise KeyError(
+                f"{exc.args[0]} If this translation file was produced by a "
+                f"newer release, the section may not exist in your "
+                f"headers.json yet — update FrontierTextHandler to the "
+                f"latest version."
+            ) from exc
         if fmt == "index":
             # Fingerprint sanity check: warn loudly if the translation file
             # was extracted from a binary that doesn't match the target.
