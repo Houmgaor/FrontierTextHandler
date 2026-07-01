@@ -19,8 +19,8 @@ from .common import (
     JOIN_MARKER,
     _JOIN_SPLIT_RE,
 )
-from .jkr_decompress import is_jkr_file, decompress_jkr
-from .jkr_compress import compress_jkr_hfi
+from .jkr_decompress import is_jkr_file, decompress_jkr, JKRError, JKRHeader
+from .jkr_compress import compress_jkr_hfi, compress_jkr, CompressionType
 from .crypto import is_encrypted_file, decrypt, encode_ecd, DEFAULT_KEY_INDEX
 from .placeholder_validation import (
     PlaceholderValidator,
@@ -1702,7 +1702,15 @@ def rebuild_scenario_file(
     Rebuild a scenario file with translated strings.
 
     Preserves the container structure (chunk sizes, metadata) and replaces
-    only the string bytes within each chunk.
+    only the string bytes within each chunk. JKR-compressed chunks (the
+    NPC-dialog chunk1 and the menu/title chunk2) are decompressed, patched
+    in their decompressed buffer, then recompressed with their original
+    compression type; the surrounding chunk-size headers are rewritten to
+    match. Uncompressed chunks are patched in place.
+
+    Strings are patched within the space of their original encoding: a
+    longer translation is truncated to fit (scenario chunks have no pointer
+    table to relocate against), a shorter one is null-padded.
 
     :param source_file: Path to the original scenario file
     :param new_strings: List of (offset, new_text) tuples from CSV
@@ -1710,64 +1718,152 @@ def rebuild_scenario_file(
     :return: Path to the rebuilt file
     """
     from .common import load_file_data, encode_game_string
-    from .scenario import extract_scenario_file_data
+    from .scenario import _parse_chunk0, _parse_chunk1, _scan_decompressed_strings
 
     file_data = load_file_data(source_file)
-    original_entries = extract_scenario_file_data(file_data)
 
     # Build translation map
     translation_map: dict[int, str] = {}
     for offset, text in new_strings:
         translation_map[offset] = text
 
-    # Rebuild: copy original file, then overwrite strings in-place
-    # Since strings are null-terminated and replacements may differ in length,
-    # we write the whole file then patch each string location
-    output_data = bytearray(file_data)
+    stats = {"translated": 0, "total": 0}
 
-    for entry in original_entries:
-        offset = entry["offset"]
-        if offset in translation_map:
-            new_text = translation_map[offset]
-        else:
-            new_text = entry["text"]
+    def _patch(buffer: bytearray, entries, base: int) -> None:
+        """Overwrite each extracted string in ``buffer`` in place.
 
-        # Encode new string
-        encoded = encode_game_string(
-            new_text, context=f"scenario rebuild offset 0x{offset:x}"
-        )
+        ``entries`` carry the same offsets extraction produced: for an
+        uncompressed chunk that is an absolute file offset; for a JKR chunk
+        it is ``base + position_in_decompressed_buffer`` (see
+        :func:`scenario._scan_decompressed_strings`). Subtracting ``base``
+        yields the position inside ``buffer`` in both cases.
+        """
+        for entry in entries:
+            stats["total"] += 1
+            offset = entry["offset"]
+            pos = offset - base
+            if not 0 <= pos < len(buffer):
+                # Shouldn't happen once offsets are chunk-relative, but guard
+                # against a corrupt table rather than raising IndexError.
+                logger.warning(
+                    "Scenario string offset 0x%x outside chunk (base 0x%x); skipping",
+                    offset, base,
+                )
+                continue
 
-        old_text = entry["text"]
-        old_encoded = encode_game_string(
-            old_text, context=f"scenario original offset 0x{offset:x}"
-        )
-
-        if len(encoded) <= len(old_encoded):
-            # Fits in place: write + null-pad remainder
-            output_data[offset:offset + len(encoded)] = encoded
-            output_data[offset + len(encoded)] = 0x00
-            # Null-pad any extra bytes from old string
-            for i in range(len(encoded) + 1, len(old_encoded) + 1):
-                if offset + i < len(output_data):
-                    output_data[offset + i] = 0x00
-        else:
-            # Doesn't fit: write truncated to original length
-            # This is a limitation — scenario files have fixed chunk sizes
-            max_len = len(old_encoded)
-            output_data[offset:offset + max_len] = encoded[:max_len]
-            output_data[offset + max_len] = 0x00
-            logger.warning(
-                "String at 0x%x truncated: %d bytes -> %d bytes max",
-                offset, len(encoded), max_len
+            old_encoded = encode_game_string(
+                entry["text"], context=f"scenario original offset 0x{offset:x}"
             )
+            if offset in translation_map:
+                new_text = translation_map[offset]
+                stats["translated"] += 1
+            else:
+                new_text = entry["text"]
+            encoded = encode_game_string(
+                new_text, context=f"scenario rebuild offset 0x{offset:x}"
+            )
+
+            max_len = len(old_encoded)
+            if len(encoded) > max_len:
+                logger.warning(
+                    "String at 0x%x truncated: %d bytes -> %d bytes max",
+                    offset, len(encoded), max_len,
+                )
+                encoded = encoded[:max_len]
+
+            buffer[pos:pos + len(encoded)] = encoded
+            # Null-terminate and clear any leftover bytes of the old string.
+            for i in range(len(encoded), max_len + 1):
+                if pos + i < len(buffer):
+                    buffer[pos + i] = 0x00
+
+    def _rebuild_jkr(chunk_bytes: bytes, base: int) -> bytes:
+        """Decompress, patch, and recompress a JKR chunk."""
+        try:
+            decompressed = bytearray(decompress_jkr(chunk_bytes))
+        except JKRError as exc:
+            logger.warning(
+                "Cannot decompress scenario chunk at 0x%x (%s); leaving as-is",
+                base, exc,
+            )
+            return chunk_bytes
+        entries = _scan_decompressed_strings(bytes(decompressed), base)
+        _patch(decompressed, entries, base)
+        header = JKRHeader.from_bytes(chunk_bytes)
+        ctype = header.compression_type if header else CompressionType.HFI
+        return compress_jkr(bytes(decompressed), ctype)
+
+    # Files smaller than the 8-byte container header have no chunks to patch.
+    if len(file_data) < 8:
+        with open(output_path, "wb") as f:
+            f.write(file_data)
+        return output_path
+
+    c0_size = struct.unpack_from(">I", file_data, 0)[0]
+    c1_size = struct.unpack_from(">I", file_data, 4)[0]
+
+    # If the declared chunk sizes don't fit the file we cannot rebuild it
+    # safely; copy it through untouched rather than corrupt it.
+    if c0_size > len(file_data) - 8 or c1_size > len(file_data) - 8 - c0_size:
+        logger.warning(
+            "Scenario chunk sizes (%d, %d) exceed file (%d bytes); copying unchanged",
+            c0_size, c1_size, len(file_data),
+        )
+        with open(output_path, "wb") as f:
+            f.write(file_data)
+        return output_path
+
+    # chunk0 — quest name/description, always uncompressed.
+    c0_off = 8
+    c0_buf = bytearray(file_data[c0_off:c0_off + c0_size])
+    if c0_size > 0:
+        _patch(c0_buf, _parse_chunk0(file_data, c0_off, c0_size), c0_off)
+    new_c0 = bytes(c0_buf)
+
+    # chunk1 — NPC dialog, either an uncompressed sub-header chunk or JKR.
+    c1_off = 8 + c0_size
+    if c1_size > 0:
+        c1_bytes = file_data[c1_off:c1_off + c1_size]
+        if is_jkr_file(c1_bytes):
+            new_c1 = _rebuild_jkr(c1_bytes, c1_off)
+        else:
+            c1_buf = bytearray(c1_bytes)
+            _patch(c1_buf, _parse_chunk1(file_data, c1_off, c1_size), c1_off)
+            new_c1 = bytes(c1_buf)
+    else:
+        new_c1 = b""
+
+    output_data = bytearray()
+    output_data += struct.pack(">I", len(new_c0))
+    output_data += struct.pack(">I", len(new_c1))
+    output_data += new_c0
+    output_data += new_c1
+
+    # chunk2 — JKR menu/title data, followed by any trailing bytes.
+    c2_header_off = 8 + c0_size + c1_size
+    if c2_header_off + 4 <= len(file_data):
+        c2_size = struct.unpack_from(">I", file_data, c2_header_off)[0]
+        c2_data_off = c2_header_off + 4
+        if c2_size > 0 and c2_data_off + c2_size <= len(file_data):
+            new_c2 = _rebuild_jkr(
+                file_data[c2_data_off:c2_data_off + c2_size], c2_data_off
+            )
+            output_data += struct.pack(">I", len(new_c2))
+            output_data += new_c2
+            output_data += file_data[c2_data_off + c2_size:]
+        else:
+            # No rebuildable chunk2: preserve its header and any trailing
+            # bytes verbatim.
+            output_data += file_data[c2_header_off:]
+    else:
+        output_data += file_data[c2_header_off:]
 
     with open(output_path, "wb") as f:
         f.write(bytes(output_data))
 
-    translated_count = sum(1 for e in original_entries if e["offset"] in translation_map)
     logger.info(
         "Rebuilt scenario file: %d/%d strings translated",
-        translated_count, len(original_entries)
+        stats["translated"], stats["total"],
     )
     return output_path
 

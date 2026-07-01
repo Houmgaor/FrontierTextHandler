@@ -101,6 +101,18 @@ def _build_inline_chunk(strings: list[str]) -> bytes:
     return bytes(data)
 
 
+def _build_jkr_chunk(strings: list[str]) -> bytes:
+    """Build a JKR-compressed chunk of null-terminated strings.
+
+    Mirrors the decompressed layout ``_scan_decompressed_strings`` reads:
+    a metadata null byte followed by null-terminated Shift-JIS strings.
+    """
+    decompressed = b"\x00" + b"".join(
+        encode_game_string(s) + b"\x00" for s in strings
+    )
+    return compress_jkr_hfi(decompressed)
+
+
 class TestExtractScenario(unittest.TestCase):
     """Tests for scenario file extraction."""
 
@@ -357,6 +369,73 @@ class TestScenarioRebuild(unittest.TestCase):
             self.assertEqual(result[0]["text"], "CCCC")
             self.assertEqual(result[1]["text"], "BBBB")
 
+    def test_translate_jkr_chunk1(self):
+        """Rebuild a file whose chunk1 is still JKR-compressed (issue #5).
+
+        Previously this raised ``IndexError: bytearray index out of range``
+        because JKR-chunk offsets point into the decompressed buffer, not
+        the compressed file.
+        """
+        c0 = _build_subheader_chunk(["Quest Name"], metadata_size=4)
+        c1 = _build_jkr_chunk(["Dialog A", "Dialog B"])
+        data = struct.pack(">II", len(c0), len(c1)) + c0 + c1 + struct.pack(">I", 0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = os.path.join(tmpdir, "source.bin")
+            output_path = os.path.join(tmpdir, "output.bin")
+            with open(source_path, "wb") as f:
+                f.write(data)
+
+            entries = extract_scenario_file_data(data)
+            dialog_a = next(e["offset"] for e in entries if e["text"] == "Dialog A")
+
+            rebuild_scenario_file(source_path, [(dialog_a, "Salut")], output_path)
+
+            texts = {e["text"] for e in extract_scenario_file(output_path)}
+            self.assertEqual(texts, {"Quest Name", "Salut", "Dialog B"})
+
+    def test_translate_jkr_chunk2(self):
+        """Rebuild a file whose chunk2 (menu/title) is JKR-compressed."""
+        c0 = _build_subheader_chunk(["Quest Name"], metadata_size=4)
+        c1 = _build_subheader_chunk(["NPC line"], metadata_size=8)
+        c2 = _build_jkr_chunk(["Menu Title"])
+        data = (
+            struct.pack(">II", len(c0), len(c1))
+            + c0 + c1
+            + struct.pack(">I", len(c2)) + c2
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = os.path.join(tmpdir, "source.bin")
+            output_path = os.path.join(tmpdir, "output.bin")
+            with open(source_path, "wb") as f:
+                f.write(data)
+
+            entries = extract_scenario_file_data(data)
+            title = next(e["offset"] for e in entries if e["text"] == "Menu Title")
+
+            rebuild_scenario_file(source_path, [(title, "Titre")], output_path)
+
+            texts = {e["text"] for e in extract_scenario_file(output_path)}
+            self.assertEqual(texts, {"Quest Name", "NPC line", "Titre"})
+
+    def test_jkr_chunk_no_change_roundtrip(self):
+        """No-translation rebuild of a JKR-chunk file preserves all text."""
+        c0 = _build_subheader_chunk(["Quest Name"], metadata_size=4)
+        c1 = _build_jkr_chunk(["Dialog A", "Dialog B"])
+        data = struct.pack(">II", len(c0), len(c1)) + c0 + c1 + struct.pack(">I", 0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = os.path.join(tmpdir, "source.bin")
+            output_path = os.path.join(tmpdir, "output.bin")
+            with open(source_path, "wb") as f:
+                f.write(data)
+
+            rebuild_scenario_file(source_path, [], output_path)
+
+            texts = [e["text"] for e in extract_scenario_file(output_path)]
+            self.assertEqual(texts, ["Quest Name", "Dialog A", "Dialog B"])
+
 
 class TestScenarioFullRoundTrip(unittest.TestCase):
     """End-to-end round-trip tests: extract -> CSV -> edit -> import -> re-extract."""
@@ -409,6 +488,43 @@ class TestScenarioFullRoundTrip(unittest.TestCase):
             self.assertEqual(result[0]["text"], "New1")
             self.assertEqual(result[1]["text"], "Original2")
             self.assertEqual(result[2]["text"], "Dialog1")
+
+    def test_jkr_chunk_csv_roundtrip(self):
+        """End-to-end import via CSV when chunk1 is JKR-compressed (issue #5)."""
+        c0 = _build_subheader_chunk(["Original1"], metadata_size=4)
+        c1 = _build_jkr_chunk(["Dialog A", "Dialog B"])
+        data = struct.pack(">II", len(c0), len(c1)) + c0 + c1 + struct.pack(">I", 0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = os.path.join(tmpdir, "source.bin")
+            with open(source_path, "wb") as f:
+                f.write(data)
+
+            csv_path, _, _ = extract_scenario_file_export(
+                source_path, output_dir=tmpdir
+            )
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+            # Translate the second entry (first JKR-chunk dialog) -> "Salut".
+            rows[1][2] = "Salut"
+
+            edited_csv = os.path.join(tmpdir, "edited.csv")
+            with open(edited_csv, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(rows)
+
+            output_path = import_scenario_from_csv(
+                edited_csv, source_path,
+                output_path=os.path.join(tmpdir, "modified.bin"),
+            )
+            self.assertIsNotNone(output_path)
+
+            texts = {e["text"] for e in extract_scenario_file(output_path)}
+            self.assertEqual(texts, {"Original1", "Salut", "Dialog B"})
 
     def test_json_roundtrip(self):
         """Test complete extract -> edit JSON -> import -> verify cycle."""
