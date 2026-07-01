@@ -184,6 +184,37 @@
         "_comment": "end_pointer 0xC0 → next section start"
       }
     },
+    "menu": {
+      "_comment": "Town/box UI menu tables in mhfpac.bin, reached via pointer-directory slots 0x2D8-0x908 (previously unmapped). entry_count is capped to the primary run that aligns across Z-era (JP source, client/pc-z-jp) and ZZ-era (EN/FR targets); duplicate/colour-variant and ZZ-only tail entries are intentionally excluded.",
+      "item_box": {
+        "begin_pointer": "0x4CC",
+        "max_display_width": 24,
+        "max_sub_count": 1,
+        "entry_count": 6,
+        "_comment": "Item/equip box menu: Deposit/Take/Organise/Sell Items, Send to Item Box, Combination (slots 0-5; null at slot 6)"
+      },
+      "change_equip": {
+        "begin_pointer": "0x30C",
+        "max_display_width": 24,
+        "max_sub_count": 1,
+        "entry_count": 7,
+        "_comment": "Equipment box submenu: Change Equipment, Edit/Equip/Register Set, Town Set Toggle, Colour, Caravan Skills (slots 0-6). SR Settings (slot 13) excluded: Z/ZZ diverge there (Z JP = 秘伝書の装備)."
+      },
+      "smith": {
+        "begin_pointer": "0x2D8",
+        "max_display_width": 32,
+        "max_sub_count": 1,
+        "entry_count": 22,
+        "_comment": "Blacksmith/deco/sigil/cuff menu: Create/Upgrade Weapon/Armour, Create/Insert/Remove/Destroy Deco, armour parts, cuffs, Brand/Remove Sigil (slots 0-21; aligns Z/ZZ)"
+      },
+      "options": {
+        "begin_pointer": "0x908",
+        "max_display_width": 32,
+        "max_sub_count": 1,
+        "entry_count": 11,
+        "_comment": "Options menu tabs: title + Display(Town/Gen-Quests/High Grade), Input Options, NPC Settings, Chat, Sound, Post Screenshot, Other (slots 0-10; null at slot 20)"
+      }
+    },
     "text_14": {
       "begin_pointer": "0x14",
       "null_terminated": true,
