@@ -55,17 +55,18 @@ class TestDecodeGameString(unittest.TestCase):
         self.assertEqual(decode_game_string(encoded), text)
 
     def test_invalid_bytes_replace_mode(self):
-        # 0x80 is not a valid Shift-JIS lead byte by itself
-        result = decode_game_string(b"\x80", errors="replace")
+        # A lead byte with no trailing byte is invalid in any Shift-JIS
+        # variant. 0x80 is not usable here: CP932 maps it to U+0080.
+        result = decode_game_string(b"\x81", errors="replace")
         self.assertIn("\ufffd", result)
 
     def test_invalid_bytes_strict_mode(self):
         with self.assertRaises(EncodingError):
-            decode_game_string(b"\x80", errors="strict")
+            decode_game_string(b"\x81", errors="strict")
 
     def test_context_in_error_message(self):
         try:
-            decode_game_string(b"\x80", errors="strict", context="offset 0x100")
+            decode_game_string(b"\x81", errors="strict", context="offset 0x100")
         except EncodingError as e:
             self.assertIn("offset 0x100", str(e))
 
@@ -1160,7 +1161,13 @@ class TestExtractTextDataFromBytesValidation(unittest.TestCase):
 
 
 class TestColorCodeTransforms(unittest.TestCase):
-    """Round-trip and edge-case tests for the ‾CNN ↔ {cNN}/{/c} bijection."""
+    """Round-trip and edge-case tests for the game-form ↔ {cNN}/{/c} bijection.
+
+    The game-form prefix is whatever byte 0x7E decodes to under GAME_ENCODING
+    (``~`` under CP932, ``‾`` under shift_jisx0213). It is taken from
+    COLOR_PREFIX rather than written out, because hard-coding it is exactly
+    what tied this suite to a single codec.
+    """
 
     def _to(self, s):
         from src.common import color_codes_to_csv
@@ -1170,25 +1177,32 @@ class TestColorCodeTransforms(unittest.TestCase):
         from src.common import color_codes_from_csv
         return color_codes_from_csv(s)
 
+    def _game(self, *parts):
+        """Build a game-form string: _game("hello ", 5, "world", 0, "!")."""
+        from src.common import COLOR_PREFIX
+        return "".join(
+            f"{COLOR_PREFIX}C{p:02d}" if isinstance(p, int) else p for p in parts
+        )
+
     def test_basic_open_close(self):
         self.assertEqual(
-            self._to("hello ‾C05world‾C00!"),
+            self._to(self._game("hello ", 5, "world", 0, "!")),
             "hello {c05}world{/c}!",
         )
 
     def test_reverse_basic(self):
         self.assertEqual(
             self._from("hello {c05}world{/c}!"),
-            "hello ‾C05world‾C00!",
+            self._game("hello ", 5, "world", 0, "!"),
         )
 
     def test_roundtrip_identity(self):
         # Samples drawn from real MHFrontier-Translation CSVs.
         samples = [
-            "まず、‾C05≪天廊≫‾C00じゃ。",
-            "‾C02一度進んだら戻れない‾C00みたいニャ。",
-            "「‾C18メゼフェス１人用券‾C17」と、４人用",
-            "‾C69▼△▼△▼△▼△▼△▼△▼△▼△▼‾C17",
+            self._game("まず、", 5, "≪天廊≫", 0, "じゃ。"),
+            self._game(2, "一度進んだら戻れない", 0, "みたいニャ。"),
+            self._game("「", 18, "メゼフェス１人用券", 17, "」と、４人用"),
+            self._game(69, "▼△▼△▼△▼△▼△▼△▼△▼△▼", 17),
             "no codes at all, plain text",
             "",
         ]
@@ -1199,23 +1213,22 @@ class TestColorCodeTransforms(unittest.TestCase):
     def test_chained_codes_without_reset(self):
         # Two color opens with no intermediate reset — pure lexical mapping.
         self.assertEqual(
-            self._to("‾C05foo‾C02bar‾C00"),
+            self._to(self._game(5, "foo", 2, "bar", 0)),
             "{c05}foo{c02}bar{/c}",
         )
         self.assertEqual(
             self._from("{c05}foo{c02}bar{/c}"),
-            "‾C05foo‾C02bar‾C00",
+            self._game(5, "foo", 2, "bar", 0),
         )
 
     def test_unknown_id_passes_through(self):
         # Unknown ids still round-trip; a warning is logged but not fatal.
-        import logging
         with self.assertLogs("src.common", level="WARNING"):
-            out = self._to("‾C99x‾C00")
+            out = self._to(self._game(99, "x", 0))
         self.assertEqual(out, "{c99}x{/c}")
         with self.assertLogs("src.common", level="WARNING"):
             back = self._from("{c99}x{/c}")
-        self.assertEqual(back, "‾C99x‾C00")
+        self.assertEqual(back, self._game(99, "x", 0))
 
     def test_braces_without_color_are_untouched(self):
         # Existing {K012} / {i131} / {u4} placeholders must not collide.
@@ -1224,8 +1237,69 @@ class TestColorCodeTransforms(unittest.TestCase):
         self.assertEqual(self._to(s), s)
 
     def test_no_color_code_left_in_csv_form(self):
-        # After to_csv, no ‾C should remain.
-        self.assertNotIn("‾C", self._to("‾C05a‾C00‾C18b‾C17"))
+        from src.common import COLOR_PREFIX
+        out = self._to(self._game(5, "a", 0, 18, "b", 17))
+        self.assertNotIn(COLOR_PREFIX + "C", out)
+
+    def test_prefix_matches_the_encoding(self):
+        # The guard for the bug this indirection was introduced for: the
+        # prefix must be whatever 0x7E decodes to, never a literal.
+        from src.common import COLOR_PREFIX, GAME_ENCODING
+        self.assertEqual(COLOR_PREFIX, bytes([0x7E]).decode(GAME_ENCODING))
+
+
+class TestGameEncoding(unittest.TestCase):
+    """Guards for the CP932 vs shift_jisx0213 choice.
+
+    MHF is a Japanese Windows title, so its bytes are CP932. Until 1.7.0 this
+    module used shift_jisx0213, which reassigns CP932's NEC-selected
+    IBM-extended area and so mis-decoded every Roman numeral in the game.
+    """
+
+    def test_roman_numerals_decode_correctly(self):
+        # 0xFA4A-0xFA53 are Ⅰ-Ⅹ in CP932. shift_jisx0213 maps this range to
+        # rare kanji instead (貤 賖 賕 …), which is the bug this guards.
+        from src.common import decode_game_string
+        expected = "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ"
+        raw = bytes(b for i in range(0xFA4A, 0xFA54) for b in (i >> 8, i & 0xFF))
+        self.assertEqual(decode_game_string(raw), expected)
+
+    def test_weapon_name_with_numeral_decodes(self):
+        from src.common import decode_game_string
+        raw = "ダガダイア".encode(GAME_ENCODING) + bytes([0xFA, 0x4B])
+        self.assertEqual(decode_game_string(raw), "ダガダイアⅡ")
+
+    def test_numeral_encoding_normalises_but_keeps_length(self):
+        """CP932 has two byte pairs per numeral; decode is many-to-one.
+
+        The game uses both — 6124 occurrences of the 0xFA4A form and 85 of
+        the 0x8754 form in mhfdat-jp.bin — so either renders. Encoding picks
+        the 0x8754 form, which is not byte-identical to a 0xFA4A original but
+        is the same character and, critically, the same length, so pointer
+        tables are unaffected. Only rows a translator actually rewrote are
+        re-encoded, so untouched Japanese keeps its original bytes.
+        """
+        from src.common import decode_game_string, encode_game_string
+        ibm = bytes([0xFA, 0x4B])
+        nec = bytes([0x87, 0x55])
+        self.assertEqual(decode_game_string(ibm), decode_game_string(nec))
+        self.assertEqual(encode_game_string("Ⅱ"), nec)
+        self.assertEqual(len(encode_game_string("Ⅱ")), len(ibm))
+
+    def test_accented_latin_is_rejected_not_silently_mangled(self):
+        """French accents are not CP932-representable and must raise.
+
+        Under shift_jisx0213 'é' encoded to 0x85 0x7E — a byte pair the game
+        reads as garbage, and whose trailing 0x7E is the colour-code prefix.
+        Failing loudly is what routes callers to --fold-unsupported-chars.
+        """
+        from src.common import encode_game_string, EncodingError
+        with self.assertRaises(EncodingError):
+            encode_game_string("Epée")
+        from src.text_folding import fold_unsupported_chars
+        self.assertEqual(
+            encode_game_string(fold_unsupported_chars("Epée")), b"Epee"
+        )
 
 
 class TestJoinMarkerTransforms(unittest.TestCase):

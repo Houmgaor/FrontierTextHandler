@@ -38,24 +38,44 @@ REFRONTIER_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("\n", "<NLINE>"),
 )
 
-# Encoding used by Monster Hunter Frontier
-GAME_ENCODING = "shift_jisx0213"
+# Encoding used by Monster Hunter Frontier.
+#
+# MHF is a Japanese Windows title, so its text is CP932 (Windows-31J), not
+# Shift_JIS-2004. The two agree on ordinary kana and kanji but diverge in the
+# NEC-selected IBM-extended area, which is exactly where the game keeps its
+# Roman numerals:
+#
+#     bytes 0xFA4A-0xFA53   CP932: Ⅰ Ⅱ Ⅲ Ⅳ Ⅴ Ⅵ Ⅶ Ⅷ Ⅸ Ⅹ
+#                  shift_jisx0213: 貤 賖 賕 賙 𧶠 賰 賱 𧸐 贉 贎
+#
+# Until 1.7.0 this was ``shift_jisx0213``, which extracted "ダガダイア賖" for a
+# weapon actually called "ダガダイアⅡ" — 6092 occurrences across the corpus,
+# plus 〜 (U+301C) for ～ (U+FF5E) and − (U+2212) for － (U+FF0D). It was never
+# a corruption of the binary, since those characters re-encode to the same
+# bytes, but the extracted text was unsearchable and wrong on screen.
+#
+# Verified against 238289 extracted strings: CP932 decodes every one of them,
+# and changes 7380 characters, all in the direction shown above.
+GAME_ENCODING = "cp932"
 
 
 # ---------------------------------------------------------------------------
 # Color codes
 # ---------------------------------------------------------------------------
 # The game encodes inline color changes as the byte 0x7E followed by ``C`` and
-# two decimal digits (e.g. ``0x7E 'C' '0' '5'``).  In shift_jisx0213, 0x7E
-# decodes to U+203E OVERLINE (``‾``), which is visually confusing and often
-# mangled by tools that assume plain ASCII.
+# two decimal digits (e.g. ``0x7E 'C' '0' '5'``).  How 0x7E decodes depends on
+# the codec — U+203E OVERLINE (``‾``) under shift_jisx0213, plain ASCII ``~``
+# under CP932 — so ``COLOR_PREFIX`` is derived from ``GAME_ENCODING`` rather
+# than written out. Hard-coding it is what tied this module to one codec.
+# Either way it is visually confusing and often mangled by tools that assume
+# plain ASCII, hence the brace form below.
 #
 # On disk in translation CSVs/JSONs we use an ASCII-safe brace form instead,
 # matching the existing ``{K012}``/``{i131}`` keybind/icon placeholders that
 # the MHFrontier-Translation project already uses:
 #
-#     ‾C05  →  {c05}   (open a color span)
-#     ‾C00  →  {/c}    (reset to default)
+#     ~C05  →  {c05}   (open a color span)
+#     ~C00  →  {/c}    (reset to default)
 #
 # The mapping is a pure lexical bijection: ``color_codes_to_csv`` and
 # ``color_codes_from_csv`` compose to the identity on any input, so round-
@@ -72,7 +92,10 @@ COLOR_CODE_KNOWN: frozenset[int] = frozenset({
     69, 75,
 })
 
-_COLOR_GAME_RE = re.compile(r"‾C(\d{2})")
+# Whatever byte 0x7E decodes to under the game encoding.
+COLOR_PREFIX = bytes([0x7E]).decode(GAME_ENCODING)
+
+_COLOR_GAME_RE = re.compile(re.escape(COLOR_PREFIX) + r"C(\d{2})")
 _COLOR_CSV_RE = re.compile(r"\{/c\}|\{c(\d{2})\}")
 
 
@@ -141,12 +164,12 @@ def join_codes_to_csv(text: str) -> str:
 
 def color_codes_to_csv(text: str) -> str:
     """
-    Rewrite game-form color codes (``‾CNN``) to the CSV brace form.
+    Rewrite game-form color codes (``~CNN``) to the CSV brace form.
 
-    ``‾C00`` becomes ``{/c}`` (close/reset); every other ``‾CNN`` becomes
+    ``~C00`` becomes ``{/c}`` (close/reset); every other ``~CNN`` becomes
     ``{cNN}``.  Unknown ids are passed through with a warning.
 
-    :param text: Decoded game string possibly containing ``‾CNN`` codes
+    :param text: Decoded game string possibly containing ``~CNN`` codes
     :return: Same text with color codes rewritten
     """
     def repl(m: "re.Match[str]") -> str:
@@ -156,7 +179,8 @@ def color_codes_to_csv(text: str) -> str:
         try:
             if int(nn) not in COLOR_CODE_KNOWN:
                 logger.warning(
-                    "Unknown color code ‾C%s in extracted text; passing through", nn
+                    "Unknown color code %sC%s in extracted text; passing through",
+                    COLOR_PREFIX, nn
                 )
         except ValueError:
             pass
@@ -168,14 +192,14 @@ def color_codes_to_csv(text: str) -> str:
 def color_codes_from_csv(text: str) -> str:
     """
     Inverse of :func:`color_codes_to_csv`: rewrite ``{cNN}``/``{/c}`` back
-    to the game's ``‾CNN`` form before re-encoding to Shift-JIS.
+    to the game's ``~CNN`` form before re-encoding to CP932.
 
     :param text: Translation string using the CSV brace form
     :return: Same text with color codes rewritten to game form
     """
     def repl(m: "re.Match[str]") -> str:
         if m.group(0) == "{/c}":
-            return "‾C00"
+            return COLOR_PREFIX + "C00"
         nn = m.group(1)
         try:
             if int(nn) not in COLOR_CODE_KNOWN:
@@ -185,7 +209,7 @@ def color_codes_from_csv(text: str) -> str:
                 )
         except ValueError:
             pass
-        return "‾C" + nn
+        return COLOR_PREFIX + "C" + nn
 
     return _COLOR_CSV_RE.sub(repl, text)
 
