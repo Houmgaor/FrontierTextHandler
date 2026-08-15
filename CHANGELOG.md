@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-16
+
 ### Fixed
 - **Game encoding is CP932, not `shift_jisx0213`.** MHF is a Japanese Windows
   title, so its text is Windows-31J. The two codecs agree on ordinary kana and
