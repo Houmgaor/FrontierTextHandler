@@ -34,6 +34,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   trailing byte is the game's colour-code prefix — bytes MHF reads as garbage.
   Callers writing non-Japanese text must pass `--fold-unsupported-chars`,
   which was already the intended path.
+- **`--fold-unsupported-chars` now works on every importer.** It was wired
+  only into `--csv-to-bin`, so `--ftxt-to-bin`, `--scenario-to-bin` and
+  `--npc-to-bin` had no way to handle accented text. That was survivable while
+  the wrong codec silently encoded `é` to garbage bytes; with CP932 correctly
+  refusing it, those three paths would have had no route at all for European
+  translations. Scenario and NPC dialogue are exactly what gets translated.
 - `COLOR_PREFIX` is derived from `GAME_ENCODING` rather than hard-coded, since
   what `0x7E` decodes to depends on the codec (`~` under CP932, `‾` under
   `shift_jisx0213`). Hard-coding it is what coupled the colour-code layer to a

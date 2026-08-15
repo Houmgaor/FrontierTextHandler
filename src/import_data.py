@@ -1508,6 +1508,25 @@ def _read_standalone_translations(
     )
 
 
+def _apply_folding(strings, enabled, what):
+    """Fold characters the MHF font cannot render, if the caller asked.
+
+    CP932 — the game's real encoding — cannot represent Latin diacritics at
+    all, so a European translation either folds here or fails to encode. Every
+    importer needs this, not just --csv-to-bin: scenarios, FTXT and NPC
+    dialogue are translated too.
+    """
+    if not enabled:
+        return strings
+    from .text_folding import fold_unsupported_chars as _fold
+    folded = [(key, _fold(text)) for key, text in strings]
+    logger.info(
+        "Folded unsupported characters in %d %s translations "
+        "(custom-font workaround)", len(folded), what,
+    )
+    return folded
+
+
 def import_ftxt_from_csv(
     input_file: str,
     output_file: str,
@@ -1516,6 +1535,7 @@ def import_ftxt_from_csv(
     encrypt: bool = False,
     key_index: int = DEFAULT_KEY_INDEX,
     strict_placeholders: bool = False,
+    fold_unsupported_chars: bool = False,
 ) -> Optional[str]:
     """
     Import translations from CSV into an FTXT file.
@@ -1548,6 +1568,7 @@ def import_ftxt_from_csv(
         input_file, _live_entries, context="FTXT",
         strict_placeholders=strict_placeholders,
     )
+    new_strings = _apply_folding(new_strings, fold_unsupported_chars, "FTXT")
     logger.info("Found %d translations to write", len(new_strings))
 
     if not new_strings:
@@ -1888,6 +1909,7 @@ def import_scenario_from_csv(
     encrypt: bool = False,
     key_index: int = DEFAULT_KEY_INDEX,
     strict_placeholders: bool = False,
+    fold_unsupported_chars: bool = False,
 ) -> Optional[str]:
     """
     Import translations from CSV into a scenario file.
@@ -1915,6 +1937,7 @@ def import_scenario_from_csv(
         input_file, _live_entries, context="scenario",
         strict_placeholders=strict_placeholders,
     )
+    new_strings = _apply_folding(new_strings, fold_unsupported_chars, "scenario")
     logger.info("Found %d scenario translations to write", len(new_strings))
 
     if not new_strings:
@@ -1961,6 +1984,7 @@ def import_npc_dialogue_from_csv(
     encrypt: bool = False,
     key_index: int = DEFAULT_KEY_INDEX,
     strict_placeholders: bool = False,
+    fold_unsupported_chars: bool = False,
 ) -> Optional[str]:
     """
     Import translations from CSV into an NPC dialogue file.
@@ -1991,6 +2015,7 @@ def import_npc_dialogue_from_csv(
         input_file, _live_entries, context="NPC dialogue",
         strict_placeholders=strict_placeholders,
     )
+    new_strings = _apply_folding(new_strings, fold_unsupported_chars, "NPC dialogue")
     logger.info("Found %d NPC dialogue translations to write", len(new_strings))
 
     if not new_strings:
