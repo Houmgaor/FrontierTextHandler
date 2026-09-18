@@ -2,7 +2,7 @@
 Definition of the FrontierTextHandler module.
 """
 
-__version__ = "1.6.0"
+__version__ = "1.8.0"
 
 # Major.minor version of the CSV/JSON translation format. Bumped only
 # when an on-disk shape changes in a way readers need to detect; the
