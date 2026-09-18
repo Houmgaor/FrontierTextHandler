@@ -70,7 +70,9 @@ class TestEncoding(unittest.TestCase):
 
     def test_decode_strict_raises(self):
         """Test that strict mode raises EncodingError."""
-        data = b"\xff\xfe"
+        # A lead byte with no trailing byte. 0xFF/0xFE are not usable here:
+        # CP932 maps them into the private use area rather than rejecting them.
+        data = b"\x81"
         with self.assertRaises(EncodingError):
             decode_game_string(data, errors="strict")
 

@@ -7,7 +7,7 @@ import struct
 import tempfile
 import unittest
 
-from src.common import GAME_ENCODING
+from src.common import GAME_ENCODING, COLOR_PREFIX
 from src.binary_file import BinaryFile
 from src.import_data import (
     append_to_binary,
@@ -301,7 +301,7 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
         json_path = self._write_release_json("fr", {
             "dat/armors/head": [
                 (8, "Helmet", "Casque"),
-                (12, "Sword", "Epée"),
+                (12, "Sword", "Epee"),
             ],
         })
 
@@ -318,7 +318,7 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             patched = f.read()
 
         bfile = BinaryFile.from_bytes(patched)
-        for ptr_off, expected in [(8, "Casque"), (12, "Epée")]:
+        for ptr_off, expected in [(8, "Casque"), (12, "Epee")]:
             bfile.seek(ptr_off)
             str_off = struct.unpack("<I", bfile.read(4))[0]
             bfile.seek(str_off)
@@ -434,9 +434,9 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             b = bfile.read(1)
 
         decoded = raw_bytes.decode(GAME_ENCODING)
-        # The game form uses ‾ (U+203E) because 0x7E decodes that way in
-        # shift_jisx0213. The brace form must not survive into the binary.
-        self.assertEqual(decoded, "\u203eC05Colored\u203eC00 text")
+        # The game form uses whatever 0x7E decodes to under GAME_ENCODING
+        # (``~`` under CP932). The brace form must not survive into the binary.
+        self.assertEqual(decoded, f"{COLOR_PREFIX}C05Colored{COLOR_PREFIX}C00 text")
         self.assertNotIn("{c05}", decoded)
         self.assertNotIn("{/c}", decoded)
 
@@ -502,7 +502,7 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             raw_bytes.extend(b)
             b = bfile.read(1)
         decoded = raw_bytes.decode(GAME_ENCODING)
-        self.assertEqual(decoded, "\u203eC14Rouge\u203eC00")
+        self.assertEqual(decoded, f"{COLOR_PREFIX}C14Rouge{COLOR_PREFIX}C00")
         self.assertNotIn("{c14}", decoded)
 
     def _build_grouped_binary(self) -> bytes:
@@ -927,7 +927,7 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
                     "dat/armors/head": [
                         {"index": 0, "source": "Helmet", "target": "Casque"},
                         {"location": "0xc@game.bin",
-                         "source": "Sword", "target": "Epée"},
+                         "source": "Sword", "target": "Epee"},
                     ]
                 }
             }, f, ensure_ascii=False)

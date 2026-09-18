@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-18
+
+### Fixed
+- **Game encoding is CP932, not `shift_jisx0213`.** MHF is a Japanese Windows
+  title, so its text is Windows-31J. The two codecs agree on ordinary kana and
+  kanji but diverge in the NEC-selected IBM-extended area, which is where the
+  game keeps its Roman numerals:
+
+  | bytes | CP932 (correct) | `shift_jisx0213` (previous) |
+  |---|---|---|
+  | `0xFA4A`–`0xFA53` | Ⅰ Ⅱ Ⅲ Ⅳ Ⅴ Ⅵ Ⅶ Ⅷ Ⅸ Ⅹ | 貤 賖 賕 賙 𧶠 賰 賱 𧸐 贉 贎 |
+
+  A weapon called `ダガダイアⅡ` extracted as `ダガダイア賖`, 6092 occurrences
+  across the corpus, plus `〜` (U+301C) for `～` (U+FF5E) and `−` (U+2212) for
+  `－` (U+FF0D). Verified against 238289 extracted strings: CP932 decodes
+  every one, and changes 7380 characters, all corrections.
+
+  This never corrupted a binary — the mis-decoded characters re-encoded to
+  the same bytes — but extracted text was wrong on screen and could not be
+  searched. **Translation CSVs produced before this release must be migrated**;
+  the affected characters have no CP932 encoding and will fail on import.
+
+### Changed
+- **Accented Latin now raises instead of being silently mangled.** `é` is not
+  CP932-representable. Under `shift_jisx0213` it encoded to `0x85 0x7E`, whose
+  trailing byte is the game's colour-code prefix — bytes MHF reads as garbage.
+  Callers writing non-Japanese text must pass `--fold-unsupported-chars`,
+  which was already the intended path.
+- **`--fold-unsupported-chars` now works on every importer.** It was wired
+  only into `--csv-to-bin`, so `--ftxt-to-bin`, `--scenario-to-bin` and
+  `--npc-to-bin` had no way to handle accented text. That was survivable while
+  the wrong codec silently encoded `é` to garbage bytes; with CP932 correctly
+  refusing it, those three paths would have had no route at all for European
+  translations. Scenario and NPC dialogue are exactly what gets translated.
+- `COLOR_PREFIX` is derived from `GAME_ENCODING` rather than hard-coded, since
+  what `0x7E` decodes to depends on the codec (`~` under CP932, `‾` under
+  `shift_jisx0213`). Hard-coding it is what coupled the colour-code layer to a
+  single encoding.
+
+### Note
+- Encoding a Roman numeral is not byte-identical to a `0xFA4A`-form original:
+  CP932 has two byte pairs per numeral and encoding picks the `0x8754` form.
+  Both appear in the shipped game (6124 and 85 occurrences respectively), the
+  glyph is the same, and the length is unchanged, so pointer tables are
+  unaffected. Only rows a translator rewrote are re-encoded at all.
+
 ## [1.7.0] - 2026-07-01
 
 ### Added

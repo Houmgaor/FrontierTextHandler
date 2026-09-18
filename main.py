@@ -97,7 +97,8 @@ def parse_inputs() -> argparse.ArgumentParser:
         action="store_true",
         help="Fold characters the MHF custom font cannot render (Latin "
         "diacritics, ligatures, typographic punctuation) down to ASCII "
-        "before encoding. Use with --csv-to-bin when importing European "
+        "before encoding. Use with --csv-to-bin, --ftxt-to-bin, "
+        "--scenario-to-bin or --npc-to-bin when importing European "
         "languages whose source CSVs contain accents (e.g. French é è à "
         "ç œ « »). Off by default so Japanese imports stay byte-identical. "
         "Remove once the in-game font is extended to cover the missing glyphs.",
@@ -558,6 +559,7 @@ def main(args: argparse.Namespace) -> None:
             encrypt=args.encrypt,
             key_index=args.key_index,
             strict_placeholders=args.strict_placeholders,
+            fold_unsupported_chars=args.fold_unsupported_chars,
         )
     elif args.scenario:
         # Single scenario extraction mode
@@ -576,6 +578,7 @@ def main(args: argparse.Namespace) -> None:
             encrypt=args.encrypt,
             key_index=args.key_index,
             strict_placeholders=args.strict_placeholders,
+            fold_unsupported_chars=args.fold_unsupported_chars,
         )
     elif args.npc:
         # Single NPC dialogue extraction mode
