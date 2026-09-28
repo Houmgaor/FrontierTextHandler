@@ -1618,6 +1618,20 @@ def import_ftxt_from_csv(
     return output_path
 
 
+def _npc_strings_end(file_data: bytes, block_ptrs: list[int]) -> int:
+    """Offset just past the last string (or empty block) of an NPC file."""
+    end = 0
+    for block_ptr in block_ptrs:
+        header_size = struct.unpack_from("<I", file_data, block_ptr)[0]
+        starts = [block_ptr + header_size] if header_size else []
+        for i in range(1, header_size // 4):
+            rel = struct.unpack_from("<I", file_data, block_ptr + 4 * i)[0]
+            starts.append(block_ptr + rel)
+        end = max([end, block_ptr + 4]
+                  + [file_data.index(b"\x00", p) + 1 for p in starts])
+    return end
+
+
 def rebuild_npc_dialogue(
     source_file: str,
     new_strings: list[tuple[int, str]],
@@ -1649,6 +1663,7 @@ def rebuild_npc_dialogue(
 
     # Parse the NPC table to get NPC IDs
     npc_ids: list[int] = []
+    block_ptrs: list[int] = []
     pos = 0
     while pos + 8 <= len(file_data):
         npc_id = struct.unpack_from("<I", file_data, pos)[0]
@@ -1656,6 +1671,7 @@ def rebuild_npc_dialogue(
         if npc_id == 0xFFFFFFFF and block_ptr == 0xFFFFFFFF:
             break
         npc_ids.append(npc_id)
+        block_ptrs.append(block_ptr)
         pos += 8
 
     # Reconstruct binary
@@ -1677,34 +1693,32 @@ def rebuild_npc_dialogue(
         dialogues = split_join_text(text)
 
         if not dialogues or (len(dialogues) == 1 and dialogues[0] == ""):
-            # Empty NPC: just header_size = 0
-            npc_blocks.append(struct.pack("<I", 0))
+            # Empty NPC: just header_size = 0, and the padding NUL
+            npc_blocks.append(struct.pack("<I", 0) + b"\x00")
             continue
 
+        # Block layout: header_size (u32, the offset of the first string,
+        # = 4 * N), one relative pointer per string after the first, the
+        # N strings back to back, then one padding NUL (every block in the
+        # game files ends with it).
         num_dialogues = len(dialogues)
         header_size = num_dialogues * 4
 
-        # Encode strings
-        encoded_strings: list[bytes] = []
-        for dlg in dialogues:
-            encoded_strings.append(encode_game_string(dlg) + b"\x00")
-
-        # Calculate relative pointers from block start
-        # Block layout: header_size(4) + pointers(N*4) + strings
-        pointers_section_size = 4 + num_dialogues * 4
-        string_offset = pointers_section_size
+        encoded_strings = [
+            encode_game_string(dlg) + b"\x00" for dlg in dialogues
+        ]
         relative_ptrs: list[int] = []
-        for enc in encoded_strings:
-            relative_ptrs.append(string_offset)
+        string_offset = header_size
+        for enc in encoded_strings[:-1]:
             string_offset += len(enc)
+            relative_ptrs.append(string_offset)
 
-        # Build block
-        block = bytearray()
-        block.extend(struct.pack("<I", header_size))
+        block = bytearray(struct.pack("<I", header_size))
         for rp in relative_ptrs:
             block.extend(struct.pack("<I", rp))
         for enc in encoded_strings:
             block.extend(enc)
+        block.append(0)
         npc_blocks.append(bytes(block))
 
     # 3. Compute block offsets
@@ -1723,9 +1737,11 @@ def rebuild_npc_dialogue(
     output.extend(struct.pack("<I", 0xFFFFFFFF))
     output.extend(struct.pack("<I", 0xFFFFFFFF))
 
-    # 5. Write blocks
+    # 5. Write blocks, then whatever followed the last block's padding in
+    # the original (file padding).
     for block in npc_blocks:
         output.extend(block)
+    output.extend(file_data[_npc_strings_end(file_data, block_ptrs) + 1:])
 
     with open(output_path, "wb") as f:
         f.write(bytes(output))

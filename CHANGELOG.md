@@ -70,6 +70,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in the English client), from header `0xA24` and `0xACC`.
 
 ### Fixed
+- **NPC dialogue lost the first line of every NPC** (`--npc`, `--npc-dir`,
+  `--npc-to-bin`). In a stage dialogue block, `header_size` is the offset
+  of the first string and counts its own field, so the first string has no
+  pointer; FTH read one pointer too many and skipped that string. Worse,
+  import rebuilt each block from the extracted rows, so it deleted those
+  lines and wrote a layout the game reads differently. Both now follow the
+  game's layout: on 66 stage dialogue files every Japanese line is
+  extracted, and a rebuild without translations is byte-identical to the
+  original (except an English-patched file whose strings overlap). NPC
+  rows gain their first line, so an existing translation of these rows
+  needs merging again.
 - **Standalone quest files had no text** (`--quest`, `--quest-dir`, quest
   import and diff). The quest text pointer (`QuestStringsPtr`) was read at
   `+0xE8` in the main quest properties instead of `+0x28`, so every real
