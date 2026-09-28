@@ -328,6 +328,12 @@ python main.py --scenario-dir data/scenarios/
 python main.py --scenario-to-bin output/scenario-0_0_0_0_S17_T2_C0.csv data/scenarios/0_0_0_0_S17_T2_C0.bin
 ```
 
+Translations can be longer than the original, up to the client's limit of
+0x8000 bytes per chunk, except in the compressed NPC dialogue scripts
+(chunk1 in about 6% of files, 8% of the rows). There a translation must fit
+in the original's bytes (a Japanese character takes two, an ASCII letter
+one) and is cut otherwise, with a warning.
+
 ### Validate line lengths
 
 MH Frontier has fixed-width UI elements. Translations that exceed the

@@ -137,14 +137,14 @@ class TestScenarioGameLayout(unittest.TestCase):
                          ["A", "B", "C", "D", "Hunt a Gypceros!", "Too bad."])
 
     def test_jkr_chunk0(self):
-        """chunk0 can be JKR-compressed (episode titles)."""
-        c0 = _build_jkr_chunk(["第１話　想い出", "第２話　昔話"])
+        """chunk0 can be JKR-compressed: an inline episode list."""
+        c0 = compress_jkr_hfi(_build_inline_chunk(["第１話　想い出", "第２話　昔話"]))
         data = struct.pack(">II", len(c0), 0) + c0 + struct.pack(">I", 0)
         result = extract_scenario_file_data(data)
         self.assertEqual([r["text"] for r in result], ["第１話　想い出", "第２話　昔話"])
-        rebuilt = self._rebuild(data, [(result[0]["offset"], "Ep. 1")])
+        rebuilt = self._rebuild(data, [(result[0]["offset"], "Episode 1: Memories")])
         self.assertEqual([r["text"] for r in extract_scenario_file_data(rebuilt)],
-                         ["Ep. 1", "第２話　昔話"])
+                         ["Episode 1: Memories", "第２話　昔話"])
 
     def test_jkr_row_keys_do_not_collide(self):
         """Rows of chunk1 and chunk2 get distinct keys and translations stay put.
@@ -165,6 +165,102 @@ class TestScenarioGameLayout(unittest.TestCase):
         texts = [r["text"] for r in extract_scenario_file_data(rebuilt)]
         self.assertEqual(texts[3], "chunk1 row 3")
         self.assertEqual(texts[:3] + texts[4:], ["あ" * 40] * 7 + ["い" * 40] * 8)
+
+
+class TestScenarioLongerStrings(unittest.TestCase):
+    """Uncompressed chunks, chunk0 and chunk2 take translations of any length."""
+
+    def _rebuild(self, data: bytes, translations: list[tuple[int, str]]) -> bytes:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "src.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            out = rebuild_scenario_file(src, translations, os.path.join(tmp, "out.bin"))
+            with open(out, "rb") as f:
+                return f.read()
+
+    @staticmethod
+    def _chunk1(strings: list[str], dialog: bytes = b"") -> bytes:
+        """A chunk1 like the game's: m[8..17] point at the strings, m[21] is
+        size - 8 - 0x2C + 4, TotalSize is the chunk size, dialog data follows
+        the 0xFF sentinel."""
+        encoded = [encode_game_string(s) + b"\x00" for s in strings]
+        starts, pos = [], 0
+        for enc in encoded:
+            starts.append(pos)
+            pos += len(enc)
+        size = 8 + 0x2C + pos + 1 + len(dialog)
+        meta = [0] * 22
+        for k, start in zip(range(8, 18), starts):
+            meta[k] = start
+        meta[21] = size - 8 - 0x2C + 4
+        return (struct.pack("<BBHBBBB", 1, 0, size, 4, 0, 0x2C, 0)
+                + struct.pack("<22H", *meta) + b"".join(encoded) + b"\xff" + dialog)
+
+    def test_chunk1_offsets_follow_longer_strings(self):
+        c1 = self._chunk1(["一", "二", "三"], dialog=b"\x11\x03\xf6\x00")
+        data = struct.pack(">II", 0, len(c1)) + c1 + struct.pack(">I", 0)
+        rows = extract_scenario_file_data(data)
+        out = self._rebuild(data, [(rows[1]["offset"], "The second line, longer")])
+        self.assertEqual([r["text"] for r in extract_scenario_file_data(out)],
+                         ["一", "The second line, longer", "三"])
+        new = out[8:]
+        meta = struct.unpack_from("<22H", new, 8)
+        strings_base = 8 + 0x2C
+        texts = [new[strings_base + meta[k]:new.index(b"\x00", strings_base + meta[k])]
+                 for k in (8, 9, 10)]
+        self.assertEqual(texts, [encode_game_string("一"),
+                                 b"The second line, longer", encode_game_string("三")])
+        self.assertEqual(struct.unpack_from("<H", new, 2)[0], len(new) - 4)  # c2 size
+        self.assertEqual(meta[21], (len(new) - 4) - 8 - 0x2C + 4)
+        self.assertTrue(new.endswith(b"\xff\x11\x03\xf6\x00" + struct.pack(">I", 0)))
+
+    def test_chunk0_string1_offset_follows(self):
+        """chunk0's m[5] is the offset of string 1."""
+        title = encode_game_string("クエスト") + b"\x00"
+        body = encode_game_string("説明") + b"\x00"
+        meta = [0] * 10
+        meta[5] = len(title)
+        size = 8 + 0x14 + len(title) + len(body) + 1
+        c0 = (struct.pack("<BBHBBBB", 1, 0, size, 2, 0, 0x14, 0)
+              + struct.pack("<10H", *meta) + title + body + b"\xff")
+        data = struct.pack(">II", len(c0), 0) + c0 + struct.pack(">I", 0)
+        rows = extract_scenario_file_data(data)
+        out = self._rebuild(data, [(rows[0]["offset"], "A much longer quest name")])
+        self.assertEqual(struct.unpack_from("<H", out, 8 + 8 + 10)[0],
+                         len(b"A much longer quest name") + 1)
+        self.assertEqual([r["text"] for r in extract_scenario_file_data(out)],
+                         ["A much longer quest name", "説明"])
+
+    def test_inline_chunk0_grows(self):
+        c0 = _build_inline_chunk(["第１話", "第２話"])
+        data = struct.pack(">II", len(c0), 0) + c0 + struct.pack(">I", 0)
+        rows = extract_scenario_file_data(data)
+        out = self._rebuild(data, [(rows[0]["offset"], "Episode 1: Memories")])
+        self.assertEqual([r["text"] for r in extract_scenario_file_data(out)],
+                         ["Episode 1: Memories", "第２話"])
+
+    def test_chunk2_records_grow(self):
+        records = b"".join(
+            struct.pack("<I", i) + bytes(13) + encode_game_string(t) + b"\x00"
+            + encode_game_string(d) + b"\x00"
+            for i, (t, d) in enumerate([("宴", "説明１"), ("絆", "説明２")], 0x33)
+        )
+        c2 = compress_jkr_hfi(records)
+        data = struct.pack(">II", 0, 0) + struct.pack(">I", len(c2)) + c2
+        rows = extract_scenario_file_data(data)
+        out = self._rebuild(data, [(rows[0]["offset"], "For the banquet")])
+        self.assertEqual([r["text"] for r in extract_scenario_file_data(out)],
+                         ["For the banquet", "説明１", "絆", "説明２"])
+
+    def test_chunk_over_limit_falls_back_to_truncation(self):
+        c1 = self._chunk1(["一", "二"])
+        data = struct.pack(">II", 0, len(c1)) + c1 + struct.pack(">I", 0)
+        rows = extract_scenario_file_data(data)
+        with self.assertLogs("src.import_data", level="WARNING"):
+            out = self._rebuild(data, [(rows[0]["offset"], "x" * 0x9000)])
+        self.assertEqual(len(out), len(data))
+        self.assertEqual(extract_scenario_file_data(out)[0]["text"], "x" * 2)
 
 
 class TestExtractScenario(unittest.TestCase):
