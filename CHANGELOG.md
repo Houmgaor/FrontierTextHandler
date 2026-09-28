@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Longer scenario translations.** Scenario import used to cut every
+  translation to the byte length of the original. Now strings are
+  re-encoded at any length, up to the client's 0x8000-byte chunk limit,
+  in 92% of the rows (4.28 of 4.65 million in Erupe's `bin/scenarios`):
+  - Uncompressed sub-header chunks: the metadata offsets that point at
+    the strings (chunk0 `m[5]`, chunk1 `m[8]`..`m[17]`) move with them,
+    and `TotalSize` and chunk1's `m[21]` follow the size change. On every
+    file, each chunk1 string is one of those targets.
+  - Inline episode lists, compressed or not, and chunk2 (menu and title
+    records: a 17-byte header, then two strings), which have no offsets.
+
+  Compressed chunk1 (the NPC dialogue script) keeps the old in-place
+  patching: its format is not documented. A chunk that would exceed the
+  limit falls back to in-place patching with a warning.
 - **Web interface: sections grouped by folder, and search across them.**
   The editor menu and the file list group sections by folder (`pac`,
   `pac/skills`, `dat/goocoo/accessory_1`, …) and sort `text_<offset>`

@@ -15,6 +15,7 @@ Container format (big-endian sizes):
 import logging
 import re
 import struct
+from typing import Callable, Optional
 
 from .binary_file import BinaryFile
 from .common import decode_game_string, load_file_data
@@ -441,3 +442,177 @@ def _scan_decompressed_strings(
             pos += 1
 
     return results
+
+
+# The client keeps each chunk in a fixed 0x8000-byte buffer and drops
+# larger ones (FUN_11525c60 in mhfo-hd.dll, per Erupe's scenario notes).
+CHUNK_SIZE_LIMIT = 0x8000
+
+
+def relocate_subheader_chunk(
+    chunk: bytes,
+    chunk_offset: int,
+    translations: dict[int, str],
+    encode: Callable[[str], bytes],
+) -> Optional[bytes]:
+    """
+    Rewrite a sub-header chunk's strings at any length.
+
+    The client finds the strings through offsets from the start of the
+    strings section: m[5] (the offset of string 1) in chunk0's 0x14-byte
+    metadata, m[8]..m[17] in chunk1's 0x2C-byte metadata (negative values
+    point after the 0xFF sentinel instead). Across Erupe's 145,376
+    scenario files, every chunk1 string is one of those targets, chunk1's
+    m[21] is ``chunk size - 8 - 0x2C + 4``, and the header's TotalSize
+    covers the chunk (or runs to the sentinel). So the strings are
+    re-encoded back to back, empty ones kept; the offsets that point at a
+    string are moved with it; TotalSize and m[21] follow the size change;
+    the bytes from the sentinel on are kept as they are.
+
+    :param chunk: The chunk bytes (sub-header format)
+    :param chunk_offset: The chunk's file offset (row keys are
+        ``chunk_offset + position``)
+    :param translations: ``{row offset: new text}``
+    :param encode: Encodes a string to game bytes (without the NUL)
+    :return: The new chunk, or None when it cannot be rewritten safely
+        (unknown metadata layout, or larger than CHUNK_SIZE_LIMIT)
+    """
+    meta_size = chunk[6]
+    strings_base = 8 + meta_size
+    if meta_size not in (0x14, 0x2C) or strings_base > len(chunk):
+        return None
+
+    # The strings section: NUL-terminated strings (some empty) up to the
+    # 0xFF sentinel or the end of the chunk.
+    new_strings = bytearray()
+    moved: dict[int, int] = {}  # old offset -> new offset, from strings_base
+    pos = strings_base
+    while pos < len(chunk) and chunk[pos] != 0xFF:
+        end = chunk.find(b"\x00", pos)
+        terminator = b"\x00"
+        if end < 0:
+            end, terminator = len(chunk), b""
+        moved[pos - strings_base] = len(new_strings)
+        key = chunk_offset + pos
+        if pos < end and key in translations:
+            new_strings += encode(translations[key])
+        else:
+            new_strings += chunk[pos:end]
+        new_strings += terminator
+        pos = end + 1
+    strings_end = min(pos, len(chunk))
+    moved[strings_end - strings_base] = len(new_strings)
+    delta = len(new_strings) - (strings_end - strings_base)
+
+    out = bytearray(chunk[:strings_base]) + new_strings + chunk[strings_end:]
+    if len(out) > CHUNK_SIZE_LIMIT:
+        return None
+
+    total_size = struct.unpack_from("<H", chunk, 2)[0]
+    if total_size >= strings_end:
+        struct.pack_into("<H", out, 2, total_size + delta)
+    if meta_size == 0x14:
+        fields = [5]
+    else:
+        fields = list(range(8, 18))
+        m21 = struct.unpack_from("<H", chunk, 8 + 2 * 21)[0]
+        if m21 == len(chunk) - 8 - meta_size + 4:
+            struct.pack_into("<H", out, 8 + 2 * 21, len(out) - 8 - meta_size + 4)
+        elif delta:
+            return None
+    for k in fields:
+        value = struct.unpack_from("<H", chunk, 8 + 2 * k)[0]
+        if value < 0x8000 and value in moved:
+            struct.pack_into("<H", out, 8 + 2 * k, moved[value])
+        elif value < 0x8000 and delta:
+            # A non-negative offset that is not a string start: we cannot
+            # tell where it should go.
+            return None
+    return bytes(out)
+
+
+def rebuild_inline_chunk(
+    chunk: bytes,
+    chunk_offset: int,
+    translations: dict[int, str],
+    encode: Callable[[str], bytes],
+) -> bytes:
+    """
+    Rewrite an inline chunk0 ({u8 index}{string}{00}...) at any length.
+
+    Entries follow each other with no offsets to them, so each string is
+    re-encoded in place of the old one and the rest is copied.
+
+    :param chunk: The chunk bytes (inline format)
+    :param chunk_offset: The chunk's file offset
+    :param translations: ``{row offset: new text}``
+    :param encode: Encodes a string to game bytes (without the NUL)
+    :return: The new chunk
+    """
+    out = bytearray()
+    pos = 0
+    while pos < len(chunk):
+        if chunk[pos] == 0x00:
+            out.append(0)
+            pos += 1
+            continue
+        out.append(chunk[pos])  # index byte
+        pos += 1
+        end = chunk.find(b"\x00", pos)
+        if end < 0:
+            end = len(chunk)
+        key = chunk_offset + pos
+        if pos < end and key in translations:
+            out += encode(translations[key])
+        else:
+            out += chunk[pos:end]
+        if end < len(chunk):
+            out.append(0)
+        pos = end + 1
+    return bytes(out)
+
+
+# chunk2 (menu options and quest titles), decompressed: records of a
+# 17-byte header (a u32 id, then zeros) followed by two strings (title,
+# description). All 61,389 chunk2s in Erupe's bin/scenarios read exactly
+# this way, with no lengths or offsets in the headers.
+CHUNK2_RECORD_HEADER = 17
+
+
+def rebuild_chunk2_records(
+    decompressed: bytes,
+    base: int,
+    translations: dict[int, str],
+    encode: Callable[[str], bytes],
+) -> Optional[bytes]:
+    """
+    Rewrite decompressed chunk2 records with strings of any length.
+
+    :param decompressed: The decompressed chunk2
+    :param base: Row-offset base of the chunk (:func:`jkr_row_bases`)
+    :param translations: ``{row offset: new text}``
+    :param encode: Encodes a string to game bytes (without the NUL)
+    :return: The new decompressed chunk, or None when the data is not a
+        sequence of such records or the result exceeds CHUNK_SIZE_LIMIT
+    """
+    out = bytearray()
+    pos = 0
+    while pos < len(decompressed):
+        if pos + CHUNK2_RECORD_HEADER > len(decompressed):
+            return None
+        out += decompressed[pos:pos + CHUNK2_RECORD_HEADER]
+        pos += CHUNK2_RECORD_HEADER
+        for _ in range(2):
+            end = decompressed.find(b"\x00", pos)
+            if end < 0:
+                return None
+            key = base + pos
+            if pos < end and key in translations:
+                out += encode(translations[key])
+            else:
+                out += decompressed[pos:end]
+            out.append(0)
+            pos = end + 1
+    if len(out) > CHUNK_SIZE_LIMIT:
+        return None
+    return bytes(out)

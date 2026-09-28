@@ -1783,9 +1783,15 @@ def rebuild_scenario_file(
     compression type; the surrounding chunk-size headers are rewritten to
     match. Uncompressed chunks are patched in place.
 
-    Strings are patched within the space of their original encoding: a
-    longer translation is truncated to fit (scenario chunks have no pointer
-    table to relocate against), a shorter one is null-padded.
+    Uncompressed chunks take strings of any length: the strings are
+    re-encoded back to back and the metadata offsets that point at them
+    are moved (see :func:`scenario.relocate_subheader_chunk`), up to the
+    client's 0x8000-byte chunk limit. So do compressed chunk0 (an inline
+    episode list) and chunk2 (menu and title records), which are
+    decompressed, rewritten and recompressed. In a compressed chunk1, a
+    dialogue script whose format is not documented, strings are patched
+    within the space of their original encoding: a longer translation is
+    truncated to fit, a shorter one is null-padded.
 
     :param source_file: Path to the original scenario file
     :param new_strings: List of (offset, new_text) tuples from CSV
@@ -1795,6 +1801,8 @@ def rebuild_scenario_file(
     from .common import load_file_data, encode_game_string
     from .scenario import (
         _parse_chunk0, _parse_chunk1, _scan_decompressed_strings, jkr_row_bases,
+        relocate_subheader_chunk, rebuild_inline_chunk,
+        rebuild_chunk2_records, CHUNK_SIZE_LIMIT,
     )
 
     file_data = load_file_data(source_file)
@@ -1855,8 +1863,19 @@ def rebuild_scenario_file(
                 if pos + i < len(buffer):
                     buffer[pos + i] = 0x00
 
-    def _rebuild_jkr(chunk_bytes: bytes, chunk_offset: int) -> bytes:
-        """Decompress, patch, and recompress a JKR chunk."""
+    def _encode(text: str) -> bytes:
+        return encode_game_string(text, context="scenario rebuild")
+
+    def _rebuild_jkr(chunk_bytes: bytes, chunk_offset: int,
+                     layout: str = "script") -> bytes:
+        """Decompress, patch, and recompress a JKR chunk.
+
+        *layout* is "inline" for chunk0 (episode lists, as uncompressed
+        inline chunks) and "records" for chunk2
+        (:func:`scenario.rebuild_chunk2_records`): their strings are
+        rewritten at any length. chunk1 is a dialogue script ("script")
+        whose strings are patched in place.
+        """
         base = jkr_bases.get(chunk_offset, chunk_offset)
         try:
             decompressed = bytearray(decompress_jkr(chunk_bytes))
@@ -1867,9 +1886,32 @@ def rebuild_scenario_file(
             )
             return chunk_bytes
         entries = _scan_decompressed_strings(bytes(decompressed), base)
-        _patch(decompressed, entries, base)
         header = JKRHeader.from_bytes(chunk_bytes)
         ctype = header.compression_type if header else CompressionType.HFI
+        if layout != "script":
+            keys = {e["offset"] for e in entries}
+            chunk_map = {k: v for k, v in translation_map.items() if k in keys}
+            if layout == "records":
+                rebuilt = rebuild_chunk2_records(
+                    bytes(decompressed), base, chunk_map, _encode
+                )
+            else:
+                rebuilt = rebuild_inline_chunk(
+                    bytes(decompressed), base, chunk_map, _encode
+                )
+                if len(rebuilt) > CHUNK_SIZE_LIMIT:
+                    rebuilt = None
+            if rebuilt is not None:
+                compressed = compress_jkr(rebuilt, ctype)
+                if len(compressed) <= CHUNK_SIZE_LIMIT:
+                    stats["total"] += len(entries)
+                    stats["translated"] += len(chunk_map)
+                    return compressed
+            logger.warning(
+                "Scenario chunk at 0x%x cannot take longer strings; "
+                "patching in place", chunk_offset,
+            )
+        _patch(decompressed, entries, base)
         return compress_jkr(bytes(decompressed), ctype)
 
     # Files smaller than the 8-byte container header have no chunks to patch.
@@ -1892,16 +1934,45 @@ def rebuild_scenario_file(
             f.write(file_data)
         return output_path
 
+    def _rebuild_plain(chunk_bytes: bytes, chunk_offset: int, entries) -> bytes:
+        """Rewrite an uncompressed chunk, relocating strings when possible.
+
+        Sub-header and inline chunks take strings of any length (see
+        :func:`scenario.relocate_subheader_chunk`); if a sub-header chunk
+        cannot be relocated safely, its strings are patched in place.
+        """
+        keys = {e["offset"] for e in entries}
+        chunk_map = {k: v for k, v in translation_map.items() if k in keys}
+        stats["total"] += len(entries)
+        stats["translated"] += len(chunk_map)
+        if chunk_bytes[1] != 0x00:
+            return rebuild_inline_chunk(chunk_bytes, chunk_offset, chunk_map, _encode)
+        relocated = relocate_subheader_chunk(
+            chunk_bytes, chunk_offset, chunk_map, _encode
+        )
+        if relocated is not None:
+            return relocated
+        logger.warning(
+            "Scenario chunk at 0x%x cannot take longer strings; patching in place",
+            chunk_offset,
+        )
+        stats["total"] -= len(entries)
+        stats["translated"] -= len(chunk_map)
+        buf = bytearray(chunk_bytes)
+        _patch(buf, entries, chunk_offset)
+        return bytes(buf)
+
     # chunk0 — quest name/description: sub-header, inline, or JKR.
     c0_off = 8
     c0_bytes = file_data[c0_off:c0_off + c0_size]
     if c0_size > 0 and is_jkr_file(c0_bytes):
-        new_c0 = _rebuild_jkr(c0_bytes, c0_off)
+        new_c0 = _rebuild_jkr(c0_bytes, c0_off, layout="inline")
+    elif c0_size >= 2:
+        new_c0 = _rebuild_plain(
+            c0_bytes, c0_off, _parse_chunk0(file_data, c0_off, c0_size)
+        )
     else:
-        c0_buf = bytearray(c0_bytes)
-        if c0_size > 0:
-            _patch(c0_buf, _parse_chunk0(file_data, c0_off, c0_size), c0_off)
-        new_c0 = bytes(c0_buf)
+        new_c0 = c0_bytes
 
     # chunk1 — NPC dialog, either an uncompressed sub-header chunk or JKR.
     c1_off = 8 + c0_size
@@ -1909,10 +1980,12 @@ def rebuild_scenario_file(
         c1_bytes = file_data[c1_off:c1_off + c1_size]
         if is_jkr_file(c1_bytes):
             new_c1 = _rebuild_jkr(c1_bytes, c1_off)
+        elif c1_size >= 8:
+            new_c1 = _rebuild_plain(
+                c1_bytes, c1_off, _parse_chunk1(file_data, c1_off, c1_size)
+            )
         else:
-            c1_buf = bytearray(c1_bytes)
-            _patch(c1_buf, _parse_chunk1(file_data, c1_off, c1_size), c1_off)
-            new_c1 = bytes(c1_buf)
+            new_c1 = c1_bytes
     else:
         new_c1 = b""
 
@@ -1929,7 +2002,8 @@ def rebuild_scenario_file(
         c2_data_off = c2_header_off + 4
         if c2_size > 0 and c2_data_off + c2_size <= len(file_data):
             new_c2 = _rebuild_jkr(
-                file_data[c2_data_off:c2_data_off + c2_size], c2_data_off
+                file_data[c2_data_off:c2_data_off + c2_size], c2_data_off,
+                layout="records",
             )
             output_data += struct.pack(">I", len(new_c2))
             output_data += new_c2
