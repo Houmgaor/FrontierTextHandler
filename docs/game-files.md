@@ -46,13 +46,13 @@ pointer table:
 
 | File | Strings extracted | Status |
 |------|------------------|--------|
-| `mhfdat.bin` | ~17,000+ (weapons, armors, items, monsters, ranks, HH) | Complete |
+| `mhfdat.bin` | ~17,000+ (weapons, armors, items, monsters, ranks, HH) | Partial: ~2,000 strings in tables no section covers (weapon hints, armour series names, tips) |
 | `mhfpac.bin` | ~3,600 (skills + ~3,365 UI/dialogue tables) | Partial: a scan finds ~20,000 more pointers in tables no section covers |
 | `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
 | `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
 | `mhfgao.bin` | 2,122 (Felyne equipment, dialogue, skills) | Complete |
 | `mhfsqd.bin` | 190 (NPC names, squad skills, labels) | Complete |
-| `mhfrcc.bin` | 28 (event titles + descriptions) | Complete |
+| `mhfrcc.bin` | 36 (event titles, descriptions, UI labels) | Complete |
 | `mhfmsx.bin` | 34 (Festa item names + effects) | Complete |
 
 All known translator-useful text in `client/pc/dat/*.bin` is extracted.
@@ -237,7 +237,8 @@ the real lines it reached are already extracted by `dialogue_type_*` and
 are embedded as fields within structs (not flat `s32p` arrays).
 
 - `npc_names` — NPC partner names (Aaron, Bart, Calvin, Tania, ...).
-  43 entries, stride 8.
+  40 entries, stride 8, ending where `star_rank` starts (header `0x24`).
+  Until 1.9.0 it read 43 and repeated the three star labels.
 - `star_rank` — Star rank labels (one/two/three stars). 3 entries.
 - `skill_activation` — "Skill X activates." messages. 35 entries,
   stride 16, string at field +8.
@@ -256,16 +257,17 @@ are non-string or complex and not yet extracted.
 
 ## `mhfrcc.bin` — Reception / event info
 
-Reception desk text. 28 strings across 2 sections.
+Reception desk text. 36 strings across 2 sections. The header pairs
+each table pointer with its count (`0x00`/`0x04`, `0x08`/`0x0C`, …).
 
-- `events_en` — English event info, 7 entries via a contiguous `s32p`
-  table pointed to by the `u32` at `0x08`.
+- `events_en` — Event screen UI labels (Japanese, despite the name):
+  8 entries, `s32p` table at `*0x08`, count at `0x0C`. Until 1.9.0 FTH
+  read 7 and missed "※入門区では利用できません".
 - `events_full` — Multi-field struct table at `0x5c0` (7 rows × 36-byte
   stride). Each row carries up to 4 string pointer fields at offsets
   `+0x14` (title), `+0x18` (description / alt title), `+0x1C` and
   `+0x20` (usually `−` placeholders, but row 1 stores
   `Guild Conquest is underway!` and a `残り時間…` template).
-  Supersets `events_en`.
 
 ---
 

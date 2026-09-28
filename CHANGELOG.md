@@ -19,6 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   nulls. The new `null_padding` option in `headers.json` keeps one row per
   pointer; the padding stays in place on import. Files extracted from these
   three sections should be extracted again.
+- **`sqd/npc_names` no longer repeats the star labels.** It read 43 entries;
+  the last 3 are `sqd/star_rank`'s ★/★★/★★★, so a translation in either
+  section also changed the other. It now stops at 40, where the file header
+  says `star_rank` starts.
+- **`rcc/events_en` extracts all 8 labels.** The file stores the count (8)
+  next to the table pointer; FTH read 7 and missed the last one.
 
 ### Removed
 - **`pac/skills/description`** and **`gao/situational_dialogue`**, which were
