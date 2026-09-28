@@ -12,10 +12,7 @@ Supports 4 compression types:
 - Type 4 (HFI): Huffman + LZ77 compression (most common)
 """
 
-import operator
 import struct
-from collections import Counter
-from array import array
 from dataclasses import dataclass
 from io import BytesIO
 from typing import List, Optional, Tuple
@@ -101,90 +98,73 @@ class BitWriter:
         return bytes(result)
 
 
-def _common_prefix(data: bytes, a: int, b: int, limit: int) -> int:
+class LZInterleavedWriter:
     """
-    Length of the common prefix of ``data[a:]`` and ``data[b:]``, capped
-    at *limit*.
+    Writer for LZ77 interleaved format.
 
-    With ``a < b`` this is also the LZ77 match length when the source
-    overlaps the bytes being matched: by the time byte ``b + l`` is
-    compared, ``data[a + l]`` has already been checked against the pattern.
-    Compares slices in growing chunks rather than byte by byte.
+    The JPK LZ format interleaves flag bytes with data bytes:
+    - Flag byte contains 8 control bits
+    - Data bytes follow the flag byte in the order they're consumed
+    - When all 8 bits are consumed, next flag byte is read
+
+    The key insight: data bytes are associated with the flag byte that's
+    active when they're read. When bits span flag boundaries, data bytes
+    written BEFORE the boundary go with the old flag, and data bytes
+    written AFTER go with the new flag.
+
+    This matches the decoder's _jpk_bit_lz behavior.
     """
-    if data[a] != data[b]:
-        return 0
-    length = 1
-    step = 4
-    while length < limit:
-        size = min(step, limit - length)
-        if data[a + length:a + length + size] == data[b + length:b + length + size]:
-            length += size
-            step <<= 1
-            continue
-        # The first mismatch is within this chunk: halve it down.
-        while size > 1:
-            half = size >> 1
-            if data[a + length:a + length + half] == data[b + length:b + length + half]:
-                length += half
-                size -= half
-            else:
-                size = half
-        return length
-    return length
 
+    def __init__(self):
+        self._output = bytearray()
+        self._flag_bits = []  # Bits for current flag (max 8)
+        self._flag_data = []  # Data bytes for current flag
 
-# LZ77 search parameters; LZEncoder exposes the same values as attributes.
-_LZ_WINDOW = 8192  # Back-references reach at most this far.
-_LZ_WINDOW_MASK = _LZ_WINDOW - 1
-_LZ_MIN_MATCH = 3
-_LZ_MAX_MATCH = 255 + 0x1A
-_LZ_MAX_CHAIN = 64  # Cap chain walks for worst-case performance
+    def _emit_flag(self) -> None:
+        """Emit current flag byte and its data bytes."""
+        if not self._flag_bits:
+            return
 
+        # Pad to 8 bits
+        while len(self._flag_bits) < 8:
+            self._flag_bits.append(False)
 
-def _longest_match(data: bytes, hashes, head: list, prev: list, pos: int) -> Tuple[int, int]:
-    """
-    Longest earlier match for ``data[pos:]``, walking the hash chain.
+        # Build flag byte (MSB first)
+        flag = 0
+        for i, bit in enumerate(self._flag_bits):
+            if bit:
+                flag |= 1 << (7 - i)
 
-    *head* maps a trigram hash to its latest position and *prev* (a ring
-    over the window) links each position to the previous one with the same
-    hash; both must hold every position before *pos*.
+        self._output.append(flag)
+        self._output.extend(self._flag_data)
+        self._flag_bits = []
+        self._flag_data = []
 
-    :return: (offset, length); (0, 0) when nothing of 3+ bytes matches.
-    """
-    n = len(data)
-    if pos < 1 or pos + 2 >= n:
-        return 0, 0
-    max_length = n - pos
-    if max_length > _LZ_MAX_MATCH:
-        max_length = _LZ_MAX_MATCH
-    min_pos = pos - _LZ_WINDOW
-    if min_pos < 0:
-        min_pos = 0
-    best_offset = 0
-    best_length = 0
+    def write_bit(self, bit: bool) -> None:
+        """
+        Write a control bit.
 
-    match_pos = head[hashes[pos]]
-    chain_count = 0
-    while match_pos >= min_pos and chain_count < _LZ_MAX_CHAIN:
-        chain_count += 1
-        # Skip candidates whose byte just past the current best differs:
-        # they cannot beat it.
-        if best_length >= _LZ_MIN_MATCH and (
-            pos + best_length >= n
-            or data[match_pos + (best_length % (pos - match_pos))] != data[pos + best_length]
-        ):
-            match_pos = prev[match_pos & _LZ_WINDOW_MASK]
-            continue
-        if data[match_pos] == data[pos]:
-            length = _common_prefix(data, match_pos, pos, max_length)
-            if length >= _LZ_MIN_MATCH and length > best_length:
-                best_offset = pos - match_pos
-                best_length = length
-                if best_length >= max_length:
-                    break  # Can't do better
-        match_pos = prev[match_pos & _LZ_WINDOW_MASK]
+        If the current flag is full (8 bits), emit it BEFORE adding
+        the new bit. This ensures data bytes are correctly associated
+        with the flag that's active when they're read.
+        """
+        if len(self._flag_bits) >= 8:
+            self._emit_flag()
+        self._flag_bits.append(bit)
 
-    return best_offset, best_length
+    def write_data_byte(self, value: int) -> None:
+        """Write a data byte for the current flag."""
+        self._flag_data.append(value & 0xFF)
+
+    def end_operation(self) -> None:
+        """Mark end of a complete operation. No-op in new design."""
+        # No action needed - flags are emitted automatically when full
+        pass
+
+    def finish(self) -> bytes:
+        """Finish and return the encoded data."""
+        self._emit_flag()
+        return bytes(self._output)
 
 
 class LZEncoder:
@@ -195,14 +175,10 @@ class LZEncoder:
 
     Back-reference encoding cases (matching decoder):
     - Case 0: length 3-6, offset <= 255 (1 byte offset)
-    - Case 1: length 3-9, offset <= 8191 (2 bytes: hi/lo)
+    - Case 1: length 2-9, offset <= 8191 (2 bytes: hi/lo)
     - Case 2: length 10-25 (4-bit length after case 1 header)
     - Case 3: length >= 26 (1-byte length after case 1 header)
-
-    The output is byte-identical to the original byte-at-a-time port (kept
-    in tests/reference_codecs); only the bookkeeping is cheaper: hashes are
-    precomputed, the hash chain is a ring buffer over the window, and
-    control bits are written straight into the output.
+    - Case 4: Raw byte run (escape sequence for very long runs)
     """
 
     # Sliding window size
@@ -224,47 +200,32 @@ class LZEncoder:
     MAX_CHAIN_LENGTH = 64  # Cap chain walks for worst-case performance
 
     def __init__(self):
-        self._data = None
-        self._hashes = None
-        self._head = None  # trigram hash -> most recent position
-        # position % WINDOW_SIZE -> previous position with the same hash.
-        # Matches never reach further back than the window, so an entry is
-        # only read while it still belongs to its position.
-        self._prev = None
-        self._inserted = 0  # Positions below this are in the chains.
+        self._writer = None
+        self._head = None  # hash table: trigram hash -> most recent position
+        self._prev = None  # chain array: position -> previous position with same hash
 
-    def _reset(self, data: bytes) -> None:
-        """Prepare the hash chains for *data*."""
-        mask = self.HASH_MASK
-        self._data = data
+    def _init_hash(self, data_len: int) -> None:
+        """Initialize hash table and chain arrays."""
         self._head = [-1] * self.HASH_SIZE
-        self._prev = [-1] * self.WINDOW_SIZE
-        self._inserted = 0
-        # hash(pos) = (data[pos] << 10 ^ data[pos + 1] << 5 ^ data[pos + 2])
-        # & mask, for every position with two bytes after it. The shifts
-        # are table lookups so map() keeps the whole pass in C.
-        high = [(b << 10) & mask for b in range(256)]
-        mid = [(b << 5) & mask for b in range(256)]
-        self._hashes = array(
-            "H",
-            map(
-                operator.xor,
-                map(operator.xor, map(high.__getitem__, data), map(mid.__getitem__, data[1:])),
-                data[2:],
-            ),
-        )
+        self._prev = [-1] * data_len
 
-    def _insert_until(self, end: int) -> None:
-        """Add the positions before *end* to the hash chains, in order."""
-        hashes, head, prev = self._hashes, self._head, self._prev
-        window_mask = self.WINDOW_SIZE - 1
-        for pos in range(self._inserted, min(end, len(hashes))):
-            h = hashes[pos]
-            prev[pos & window_mask] = head[h]
-            head[h] = pos
-        self._inserted = max(self._inserted, end)
+    def _hash3(self, data: bytes, pos: int) -> int:
+        """Hash 3 bytes at the given position."""
+        return ((data[pos] << 10) ^ (data[pos + 1] << 5) ^ data[pos + 2]) & self.HASH_MASK
 
-    def _find_match(self, data: bytes, pos: int) -> Tuple[int, int]:
+    def _update_hash(self, data: bytes, pos: int) -> None:
+        """Insert position into hash chain (call for every byte consumed)."""
+        if pos + 2 >= len(data):
+            return
+        h = self._hash3(data, pos)
+        self._prev[pos] = self._head[h]
+        self._head[h] = pos
+
+    def _find_match(
+        self,
+        data: bytes,
+        pos: int,
+    ) -> Tuple[int, int]:
         """
         Find the longest match using hash chains.
 
@@ -274,107 +235,193 @@ class LZEncoder:
         """
         if pos < 1 or pos + 2 >= len(data):
             return 0, 0
-        if data is not self._data or self._inserted > pos:
-            self._reset(data)
-        self._insert_until(pos)
-        return _longest_match(data, self._hashes, self._head, self._prev, pos)
+
+        # Lazy init if called outside encode() (e.g., from tests)
+        if self._head is None:
+            self._init_hash(len(data))
+            for i in range(pos):
+                self._update_hash(data, i)
+
+        best_offset = 0
+        best_length = 0
+        remaining = len(data) - pos
+        max_length = min(remaining, self.MAX_MATCH_LONG)
+        min_pos = max(0, pos - self.WINDOW_SIZE)
+
+        h = self._hash3(data, pos)
+        match_pos = self._head[h]
+        chain_count = 0
+
+        while match_pos >= min_pos and match_pos != -1 and chain_count < self.MAX_CHAIN_LENGTH:
+            chain_count += 1
+            offset = pos - match_pos
+
+            # Quick check: compare the byte just past the current best length
+            # to prune non-improving matches early
+            if best_length >= self.MIN_MATCH and (
+                pos + best_length >= len(data)
+                or data[match_pos + (best_length % offset)] != data[pos + best_length]
+            ):
+                match_pos = self._prev[match_pos]
+                continue
+
+            # Count matching bytes (handles overlapping copies via modulo)
+            length = 0
+            while length < max_length:
+                if data[match_pos + (length % offset)] != data[pos + length]:
+                    break
+                length += 1
+
+            if length >= self.MIN_MATCH and length > best_length:
+                best_offset = offset
+                best_length = length
+                if best_length >= max_length:
+                    break  # Can't do better
+
+            match_pos = self._prev[match_pos]
+
+        return best_offset, best_length
+
+    def _encode_literal(self, byte_value: int) -> None:
+        """
+        Encode a literal byte (no back-reference found).
+
+        Format: 0-bit followed by the byte as data
+        """
+        self._writer.write_bit(False)
+        self._writer.write_data_byte(byte_value)
+        self._writer.end_operation()
+
+    def _encode_backref(self, offset: int, length: int) -> None:
+        """
+        Encode a back-reference.
+
+        Chooses the most efficient encoding based on offset and length.
+        The offset stored is offset-1 (0-based).
+        """
+        # Convert offset to 0-based for encoding (decoder uses offset directly then subtracts 1 more)
+        offset_enc = offset - 1
+
+        # Case 0: length 3-6, offset <= 255
+        if 3 <= length <= 6 and offset_enc <= 255:
+            self._writer.write_bit(True)   # 1
+            self._writer.write_bit(False)  # 0
+            # 2-bit length encoding: 00=3, 01=4, 10=5, 11=6
+            length_enc = length - 3
+            self._writer.write_bit(bool(length_enc & 2))
+            self._writer.write_bit(bool(length_enc & 1))
+            self._writer.write_data_byte(offset_enc)
+            self._writer.end_operation()
+            return
+
+        # Case 1: length 3-9, offset <= 8191
+        # Note: length=2 would encode as length_field=0, which triggers Case 2/3 in decoder
+        # So Case 1 only supports lengths 3-9 (length_field 1-7)
+        if 3 <= length <= 9 and offset_enc <= 8191:
+            self._writer.write_bit(True)  # 1
+            self._writer.write_bit(True)  # 1
+            # 2-byte encoding: hi byte = (length-2)<<5 | (offset>>8), lo byte = offset&0xFF
+            length_enc = length - 2
+            hi = (length_enc << LZ_LENGTH_SHIFT) | ((offset_enc >> 8) & LZ_OFFSET_HI_MASK)
+            lo = offset_enc & 0xFF
+            self._writer.write_data_byte(hi)
+            self._writer.write_data_byte(lo)
+            self._writer.end_operation()
+            return
+
+        # Case 2: length 10-25, offset <= 8191
+        # Format: bits 1,1 + hi,lo (with length_field=0) + bit 0 + 4 bits for length
+        # Length = (4-bit value) + 10, so 4-bit value = length - 10
+        if 10 <= length <= 25 and offset_enc <= 8191:
+            self._writer.write_bit(True)   # 1 - backref
+            self._writer.write_bit(True)   # 1 - not case 0
+            # hi has length_field=0 to trigger Case 2/3 branch
+            hi = (offset_enc >> 8) & LZ_OFFSET_HI_MASK
+            lo = offset_enc & 0xFF
+            self._writer.write_data_byte(hi)
+            self._writer.write_data_byte(lo)
+            self._writer.write_bit(False)  # 0 - case 2 (not case 3)
+            # Write 4 bits for length (MSB first)
+            length_enc = length - 10  # 0-15
+            self._writer.write_bit(bool(length_enc & 8))
+            self._writer.write_bit(bool(length_enc & 4))
+            self._writer.write_bit(bool(length_enc & 2))
+            self._writer.write_bit(bool(length_enc & 1))
+            self._writer.end_operation()
+            return
+
+        # Case 3: length 26-280, offset <= 8191
+        # Format: bits 1,1 + hi,lo (with length_field=0) + bit 1 + length byte
+        # Note: length_enc = 0xFF triggers literal run mode in decoder, so cap at 254
+        # This gives max length of LZ_BASE_LENGTH_LONG + 254 = 280
+        if length >= LZ_BASE_LENGTH_LONG and offset_enc <= 8191:
+            # Cap length to avoid LZ_LITERAL_RUN_MARKER which triggers literal run
+            actual_length = min(length, LZ_BASE_LENGTH_LONG + LZ_LITERAL_RUN_MARKER - 1)
+
+            self._writer.write_bit(True)  # 1
+            self._writer.write_bit(True)  # 1
+            # hi = (0<<5) | (offset>>8), meaning length field is 0
+            hi = (offset_enc >> 8) & LZ_OFFSET_HI_MASK
+            lo = offset_enc & 0xFF
+            self._writer.write_data_byte(hi)
+            self._writer.write_data_byte(lo)
+            # Then 1-bit followed by length byte
+            self._writer.write_bit(True)
+            length_enc = actual_length - LZ_BASE_LENGTH_LONG
+            self._writer.write_data_byte(length_enc)
+            self._writer.end_operation()
+            return
+
+        # Fallback to case 1 with truncated length
+        if offset_enc <= 8191:
+            length = min(length, 9)
+            self._writer.write_bit(True)
+            self._writer.write_bit(True)
+            length_enc = length - 2
+            hi = (length_enc << LZ_LENGTH_SHIFT) | ((offset_enc >> 8) & LZ_OFFSET_HI_MASK)
+            lo = offset_enc & 0xFF
+            self._writer.write_data_byte(hi)
+            self._writer.write_data_byte(lo)
+            self._writer.end_operation()
+            return
+
+        # Last resort: emit as literals (shouldn't happen with WINDOW_SIZE = 8192)
+        raise ValueError(f"Cannot encode back-reference: offset={offset}, length={length}")
 
     def encode(self, data: bytes) -> bytes:
         """
         Compress data using LZ77.
 
-        The JPK LZ format interleaves flag bytes with data bytes: each flag
-        byte holds the next 8 control bits (MSB first) and is followed by
-        the data bytes read while it is active. A new flag byte starts when
-        a 9th control bit is written, so data bytes written after a flag
-        fills up still belong to it, as the decoder expects.
-
         :param data: Uncompressed data.
         :return: LZ77 compressed data.
         """
-        data = bytes(data)
-        self._reset(data)
-        out = bytearray()
-        flag_pos = 0
-        used = 8  # Control bits used in the current flag byte.
-
-        def bits(value: int, count: int) -> None:
-            nonlocal flag_pos, used
-            for shift in range(count - 1, -1, -1):
-                if used == 8:
-                    flag_pos = len(out)
-                    out.append(0)
-                    used = 0
-                if (value >> shift) & 1:
-                    out[flag_pos] |= 0x80 >> used
-                used += 1
-
-        hashes, head, prev = self._hashes, self._head, self._prev
-        hashed = len(hashes)  # Positions with a trigram hash.
-        n = len(data)
+        self._writer = LZInterleavedWriter()
+        self._init_hash(len(data))
         pos = 0
-        inserted = 0
-        while pos < n:
-            # Chain every position before pos (inlined _insert_until: this
-            # runs once per token).
-            end = pos if pos < hashed else hashed
-            while inserted < end:
-                h = hashes[inserted]
-                prev[inserted & _LZ_WINDOW_MASK] = head[h]
-                head[h] = inserted
-                inserted += 1
-            offset, length = _longest_match(data, hashes, head, prev, pos)
-            if length < _LZ_MIN_MATCH:
-                bits(0, 1)
-                out.append(data[pos])
+
+        while pos < len(data):
+            offset, length = self._find_match(data, pos)
+
+            if length >= self.MIN_MATCH:
+                # Encode in chunks if match is very long (max 280 per chunk)
+                while length >= self.MIN_MATCH:
+                    chunk = min(length, 280)
+                    self._encode_backref(offset, chunk)
+                    # Update hash for all bytes consumed by this chunk
+                    for i in range(pos, pos + chunk):
+                        self._update_hash(data, i)
+                    pos += chunk
+                    length -= chunk
+                    # For subsequent chunks, offset stays same (relative to NEW position)
+                    # Actually we need to re-find match for correct offset
+                    if length >= self.MIN_MATCH:
+                        offset, length = self._find_match(data, pos)
+            else:
+                self._encode_literal(data[pos])
+                self._update_hash(data, pos)
                 pos += 1
-                continue
 
-            # Encode in chunks if the match is very long (max 280 per chunk).
-            while length >= _LZ_MIN_MATCH:
-                chunk = length if length < 280 else 280
-                offset_enc = offset - 1  # Stored 0-based.
-                if chunk <= 6 and offset_enc <= 255:
-                    # Case 0: bits 10, 2-bit length (3-6), 1-byte offset.
-                    bits(0b1000 | (chunk - 3), 4)
-                    out.append(offset_enc)
-                elif chunk <= 9:
-                    # Case 1: bits 11, length in the high byte's top 3 bits.
-                    bits(0b11, 2)
-                    out.append(((chunk - 2) << LZ_LENGTH_SHIFT) | ((offset_enc >> 8) & LZ_OFFSET_HI_MASK))
-                    out.append(offset_enc & 0xFF)
-                elif chunk <= 25:
-                    # Case 2: bits 11, length field 0, bit 0, 4-bit length.
-                    bits(0b11, 2)
-                    out.append((offset_enc >> 8) & LZ_OFFSET_HI_MASK)
-                    out.append(offset_enc & 0xFF)
-                    bits(chunk - 10, 5)
-                else:
-                    # Case 3: bits 11, length field 0, bit 1, length byte.
-                    # The byte stays below LZ_LITERAL_RUN_MARKER (a literal
-                    # run in the decoder): chunks are at most 280.
-                    bits(0b11, 2)
-                    out.append((offset_enc >> 8) & LZ_OFFSET_HI_MASK)
-                    out.append(offset_enc & 0xFF)
-                    bits(1, 1)
-                    out.append(chunk - LZ_BASE_LENGTH_LONG)
-                pos += chunk
-                length -= chunk
-                # Re-find a match for the rest, relative to the new position.
-                if length >= _LZ_MIN_MATCH:
-                    end = pos if pos < hashed else hashed
-                    while inserted < end:
-                        h = hashes[inserted]
-                        prev[inserted & _LZ_WINDOW_MASK] = head[h]
-                        head[h] = inserted
-                        inserted += 1
-                    offset, length = _longest_match(data, hashes, head, prev, pos)
-
-        return bytes(out)
-
-
-# Bytes Huffman-encoded per step; bounds the size of the bit string.
-_HUFFMAN_CHUNK = 1 << 20
+        return self._writer.finish()
 
 
 class HuffmanEncoder:
@@ -402,8 +449,9 @@ class HuffmanEncoder:
         :return: Huffman table as list of int16 values.
         """
         # Count frequencies
-        counts = Counter(data)
-        freq = [counts.get(byte, 0) for byte in range(256)]
+        freq = [0] * 256
+        for byte in data:
+            freq[byte] += 1
 
         # Handle empty or single-byte data
         non_zero_count = sum(1 for f in freq if f > 0)
@@ -526,24 +574,19 @@ class HuffmanEncoder:
         # Serialize table
         table_bytes = b"".join(struct.pack("<h", v) for v in table)
 
-        # Encode data: each byte's code as a string of "0"/"1", joined and
-        # parsed back as an integer in chunks (all C-level work), MSB first
-        # and zero-padded to a whole byte like BitWriter.flush.
-        code_strings = [format(byte, "08b") for byte in range(256)]  # Unused bytes
-        for byte, (code, length) in self._codes.items():
-            code_strings[byte] = format(code, f"0{length}b") if length else ""
-        parts = []
-        pending = ""
-        for start in range(0, len(data), _HUFFMAN_CHUNK):
-            bits = pending + "".join(map(code_strings.__getitem__, data[start:start + _HUFFMAN_CHUNK]))
-            whole = len(bits) - len(bits) % 8
-            if whole:
-                parts.append(int(bits[:whole], 2).to_bytes(whole // 8, "big"))
-            pending = bits[whole:]
-        if pending:
-            parts.append(int(pending.ljust(8, "0"), 2).to_bytes(1, "big"))
+        # Encode data
+        writer = BitWriter()
+        for byte in data:
+            if byte in self._codes:
+                code, length = self._codes[byte]
+                writer.write_bits(code, length)
+            else:
+                # Fallback for bytes not in tree (shouldn't happen)
+                writer.write_bits(byte, 8)
 
-        return table_bytes, b"".join(parts)
+        encoded = writer.flush()
+
+        return table_bytes, encoded
 
 
 class HFIEncoder:
