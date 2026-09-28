@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`pip install` works.** The build failed under setuptools 77+ (a
+  license classifier alongside a PEP 639 license expression), and the
+  `frontier-text-handler` entry point called `main()` without arguments.
+- **`headers.json` is found from any working directory.** It moved to
+  `src/headers.json`, ships as package data, and `DEFAULT_HEADERS_PATH`
+  is resolved relative to the package instead of the current folder.
+
+### Changed
+- **Python 3.11+ required.** `requires-python` goes from 3.7 (never true:
+  the code uses PEP 604 `X | Y` annotations) to 3.11, as 3.10 reaches
+  end of life in October 2026. CI now tests 3.11–3.14.
+- CI: `actions/checkout` and `actions/setup-python` bumped to v7, and a
+  job step installs the package and runs it from outside the repository.
+- Docs updated for CP932: the colour-code prefix `0x7E` now decodes as
+  `~`, not `‾`.
+
 ## [1.8.0] - 2026-09-18
 
 ### Fixed

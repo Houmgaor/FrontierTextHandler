@@ -3,7 +3,7 @@
 This page documents the Monster Hunter Frontier binary files that
 FrontierTextHandler can extract text from, and what each xpath section
 inside them holds. The authoritative pointer-table layout lives in
-[`headers.json`](../headers.json) — this file is the human-readable companion.
+[`headers.json`](../src/headers.json) — this file is the human-readable companion.
 
 All files are stored encrypted (ECD/EXF) and compressed (JKR) on disk.
 The tool transparently decrypts and decompresses them on read, and can
@@ -307,7 +307,7 @@ text:
 
 ## See also
 
-- [`headers.json`](../headers.json) — exact pointer offsets and
+- [`headers.json`](../src/headers.json) — exact pointer offsets and
   extraction modes for every section above.
 - [`README.md`](../README.md) — extraction commands, CSV/JSON formats,
   and the import workflow.

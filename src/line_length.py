@@ -30,6 +30,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
+from .common import DEFAULT_HEADERS_PATH
 from .placeholder_validation import _PLACEHOLDER_RE
 
 logger = logging.getLogger(__name__)
@@ -225,7 +226,7 @@ class LineLengthValidator:
 def validate_translation_file_line_lengths(
     input_file: str,
     *,
-    headers_path: str = "headers.json",
+    headers_path: str = DEFAULT_HEADERS_PATH,
     xpath: str | None = None,
     margin: float = 1.0,
     strict: bool = False,
@@ -307,7 +308,7 @@ def validate_translation_file_line_lengths(
 
 
 def measure_all_sections(
-    headers_path: str = "headers.json",
+    headers_path: str = DEFAULT_HEADERS_PATH,
     input_files: dict[str, str] | None = None,
 ) -> dict[str, dict[str, int]]:
     """
@@ -357,7 +358,7 @@ def measure_all_sections(
 
 def update_headers_with_limits(
     limits: dict[str, dict[str, int]],
-    headers_path: str = "headers.json",
+    headers_path: str = DEFAULT_HEADERS_PATH,
 ) -> int:
     """
     Write measured limits back into headers.json.

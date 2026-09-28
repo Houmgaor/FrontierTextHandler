@@ -80,7 +80,8 @@ Encrypted (ECD) → Decrypted → Compressed (JPK) → Decompressed → Extract 
 - `jkr_decompress.py` - JPK/JKR decompression (RW, LZ, HFI, HFIRW types)
 - `jkr_compress.py` - JPK/JKR compression (all 4 compression types)
 
-**Configuration (`headers.json`):**
+**Configuration (`src/headers.json`):**
+Shipped inside the package and resolved relative to `src/common.py` (`DEFAULT_HEADERS_PATH`), so the tool works from any working directory, when pip-installed, and when frozen.
 Defines pointer offsets for each data section. Structure: `{file_type}/{category}/{subcategory}` with:
 - `begin_pointer`: Hex offset to a pointer that points to the start of the pointer table
 - `entry_count`: Number of entries — plain integer or versioned map (`{"zz": 14594, "ko": 1290}`)
@@ -151,11 +152,11 @@ CSV/JSON boundary. They are pure lexical, pre-decoding steps, applied
 automatically by `export_as_csv` / `export_as_json` (on extract) and the
 importers (on re-encode):
 
-- **Color codes** — `‾CNN` ↔ `{cNN}` (and `‾C00` ↔ `{/c}`). The game
+- **Color codes** — `~CNN` ↔ `{cNN}` (and `~C00` ↔ `{/c}`). The game
   encodes inline colour changes as the byte `0x7E` followed by `C` and
-  two decimal digits. In Shift-JISX0213 `0x7E` decodes as `‾` (U+203E,
-  overline), which is frequently mangled by tools. The brace form is
-  ASCII-safe and round-trips byte-identical through the importer.
+  two decimal digits. In CP932 `0x7E` decodes as a plain `~`, easily
+  confused with a real tilde. The brace form is unambiguous, ASCII-safe
+  and round-trips byte-identical through the importer.
 - **Grouped join marker** — `<join at="N">` → `{j}` (export only; the
   importer accepts either form). Some sections pack several pointer
   slots into one logical entry (quest tables, multi-pointer entries,
@@ -172,7 +173,7 @@ which continues to carry raw game bytes.
 
 ## String Encoding
 
-Game files use Shift-JIS (specifically Shift-JISX0213). The tool handles encoding/decoding automatically.
+Game files use CP932 (Windows-31J, Microsoft's Shift-JIS variant), not `shift_jisx0213`: the two differ on the NEC/IBM extension area where the game keeps Roman numerals (Ⅰ Ⅱ Ⅲ…). The codec is `GAME_ENCODING` in `src/common.py`; encoding/decoding is automatic.
 
 ## Binary Modification Strategy
 
