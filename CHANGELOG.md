@@ -19,8 +19,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   which checks each table against other clients and existing sections.
   It also maps 30 tables that are lists of null-terminated string lists
   (3,957 strings, one row per list), read with a new `null_terminated`
-  option for `record_levels` levels. Uncovered pac text goes from ~20,100
-  to ~2,500 strings.
+  option for `record_levels` levels.
+- **The rest of the `mhfpac.bin` text** (91 more sections, ~3,000 rows):
+  - Hand-mapped trees: the Hunter Navi goals (`pac/hunter_navi/…`,
+    14 chapters, 164 steps with their summaries and pages), event and
+    minigame help (`pac/help/…`), counter guides (`pac/guide/…`), unlock
+    notices (`pac/unlock_notice/…`, 181), magazine articles
+    (`pac/article/…`, 93), short NPC scenes (`pac/scene_dialogue`, 579
+    scenes, 220 of them distinct) and town descriptions (`pac/town_info`).
+  - From `tools/map_pac_tables.py`: 55 record tables (NPC dialogue such
+    as the caravan balloon crew, one string field per record) and 16 more
+    lists of lists, whose index may point anywhere in the file.
+
+  Uncovered pac text goes from about a third of the file's characters
+  (~5,600 strings) to 1.6% (~820 strings, mostly single labels).
+- **`record_levels` options:** a `null_terminated` level of records wider
+  than 4 bytes ends at the first all-zero record; `skip_entries` leaves top
+  records whose lists another section reads. List pointers that are 0 or
+  not 4-byte aligned (flag values) are skipped, and a pointer slot reached
+  twice is read only the first time, so no slot is in two rows.
 - **Goocoo text** (`dat/goocoo/…`, 22 sections, 899 strings): accessory
   and garden names and descriptions, personalities, interactions and food
   descriptions. The English client never translated these.
