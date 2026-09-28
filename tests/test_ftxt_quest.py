@@ -444,7 +444,7 @@ class TestExtractQuestFileData(unittest.TestCase):
 
     def test_strings_pointer_at_0x28(self):
         """QuestStringsPtr is at mainQuestProperties + 0x28, as in Erupe."""
-        data = bytearray(0x100)
+        data = bytearray(0x110)                            # text block ends at 0x110
         struct.pack_into("<I", data, 0x00, 0xC0)           # questTypeFlagsPtr
         struct.pack_into("<I", data, 0xC0 + 0x28, 0xF0)    # QuestStringsPtr
         struct.pack_into("<I", data, 0xF0, len(data))      # title pointer
@@ -454,7 +454,7 @@ class TestExtractQuestFileData(unittest.TestCase):
 
     def test_strings_pointer_to_non_text(self):
         """A QuestStringsPtr to numbers, not string pointers, says so."""
-        data = bytearray(0x100)
+        data = bytearray(0x110)
         struct.pack_into("<I", data, 0x00, 0xC0)
         struct.pack_into("<I", data, 0xC0 + 0x28, 0xF0)
         struct.pack_into("<I", data, 0xF4, 0x8000000)      # not a pointer
