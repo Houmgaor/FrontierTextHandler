@@ -14,6 +14,7 @@ into focused submodules are re-exported here for backward compatibility:
 import codecs
 import json
 import logging
+import os
 import re
 import struct
 from dataclasses import dataclass, field
@@ -280,7 +281,9 @@ def skip_csv_header(reader: Iterator[list[str]], input_file: str) -> None:
         raise InterruptedError(f"{input_file} has less than one line!") from exc
 
 
-DEFAULT_HEADERS_PATH = "headers.json"
+# Resolved against the package, not the working directory, so the tool
+# works from any folder, as an installed package, or when frozen.
+DEFAULT_HEADERS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "headers.json")
 
 
 def _is_extraction_leaf(value: dict) -> bool:

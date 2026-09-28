@@ -6,16 +6,28 @@ It is roughly a Python rewrite of FrontierTextTool
 
 ## Requirements
 
-- **Python 3.10+** (uses modern type hints such as `list[str]`)
+- **Python 3.11+**
 - No external dependencies (pure standard library)
 
 ## Install
 
-Download the repository and run command from the main folder.
+Either run it from a checkout:
+
 ```commandline
 git clone https://github.com/Houmgaor/FrontierTextHandler.git
 cd FrontierTextHandler
+python main.py --help
 ```
+
+or install it as a command available from any folder:
+
+```commandline
+pip install git+https://github.com/Houmgaor/FrontierTextHandler.git
+frontier-text-handler --help
+```
+
+Game files are read from, and output written to, the folder you run the
+command in (`data/` and `output/` by default).
 
 ## Usage
 
@@ -464,7 +476,7 @@ versions are documented, it becomes a map:
 
 ## Configuration: headers.json
 
-The `headers.json` file defines where text data is located within each binary file. Understanding this format allows you to add support for new data sections.
+The [`src/headers.json`](src/headers.json) file defines where text data is located within each binary file. Understanding this format allows you to add support for new data sections.
 
 ### Structure Overview
 

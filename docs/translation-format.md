@@ -68,19 +68,20 @@ Two lexical transforms run at the CSV/JSON boundary. Both are
 bijections — round-tripping an extracted CSV through the importer
 reproduces the original byte sequence exactly.
 
-### Color codes — `‾CNN` ↔ `{cNN}` / `{/c}`
+### Color codes — `~CNN` ↔ `{cNN}` / `{/c}`
 
 The game encodes inline colour changes as the byte `0x7E` followed by
-`C` and two decimal digits. In Shift-JIS X 0213 `0x7E` decodes as `‾`
-(U+203E OVERLINE), frequently mangled by editors, diff tools, and
-GitHub markdown. The brace form is ASCII-safe and matches the
+`C` and two decimal digits. Under the game encoding (CP932) `0x7E`
+decodes as `~`, which is easy to type by accident and easy to confuse
+with real tildes (older releases decoded it as `‾`, U+203E OVERLINE).
+The brace form is unambiguous, ASCII-safe, and matches the
 existing `{K012}` / `{i131}` / `{u4}` keybind/icon placeholder
 convention used throughout MHFrontier-Translation.
 
 | On disk | In the binary | Meaning |
 |---------|---------------|---------|
-| `{cNN}` | `‾CNN`        | open a colour span |
-| `{/c}`  | `‾C00`        | reset to default |
+| `{cNN}` | `~CNN`        | open a colour span |
+| `{/c}`  | `~C00`        | reset to default |
 
 Unknown colour ids pass through with a warning rather than failing,
 so newly-seen codes surface without breaking extraction.
@@ -381,7 +382,7 @@ extractor produced the file:
    CSV header or JSON shape and returns `"index"` or `"offset"`.
 2. **Reader** — `get_new_strings_indexed` (index-keyed) or
    `get_new_strings_auto` (legacy). Both run `color_codes_from_csv`
-   on every target cell so `{cNN}` lands as `‾CNN` bytes.
+   on every target cell so `{cNN}` lands as `~CNN` bytes.
 3. **Resolver** —
    `resolve_indexes_against_entries` takes `(index, text)` pairs and
    a list of freshly-extracted live entries, and returns either:

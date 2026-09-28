@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from src.common import (
+    DEFAULT_HEADERS_PATH,
     FTXT_HEADER_SIZE,
     FTXT_MAGIC,
     GAME_ENCODING,
@@ -911,6 +912,18 @@ class TestGetAllXpaths(unittest.TestCase):
 
         xpaths = get_all_xpaths(path)
         self.assertEqual(xpaths, ["dat/items"])
+
+    def test_default_headers_independent_of_cwd(self):
+        """The bundled headers.json is found from any working directory."""
+        self.assertTrue(os.path.isabs(DEFAULT_HEADERS_PATH))
+        old_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            try:
+                xpaths = get_all_xpaths()
+            finally:
+                os.chdir(old_cwd)
+        self.assertIn("dat/armors/head", xpaths)
 
 
 class TestReadExtractionConfig(unittest.TestCase):

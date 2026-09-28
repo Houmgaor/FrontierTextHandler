@@ -323,8 +323,10 @@ def parse_inputs() -> argparse.ArgumentParser:
     return parser
 
 
-def main(args: argparse.Namespace) -> None:
+def main(args: argparse.Namespace | None = None) -> None:
     """Main function to read everything."""
+    if args is None:
+        args = parse_inputs().parse_args()
     setup_logging(args.verbose)
 
     if args.list_xpaths:
