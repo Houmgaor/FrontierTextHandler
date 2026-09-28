@@ -1,14 +1,19 @@
 """
-Map the flat string tables of mhfpac.bin into headers.json.
+Map the string tables of mhfpac.bin into headers.json.
 
     python tools/map_pac_tables.py JP_MHFPAC [--check OTHER_MHFPAC ...] [--write]
 
 The mhfpac.bin header (0x08-0x111C) is a list of table pointers. Each table
 ends where the next one starts. A table is added as ``pac/text_<offset>``
-when it is a *flat* string list: every non-null word points to the start of
-a clean string, with null padding at most. Its ``entry_count`` stops at the
-last string, and ``null_padding`` is set when nulls sit between strings, so
-each string is its own row.
+when it has one of two shapes:
+
+- *flat*: every non-null word points to the start of a clean string, with
+  null padding at most. ``entry_count`` stops at the last string, and
+  ``null_padding`` is set when nulls sit between strings, so each string is
+  its own row.
+- *lists*: the table starts with pointers to null-terminated string lists
+  that follow them in the table, and those lists hold every string. It is
+  read with ``record_levels`` (a null-terminated level), one row per list.
 
 A table is skipped when it:
 - is already (even partly) covered by an existing pac section,
@@ -16,7 +21,7 @@ A table is skipped when it:
 - contains U+FFFD or private-use characters,
 - does not read the same (same pointer slots) in every --check file.
 
-Tables of other shapes (lists of lists, structs) are reported, not added.
+Tables of other shapes (structs) are reported, not added.
 Without --write, nothing is changed.
 """
 
@@ -64,7 +69,28 @@ def pac_slots(data: bytes) -> set[int]:
     return slots
 
 
-def flat_tables(data: bytes):
+def list_count(words: list[int], is_string: list[bool], table: int) -> int:
+    """Number of leading list pointers if *words* is a list of lists, else 0."""
+    end = table + 4 * len(words)
+    k = 0
+    while (k < len(words) and table + 4 * k < words[k] < end
+           and (words[k] - table) % 4 == 0):
+        k += 1
+    reached = set()
+    for pointer in words[:k]:
+        j = (pointer - table) // 4
+        if not is_string[j]:
+            return 0
+        while j < len(words) and words[j]:
+            if not is_string[j]:
+                return 0
+            reached.add(j)
+            j += 1
+    strings = {j for j in range(k, len(words)) if is_string[j]}
+    return k if k and strings == reached else 0
+
+
+def pac_tables(data: bytes):
     """Yield (slot, shape, count, has_inner_nulls, covers_existing)."""
     header = {o: struct.unpack_from("<I", data, o)[0] for o in HEADER}
     starts = sorted({v for v in header.values() if 0x1000 <= v < len(data)})
@@ -81,9 +107,13 @@ def flat_tables(data: bytes):
             continue
         while words and words[-1] == 0:
             words.pop()
-        flat = all(w == 0 or is_string[k] for k, w in enumerate(words))
-        yield (slot, "flat" if flat else "other", len(words), 0 in words,
-               any(s in covered for s in string_slots))
+        overlaps = any(s in covered for s in string_slots)
+        if all(w == 0 or is_string[k] for k, w in enumerate(words)):
+            yield slot, "flat", len(words), 0 in words, overlaps
+        elif lists := list_count(words, is_string, table):
+            yield slot, "lists", lists, False, overlaps
+        else:
+            yield slot, "other", len(words), 0 in words, overlaps
 
 
 def main() -> None:
@@ -101,10 +131,10 @@ def main() -> None:
     pac = headers["pac"]
 
     added, skipped, shapes = [], Counter(), Counter()
-    for slot, shape, count, inner_nulls, overlaps in flat_tables(data):
+    for slot, shape, count, inner_nulls, overlaps in pac_tables(data):
         shapes[shape] += 1
         name = f"text_{slot:x}"
-        if shape != "flat":
+        if shape == "other":
             continue
         if overlaps:
             skipped["overlaps an existing section"] += 1
@@ -112,10 +142,15 @@ def main() -> None:
         if name in pac:
             continue
         config = {"begin_pointer": f"0x{slot:X}", "entry_count": count}
-        if inner_nulls:
+        if shape == "lists":
+            config["entry_size"] = 4
+            config["record_levels"] = [
+                {"pointer_offset": 0, "entry_size": 4, "null_terminated": True}
+            ]
+        elif inner_nulls:
             config["null_padding"] = True
         rows = common.extract_text_data_from_bytes(data, dict(config))
-        texts = [r["text"] for r in rows]
+        texts = [t for r in rows for t in r["text"].split("{j}")]
         if len(texts) < 2:
             skipped["fewer than 2 strings"] += 1
             continue
@@ -142,7 +177,7 @@ def main() -> None:
 
     print(f"tables with uncovered text: {dict(shapes)}")
     print(f"new sections: {len(added)} ({sum(n for _, n in added)} rows)")
-    print(f"skipped flat tables: {dict(skipped)}")
+    print(f"skipped tables: {dict(skipped)}")
     if args.write and added:
         headers_path.write_text(json.dumps(headers, indent=2, ensure_ascii=False) + "\n",
                                 encoding="utf-8")

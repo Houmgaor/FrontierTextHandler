@@ -510,8 +510,10 @@ def read_record_lists(
     sections). Starting from ``entry_count`` records of ``entry_size``
     bytes at *base_offset*, each level in *levels* follows, in every
     record, the pointer at ``pointer_offset`` to ``count`` records of the
-    level's ``entry_size`` (the count is the u32 at ``count_offset``).
-    The string pointers are at *field_offset* in the innermost records.
+    level's ``entry_size`` (the count is the u32 at ``count_offset``, or,
+    for a level marked ``null_terminated``, the list of u32 pointers runs
+    up to the first 0). The string pointers are at *field_offset* in the
+    innermost records.
 
     With *join*, each innermost list is one entry, its strings joined
     with ``{j}`` and its pointer slots in ``sub_offsets``, like any
@@ -519,7 +521,8 @@ def read_record_lists(
     pointers and empty lists are skipped.
 
     :param levels: ``[{"pointer_offset": int, "count_offset": int,
-        "entry_size": int}, ...]``, outermost first
+        "entry_size": int}, ...]``, outermost first; a level may give
+        ``"null_terminated": true`` instead of ``count_offset``
     :return: List of dicts with ``"offset"``, ``"text"`` and
         ``"sub_offsets"`` keys
     """
@@ -537,9 +540,17 @@ def read_record_lists(
                 record = start + i * size
                 pointer = u32(record + level["pointer_offset"],
                               f"level {depth} list pointer at 0x{record:x}")
-                length = u32(record + level["count_offset"],
-                             f"level {depth} list count at 0x{record:x}")
-                if pointer and length:
+                if not pointer:
+                    continue
+                if level.get("null_terminated"):
+                    length = 0
+                    while u32(pointer + 4 * length,
+                              f"level {depth} list item at 0x{pointer:x}"):
+                        length += 1
+                else:
+                    length = u32(record + level["count_offset"],
+                                 f"level {depth} list count at 0x{record:x}")
+                if length:
                     children.append((pointer, length, level["entry_size"]))
         lists = children
 

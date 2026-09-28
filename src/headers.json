@@ -5711,6 +5711,426 @@
       "entry_count": 3,
       "max_display_width": 26,
       "max_sub_count": 1
+    },
+    "text_1044": {
+      "begin_pointer": "0x1044",
+      "entry_count": 11,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 57,
+      "max_sub_count": 13
+    },
+    "text_104c": {
+      "begin_pointer": "0x104C",
+      "entry_count": 2,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_1050": {
+      "begin_pointer": "0x1050",
+      "entry_count": 11,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 14,
+      "max_sub_count": 6
+    },
+    "text_1068": {
+      "begin_pointer": "0x1068",
+      "entry_count": 7,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 27,
+      "max_sub_count": 4
+    },
+    "text_1074": {
+      "begin_pointer": "0x1074",
+      "entry_count": 7,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 64,
+      "max_sub_count": 111
+    },
+    "text_1078": {
+      "begin_pointer": "0x1078",
+      "entry_count": 5,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 50,
+      "max_sub_count": 17
+    },
+    "text_107c": {
+      "begin_pointer": "0x107C",
+      "entry_count": 5,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 58,
+      "max_sub_count": 14
+    },
+    "text_1080": {
+      "begin_pointer": "0x1080",
+      "entry_count": 5,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 18,
+      "max_sub_count": 21
+    },
+    "text_1088": {
+      "begin_pointer": "0x1088",
+      "entry_count": 6,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 56,
+      "max_sub_count": 36
+    },
+    "text_108c": {
+      "begin_pointer": "0x108C",
+      "entry_count": 21,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 493,
+      "max_sub_count": 503
+    },
+    "text_1090": {
+      "begin_pointer": "0x1090",
+      "entry_count": 3,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 42,
+      "max_sub_count": 6
+    },
+    "text_1094": {
+      "begin_pointer": "0x1094",
+      "entry_count": 17,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 318,
+      "max_sub_count": 24
+    },
+    "text_1098": {
+      "begin_pointer": "0x1098",
+      "entry_count": 13,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 100,
+      "max_sub_count": 45
+    },
+    "text_109c": {
+      "begin_pointer": "0x109C",
+      "entry_count": 39,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 64,
+      "max_sub_count": 6
+    },
+    "text_10a0": {
+      "begin_pointer": "0x10A0",
+      "entry_count": 39,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 60,
+      "max_sub_count": 6
+    },
+    "text_10a4": {
+      "begin_pointer": "0x10A4",
+      "entry_count": 10,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 469,
+      "max_sub_count": 44
+    },
+    "text_10a8": {
+      "begin_pointer": "0x10A8",
+      "entry_count": 5,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 67,
+      "max_sub_count": 58
+    },
+    "text_10ac": {
+      "begin_pointer": "0x10AC",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 501,
+      "max_sub_count": 23
+    },
+    "text_10b0": {
+      "begin_pointer": "0x10B0",
+      "entry_count": 9,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 44,
+      "max_sub_count": 10
+    },
+    "text_10bc": {
+      "begin_pointer": "0x10BC",
+      "entry_count": 10,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 114,
+      "max_sub_count": 382
+    },
+    "text_10e0": {
+      "begin_pointer": "0x10E0",
+      "entry_count": 10,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 35,
+      "max_sub_count": 3
+    },
+    "text_10e4": {
+      "begin_pointer": "0x10E4",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 30,
+      "max_sub_count": 3
+    },
+    "text_10e8": {
+      "begin_pointer": "0x10E8",
+      "entry_count": 23,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 127,
+      "max_sub_count": 77
+    },
+    "text_10ec": {
+      "begin_pointer": "0x10EC",
+      "entry_count": 3,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 91,
+      "max_sub_count": 22
+    },
+    "text_10f0": {
+      "begin_pointer": "0x10F0",
+      "entry_count": 5,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 233,
+      "max_sub_count": 26
+    },
+    "text_10fc": {
+      "begin_pointer": "0x10FC",
+      "entry_count": 2,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 59,
+      "max_sub_count": 12
+    },
+    "text_1100": {
+      "begin_pointer": "0x1100",
+      "entry_count": 7,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 85,
+      "max_sub_count": 7
+    },
+    "text_1104": {
+      "begin_pointer": "0x1104",
+      "entry_count": 43,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 60,
+      "max_sub_count": 6
+    },
+    "text_110c": {
+      "begin_pointer": "0x110C",
+      "entry_count": 6,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 108,
+      "max_sub_count": 20
+    },
+    "text_111c": {
+      "begin_pointer": "0x111C",
+      "entry_count": 11,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 116,
+      "max_sub_count": 8
     }
   },
   "inf": {

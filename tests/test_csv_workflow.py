@@ -1111,6 +1111,27 @@ class TestReadRecordLists(unittest.TestCase):
                 end = binary.index(b"\x00", pointer)
                 self.assertEqual(binary[pointer:end].decode(), text)
 
+    def test_null_terminated_level(self):
+        """A pointer array to null-terminated string lists, like pac tables."""
+        # Header -> [list A ptr, list B ptr, 0] ; A: "a1","a2",0 ; B: "b1",0
+        texts = ["a1", "a2", "b1"]
+        data = bytearray(struct.pack("<I", 4))          # header -> top array
+        data += struct.pack("<3I", 16, 28, 0)            # top array at 4
+        data += struct.pack("<3I", 0, 0, 0)              # list A at 16
+        data += struct.pack("<2I", 0, 0)                 # list B at 28
+        for slot, text in zip((16, 20, 28), texts):
+            struct.pack_into("<I", data, slot, len(data))
+            data += encode_game_string(text) + b"\x00"
+        config = {
+            "begin_pointer": "0x00", "entry_count": 2, "entry_size": 4,
+            "record_levels": [
+                {"pointer_offset": 0, "entry_size": 4, "null_terminated": True}
+            ],
+        }
+        result = extract_text_data_from_bytes(bytes(data), config)
+        self.assertEqual([r["text"] for r in result], ["a1{j}a2", "b1"])
+        self.assertEqual([r["sub_offsets"] for r in result], [[16, 20], [28]])
+
     def test_rebuild_translates_pages_in_place(self):
         """Grouped page rows import through rebuild_section like any other."""
         from src.import_data import rebuild_section
