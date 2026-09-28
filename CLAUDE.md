@@ -87,6 +87,7 @@ Defines pointer offsets for each data section. Structure: `{file_type}/{category
 - `entry_count`: Number of entries — plain integer or versioned map (`{"zz": 14594, "ko": 1290}`)
 - Optional: `pointers_per_entry`, `null_terminated`, `entry_size`/`field_offset` for struct-strided sections
 - `grouped_entries` (with `pointers_per_entry` > 1): each fixed-size group of pointers is one row, sub-strings joined with `{j}`; `entry_count` then counts groups, not pointers
+- `record_levels` (with `entry_count`/`entry_size`): records that point to lists (a tip and its pages). Each level is `{pointer_offset, count_offset, entry_size}`; strings sit at `field_offset` in the innermost records. Rows are one per innermost list, joined with `{j}`, or one per string with `"join": false`
 - `null_padding`: in a flat `entry_count` table, null pointers are padding (one row per non-null pointer). Without it, any null makes nulls act as group separators, which suits multi-line descriptions but merges a padded name list into one row
 
 Note: `begin_pointer` is a pointer-to-pointer. The file stores an address that points to the actual table start. Use `--game-version` to select entry counts for non-ZZ versions.

@@ -23,6 +23,7 @@ __all__ = [
     "read_from_pointers",
     "read_multi_pointer_entries",
     "read_struct_strings",
+    "read_record_lists",
     "read_quest_table",
     "scan_region_for_strings",
     "extract_text_data",
@@ -492,6 +493,85 @@ def _read_indirect_count(bfile: BinaryFile, config: dict) -> int:
     return count + count_adjust
 
 
+def read_record_lists(
+    bfile: BinaryFile,
+    base_offset: int,
+    entry_count: int,
+    entry_size: int,
+    levels: list[dict],
+    field_offset: int = 0,
+    join: bool = True,
+) -> list[dict[str, int | str | list[int]]]:
+    """
+    Read strings from records that point to lists of records.
+
+    Some tables are trees: a record holds a pointer to a list and the
+    list's length (a tutorial tip and its pages, a guide chapter and its
+    sections). Starting from ``entry_count`` records of ``entry_size``
+    bytes at *base_offset*, each level in *levels* follows, in every
+    record, the pointer at ``pointer_offset`` to ``count`` records of the
+    level's ``entry_size`` (the count is the u32 at ``count_offset``).
+    The string pointers are at *field_offset* in the innermost records.
+
+    With *join*, each innermost list is one entry, its strings joined
+    with ``{j}`` and its pointer slots in ``sub_offsets``, like any
+    grouped entry; otherwise every string is its own entry. Null string
+    pointers and empty lists are skipped.
+
+    :param levels: ``[{"pointer_offset": int, "count_offset": int,
+        "entry_size": int}, ...]``, outermost first
+    :return: List of dicts with ``"offset"``, ``"text"`` and
+        ``"sub_offsets"`` keys
+    """
+    def u32(offset: int, context: str) -> int:
+        bfile.validate_offset(offset + 3, context=context)
+        bfile.seek(offset)
+        return bfile.read_int()
+
+    # Each list is (start, count, record size); start with the top table.
+    lists = [(base_offset, entry_count, entry_size)]
+    for depth, level in enumerate(levels):
+        children = []
+        for start, count, size in lists:
+            for i in range(count):
+                record = start + i * size
+                pointer = u32(record + level["pointer_offset"],
+                              f"level {depth} list pointer at 0x{record:x}")
+                length = u32(record + level["count_offset"],
+                             f"level {depth} list count at 0x{record:x}")
+                if pointer and length:
+                    children.append((pointer, length, level["entry_size"]))
+        lists = children
+
+    results: list[dict[str, int | str | list[int]]] = []
+    for start, count, size in lists:
+        texts: list[str] = []
+        slots: list[int] = []
+        for i in range(count):
+            slot = start + i * size + field_offset
+            pointer = u32(slot, f"string pointer slot 0x{slot:x}")
+            if pointer == 0:
+                continue
+            bfile.validate_offset(pointer, context=f"string at 0x{pointer:x}")
+            bfile.seek(pointer)
+            texts.append(decode_game_string(
+                read_until_null(bfile), context=f"pointer 0x{pointer:x}"
+            ))
+            slots.append(slot)
+        if join and texts:
+            results.append({
+                "offset": slots[0],
+                "text": JOIN_MARKER.join(texts),
+                "sub_offsets": slots,
+            })
+        elif not join:
+            results.extend(
+                {"offset": slot, "text": text, "sub_offsets": [slot]}
+                for slot, text in zip(slots, texts)
+            )
+    return results
+
+
 def read_quest_table(
     bfile: BinaryFile,
     category_table_ptr: int,
@@ -597,6 +677,7 @@ def extract_text_data(
     Supports these extraction modes:
     - Flat pointer array (begin_pointer + entry_count)
     - Struct-strided fields (begin_pointer + entry_count + entry_size)
+    - Record lists (begin_pointer + entry_count + entry_size + record_levels)
     - Null-terminated (begin_pointer + null_terminated)
     - Quest table (begin_pointer + quest_table)
     - Scan region (begin_pointer + scan_region)
@@ -669,6 +750,19 @@ def extract_text_data_from_bytes(
             min_length=min_length,
             max_length=max_length,
             dedupe=dedupe,
+        )
+
+    elif "record_levels" in config:
+        # Records pointing to lists of records (tips and their pages)
+        bfile.seek(begin_pointer)
+        return read_record_lists(
+            bfile,
+            bfile.read_int(),
+            resolve_entry_count(config["entry_count"], game_version),
+            config["entry_size"],
+            config["record_levels"],
+            config.get("field_offset", 0),
+            config.get("join", True),
         )
 
     elif "entry_count" in config and "entry_size" in config:
