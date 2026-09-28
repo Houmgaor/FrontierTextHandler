@@ -1153,6 +1153,55 @@ class TestReadRecordLists(unittest.TestCase):
         self.assertEqual(result[0]["sub_offsets"], [12, 20, 28])
 
     @staticmethod
+    def _build_quiz() -> bytes:
+        """Header -> [set ptr]; set: questions {q, (answer, flag) x 2} (20
+        bytes), ending at a null question followed by non-zero data."""
+        texts = ["Q1", "a", "b", "Q2", "c", "d"]
+        data = bytearray(struct.pack("<2I", 4, 12)) + bytearray(4)
+        data += struct.pack("<5I", 0, 0, 1, 0, 2) * 2  # two questions at 12
+        data += struct.pack("<2I", 0, 7)                # null question, then data
+        slots = [12, 16, 24, 32, 36, 44]
+        for slot, text in zip(slots, texts):
+            struct.pack_into("<I", data, slot, len(data))
+            data += encode_game_string(text) + b"\x00"
+        return bytes(data)
+
+    QUIZ = {"begin_pointer": "0x00", "entry_count": 1, "entry_size": 4}
+    QUESTIONS = {"pointer_offset": 0, "entry_size": 20, "null_terminated": True,
+                 "end_offset": 0}
+
+    def test_end_offset_ends_list_at_null_field(self):
+        config = {**self.QUIZ, "record_levels": [self.QUESTIONS], "join": False}
+        result = extract_text_data_from_bytes(self._build_quiz(), config)
+        self.assertEqual([r["text"] for r in result], ["Q1", "Q2"])
+
+    def test_inline_level_reads_records_inside_parent(self):
+        inline = {"inline": True, "pointer_offset": 4, "count": 2, "entry_size": 8}
+        config = {**self.QUIZ, "record_levels": [self.QUESTIONS, inline]}
+        result = extract_text_data_from_bytes(self._build_quiz(), config)
+        self.assertEqual([r["text"] for r in result], ["a{j}b", "c{j}d"])
+        self.assertEqual([r["sub_offsets"] for r in result], [[16, 24], [36, 44]])
+
+    def test_fixed_count_pointer_level(self):
+        """A pointer level with "count" reads that many records, here one."""
+        # Header -> [list ptr]; list -> [rec1, rec2, 0]; records {text, flags}
+        data = bytearray(struct.pack("<2I", 4, 8))
+        data += struct.pack("<3I", 20, 28, 0)        # list at 8
+        data += struct.pack("<4I", 0, 5, 0, 6)       # records at 20 and 28
+        for slot, text in zip((20, 28), ("x", "y")):
+            struct.pack_into("<I", data, slot, len(data))
+            data += encode_game_string(text) + b"\x00"
+        config = {
+            "begin_pointer": "0x00", "entry_count": 1, "entry_size": 4,
+            "record_levels": [
+                {"pointer_offset": 0, "entry_size": 4, "null_terminated": True},
+                {"pointer_offset": 0, "entry_size": 8, "count": 1},
+            ],
+        }
+        result = extract_text_data_from_bytes(bytes(data), config)
+        self.assertEqual([r["text"] for r in result], ["x", "y"])
+
+    @staticmethod
     def _build_index(index: list) -> tuple[bytes, dict]:
         """Header -> index of list pointers; list A "a1","a2" at 32, B "b1" at 44.
 
@@ -2755,8 +2804,21 @@ class TestNewPacXpaths(unittest.TestCase):
         result = get_all_xpaths(DEFAULT_HEADERS_PATH)
         for xpath in ("pac/hunter_navi/chapter/name", "pac/hunter_navi/step/pages",
                       "pac/help/pages", "pac/guide/page", "pac/unlock_notice/body",
-                      "pac/article/body", "pac/scene_dialogue", "pac/town_info"):
+                      "pac/article/body", "pac/scene_dialogue", "pac/town_info",
+                      "pac/village_request/title", "pac/guild_cooking",
+                      "pac/key_config/action", "dat/quiz/answers",
+                      "dat/caravan_route/objective", "dat/dojo_briefing",
+                      "dat/party_search/comment", "dat/secret_area/name",
+                      "mfd/partnyaa_commentary"):
             self.assertIn(xpath, result)
+
+    def test_every_file_type_has_a_game_file(self):
+        """Each headers.json file type maps to its default and game files."""
+        from src.export import FILE_TYPE_DEFAULTS
+        from src.import_data import XPATH_PREFIX_TO_GAME_FILE
+        types = {x.split("/")[0] for x in get_all_xpaths(DEFAULT_HEADERS_PATH)}
+        self.assertLessEqual(types, set(FILE_TYPE_DEFAULTS))
+        self.assertLessEqual(types, set(XPATH_PREFIX_TO_GAME_FILE))
 
 
 class TestParseJoinedText(unittest.TestCase):

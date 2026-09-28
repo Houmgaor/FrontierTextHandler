@@ -21,6 +21,7 @@ re-compress and re-encrypt on write via `--compress --encrypt`.
 | `mhfsqd.bin` | Squad / NPC partner names and squad-skill text | `sqd/` |
 | `mhfrcc.bin` | Reception desk / event info text | `rcc/` |
 | `mhfmsx.bin` | Mezeporta Festa item names and effects | `msx/` |
+| `mhfmfd.bin` | Minigame data: Partnyaa race commentary | `mfd/` |
 | `mhfnav.bin` | Hunter Navi (text fields not yet mapped) | `nav/` |
 
 `--extract-all` auto-routes every xpath to the right file. With
@@ -46,8 +47,9 @@ pointer table:
 
 | File | Strings extracted | Status |
 |------|------------------|--------|
-| `mhfdat.bin` | ~233,000 rows (weapons, armors, items, monsters, ranks, HH, Goocoo, tips) | Nearly complete: ~170 strings in tables no section covers (village gossip) |
-| `mhfpac.bin` | ~29,700 rows (skills, UI, help, dialogue) | Nearly complete: ~820 strings (1.6% of the text) in tables no section covers |
+| `mhfdat.bin` | ~235,000 rows (weapons, armors, items, monsters, ranks, HH, Goocoo, tips, quiz, Caravan routes) | Complete, except 13 tutorial page lists nothing points to (~3,800 characters) and a few labels |
+| `mhfpac.bin` | ~30,700 rows (skills, UI, help, dialogue) | Complete, except ~2,100 characters: two unreferenced blocks and single labels |
+| `mhfmfd.bin` | 37 (Partnyaa race commentary) | Complete |
 | `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
 | `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
 | `mhfgao.bin` | 2,122 (Felyne equipment, dialogue, skills) | Complete |
@@ -122,8 +124,31 @@ Tip pages. Flat `s32p` arrays padded with nulls: `hunter_basics`
   58 sections `{title, pages pointer, count}` (general topics, then each
   weapon), 167 pages. `section` and `pages` match row for row.
 
-Not extracted yet: about 120 short village gossip lines near `*0x150`, and 46
-tutorial pages no tip record points to.
+Not extracted: 13 page lists (238 pages) right after the tutorial records.
+No pointer in the file reaches them, and they are older drafts of live
+pages (the Magnet Spike and Great Sword introductions, with other key
+codes), so they are left out.
+
+### Other `dat/` sections
+
+| Section | Header | Layout |
+|---------|--------|--------|
+| `quiz/{question,answers}` | `0xAFC` | 5 pointers → sets of {question, (answer, flag) × 4} (36 bytes, ending at a null question); 290 questions. `answers` is one row per question |
+| `caravan_route/{name,goal,failure}` | `0x91C` | 11 pointers → lists of routes (268 bytes, ending at a null name); 279 routes |
+| `caravan_route/{area,season,objective}` | `0x91C` → | 12 destinations {?, area, season, objective} (16 bytes) inline at +0x4C of each route; one row per route |
+| `dojo_briefing` | `0x150` | 28 pointers → lines ending at 0; one row per briefing |
+| `party_search/purpose` | `0x1C0` | 130 records {label, flags, value} (12 bytes) |
+| `party_search/comment` | `0x1BC` | 39 records {text, flags} (8 bytes) |
+| `secret_area/{name,description}` | `0x87C` | 12 records (28 bytes) |
+
+The Caravan routes repeat their labels: every route points to the same goal
+string, and areas and seasons come from a short list.
+
+**False pointers.** Many small integers in `mhfdat.bin` (IDs packed in
+pairs of 16 bits, `0xFFFF`, …) happen to equal the address of a string,
+because strings sit low in the file. A scan for words that point to strings
+therefore finds tens of thousands of "pointers" to already-extracted names
+and descriptions; they are data, not text slots.
 
 ---
 
@@ -160,21 +185,33 @@ Tables whose records point to lists of records, read with `record_levels`:
 | `article/{title,body}` | `0x90` | 5 pointers → lists of {id, 0, title, body} (16 bytes), 93 articles |
 | `scene_dialogue` | `0xD8` | 2,920 pointers → scenes of {speaker, line} (8 bytes, zero record ends); 579 scenes, 220 distinct. Pointers to the zeroed end of the file are empty scenes |
 | `town_info` | `0xAB8` | the first 33 words, string pointers; records follow |
+| `village_request/{title,description}` | `0x3C` | 17 records (116 bytes), three titles at +92 and three descriptions at +104 (inline); one row per record |
+| `forge_request/{title,description}` | `0x38` | 18 records (36 bytes), title at +28, description at +32 |
+| `guild_cooking` | `0xAC` | 3 records (184 bytes): a count, then recipes {ingredients, dish, effect} inline; one row per recipe (27) |
+| `key_config/action` | `0xDC` | 23 pointers → lists of pointers → {label, flags} records (one each); 348 action labels |
+| `key_config/key` | `0x4C` | 5 pointers → lists of {name, key code} (8 bytes, ending at a null name) |
 
 The Hunter Navi steps and pages are stored in the table at `0xCEC`, and
 the guide pages in the one at `0x1110` (`pac/text_1110` reads only that
 table's index lists). The records are reached from `0xC4` and `0xE4`, not
 from the tables they sit in.
 
+`pac/menu/smith` covers the whole forge menu table at `0x2D8` (155 slots)
+since 1.10.0; rows 0-21 are unchanged.
+
+Not extracted: a list index for the profile status-mark help inside the
+`0x1064` table (~400 characters) that nothing in the file points to, a help
+page past its section's page count at `0xF8`, and scattered single labels.
+
 ### `pac/text_*`
 Generic UI / system text tables. The numeric suffix is the header pointer
 offset where the table base is stored (the header runs from `0x08` to
 `0x111C`; each table ends where the next one starts).
 
-Most of them (930 sections) are mapped by `tools/map_pac_tables.py`, in three
+Most of them (949 sections) are mapped by `tools/map_pac_tables.py`, in three
 shapes:
 
-- 829 flat string lists: every non-null word points to a string,
+- 848 flat string lists: every non-null word points to a string,
   `entry_count` stops at the last string, and `null_padding` is set when
   nulls sit between strings.
 - 46 lists of lists: the table starts with an index of pointers to
@@ -189,9 +226,9 @@ shapes:
 The tool adds a table only if it reads the same pointer slots on every
 client passed with `--check`, and never one that overlaps an existing
 section. Flat and record tables own their slots, so they are added before
-the lists. Not mapped yet: ~20 tables of other shapes (variable-length
-records such as the village quest requests at `0x38`/`0x3C`), and ~70
-skipped as single strings or symbols.
+the lists. It also skips tables with fewer than 2 non-empty strings or whose
+strings are mostly symbols (~50). The remaining ~16 tables of other shapes
+hold no text, or text the named sections read.
 
 Run it after the named sections below, so their slots count as covered.
 It sorts `text_<offset>` sections by offset, so a run from scratch writes
@@ -370,6 +407,17 @@ readable strings.
 
 ---
 
+## `mhfmfd.bin` — Minigame data
+
+### `mfd/partnyaa_commentary`
+The announcer's lines for the Partnyaa race minigame (とことこパートニャー),
+37 rows. Header `0x4` points to a record whose word at `+0x138` points to
+the 37 string pointers (the count is the low half of the word after it,
+so the section uses a fixed `count`). The English client never translated
+them.
+
+---
+
 ## Files without extractable text
 
 These `client/pc/dat/` files were checked and contain no translatable
@@ -379,7 +427,6 @@ text:
 |------|---------|
 | `mhfemd.bin` | Monster stat tables (numeric only) |
 | `mhfmec.bin` | 960 bytes, numeric/float data |
-| `mhfmfd.bin` | Coordinate/float data |
 | `mhfsch.bin` | Schedule data (dates) |
 | `mhfsdt.bin` | Sound/animation data |
 | `rengoku_data.bin` | Hunter's Road spawn tables (numeric) |

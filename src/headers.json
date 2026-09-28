@@ -420,6 +420,225 @@
           "max_sub_count": 5
         }
       }
+    },
+    "quiz": {
+      "_comment": "Quiz: 5 pointers at *0xAFC to sets of questions {question, (answer, flag) x 4} (36 bytes; a set ends at a null question). 290 questions.",
+      "question": {
+        "begin_pointer": "0xAFC",
+        "entry_count": 5,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 36,
+            "null_terminated": true,
+            "end_offset": 0
+          }
+        ],
+        "join": false,
+        "max_display_width": 56,
+        "max_sub_count": 1
+      },
+      "answers": {
+        "_comment": "The four answers of each question, one row per question.",
+        "begin_pointer": "0xAFC",
+        "entry_count": 5,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 36,
+            "null_terminated": true,
+            "end_offset": 0
+          },
+          {
+            "inline": true,
+            "pointer_offset": 4,
+            "count": 4,
+            "entry_size": 8
+          }
+        ],
+        "max_display_width": 18,
+        "max_sub_count": 4
+      }
+    },
+    "caravan_route": {
+      "_comment": "Caravan routes ('１００１航路' ...): 11 pointers at *0x91C to lists of routes (268 bytes, ending at a null name): {name, goal, failure, ...} and, from +0x4C, 12 destinations {?, area, season, objective} (16 bytes). 279 routes; most strings are shared labels.",
+      "name": {
+        "begin_pointer": "0x91C",
+        "entry_count": 11,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 268,
+            "null_terminated": true,
+            "end_offset": 0
+          }
+        ],
+        "field_offset": 0,
+        "join": false,
+        "max_display_width": 12,
+        "max_sub_count": 1
+      },
+      "goal": {
+        "begin_pointer": "0x91C",
+        "entry_count": 11,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 268,
+            "null_terminated": true,
+            "end_offset": 0
+          }
+        ],
+        "field_offset": 4,
+        "join": false,
+        "max_display_width": 26,
+        "max_sub_count": 1
+      },
+      "failure": {
+        "begin_pointer": "0x91C",
+        "entry_count": 11,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 268,
+            "null_terminated": true,
+            "end_offset": 0
+          }
+        ],
+        "field_offset": 8,
+        "join": false,
+        "max_display_width": 62,
+        "max_sub_count": 1
+      },
+      "area": {
+        "_comment": "Destination areas, one row per route.",
+        "begin_pointer": "0x91C",
+        "entry_count": 11,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 268,
+            "null_terminated": true,
+            "end_offset": 0
+          },
+          {
+            "inline": true,
+            "pointer_offset": 76,
+            "count": 12,
+            "entry_size": 16
+          }
+        ],
+        "field_offset": 4,
+        "max_display_width": 10,
+        "max_sub_count": 12
+      },
+      "season": {
+        "_comment": "Destination seasons and times, one row per route.",
+        "begin_pointer": "0x91C",
+        "entry_count": 11,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 268,
+            "null_terminated": true,
+            "end_offset": 0
+          },
+          {
+            "inline": true,
+            "pointer_offset": 76,
+            "count": 12,
+            "entry_size": 16
+          }
+        ],
+        "field_offset": 8,
+        "max_display_width": 12,
+        "max_sub_count": 12
+      },
+      "objective": {
+        "_comment": "Destination objectives, one row per route.",
+        "begin_pointer": "0x91C",
+        "entry_count": 11,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 268,
+            "null_terminated": true,
+            "end_offset": 0
+          },
+          {
+            "inline": true,
+            "pointer_offset": 76,
+            "count": 12,
+            "entry_size": 16
+          }
+        ],
+        "field_offset": 12,
+        "max_display_width": 28,
+        "max_sub_count": 12
+      }
+    },
+    "dojo_briefing": {
+      "_comment": "Hunter's dojo drill briefings ('~C00とうとう、ここまできたね。' ...): 28 pointers at *0x150 to lists of lines ending at 0; one row per briefing, empty lines are page breaks.",
+      "begin_pointer": "0x150",
+      "entry_count": 28,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 48,
+      "max_sub_count": 13
+    },
+    "party_search": {
+      "_comment": "Party search: purposes (quest types, monsters) and preset recruitment comments.",
+      "purpose": {
+        "_comment": "130 records {label, flags, value} (12 bytes) at *0x1C0.",
+        "begin_pointer": "0x1C0",
+        "entry_count": 130,
+        "entry_size": 12,
+        "field_offset": 0,
+        "max_display_width": 18,
+        "max_sub_count": 1
+      },
+      "comment": {
+        "_comment": "39 records {text, flags} (8 bytes) at *0x1BC.",
+        "begin_pointer": "0x1BC",
+        "entry_count": 39,
+        "entry_size": 8,
+        "field_offset": 0,
+        "max_display_width": 24,
+        "max_sub_count": 1
+      }
+    },
+    "secret_area": {
+      "_comment": "Secret areas ('草原に隠れし原始境' ...): 12 records {name, description, ...} (28 bytes) at *0x87C.",
+      "name": {
+        "begin_pointer": "0x87C",
+        "entry_count": 12,
+        "entry_size": 28,
+        "field_offset": 0,
+        "max_display_width": 26,
+        "max_sub_count": 1
+      },
+      "description": {
+        "begin_pointer": "0x87C",
+        "entry_count": 12,
+        "entry_size": 28,
+        "field_offset": 4,
+        "max_display_width": 132,
+        "max_sub_count": 1
+      }
     }
   },
   "pac": {
@@ -484,10 +703,10 @@
       },
       "smith": {
         "begin_pointer": "0x2D8",
-        "max_display_width": 32,
+        "max_display_width": 124,
         "max_sub_count": 1,
-        "entry_count": 22,
-        "_comment": "Blacksmith/deco/sigil/cuff menu: Create/Upgrade Weapon/Armour, Create/Insert/Remove/Destroy Deco, armour parts, cuffs, Brand/Remove Sigil (slots 0-21; aligns Z/ZZ)"
+        "entry_count": 155,
+        "_comment": "Blacksmith/deco/sigil/cuff menu: Create/Upgrade Weapon/Armour, Create/Insert/Remove/Destroy Deco, armour parts, cuffs, Brand/Remove Sigil, then the labels of the other forge screens (155 slots; rows 0-21 were the whole section before 1.10.0)"
       },
       "options": {
         "begin_pointer": "0x908",
@@ -746,6 +965,120 @@
       "entry_count": 33,
       "max_display_width": 270,
       "max_sub_count": 1
+    },
+    "village_request": {
+      "_comment": "Village requests ('◇腹ペコの商人たち◇' ...): 17 records (116 bytes) at *0x3C, three titles at +92 and their three descriptions at +104; one row per record.",
+      "title": {
+        "begin_pointer": "0x3C",
+        "entry_count": 17,
+        "entry_size": 116,
+        "record_levels": [
+          {
+            "inline": true,
+            "pointer_offset": 92,
+            "count": 3,
+            "entry_size": 4
+          }
+        ],
+        "max_display_width": 23,
+        "max_sub_count": 3
+      },
+      "description": {
+        "begin_pointer": "0x3C",
+        "entry_count": 17,
+        "entry_size": 116,
+        "record_levels": [
+          {
+            "inline": true,
+            "pointer_offset": 104,
+            "count": 3,
+            "entry_size": 4
+          }
+        ],
+        "max_display_width": 86,
+        "max_sub_count": 3
+      }
+    },
+    "forge_request": {
+      "_comment": "Forge requests ('◆炉の性能を上げろ！◆' ...): 18 records (36 bytes) at *0x38, title at +28, description at +32.",
+      "title": {
+        "begin_pointer": "0x38",
+        "entry_count": 18,
+        "entry_size": 36,
+        "field_offset": 28,
+        "max_display_width": 24,
+        "max_sub_count": 1
+      },
+      "description": {
+        "begin_pointer": "0x38",
+        "entry_count": 18,
+        "entry_size": 36,
+        "field_offset": 32,
+        "max_display_width": 86,
+        "max_sub_count": 1
+      }
+    },
+    "guild_cooking": {
+      "_comment": "Guild cooking recipes: 3 records (184 bytes) at *0xAC, a count then up to 15 recipes {ingredients, dish, effect}; one row per recipe.",
+      "begin_pointer": "0xAC",
+      "entry_count": 3,
+      "entry_size": 184,
+      "record_levels": [
+        {
+          "inline": true,
+          "pointer_offset": 4,
+          "count": 15,
+          "entry_size": 12
+        },
+        {
+          "inline": true,
+          "pointer_offset": 0,
+          "count": 3,
+          "entry_size": 4
+        }
+      ],
+      "max_display_width": 43,
+      "max_sub_count": 3
+    },
+    "key_config": {
+      "_comment": "Key configuration.",
+      "action": {
+        "_comment": "Action labels ('移動・前' ...): 23 pointers at *0xDC to lists of pointers (ending at 0) to {label, flags} records.",
+        "begin_pointer": "0xDC",
+        "entry_count": 23,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 4,
+            "null_terminated": true
+          },
+          {
+            "pointer_offset": 0,
+            "entry_size": 8,
+            "count": 1
+          }
+        ],
+        "max_display_width": 29,
+        "max_sub_count": 1
+      },
+      "key": {
+        "_comment": "Key names ('Ｆ１', '左Windows' ...): 5 pointers at *0x4C to lists of {name, key code} (8 bytes, ending at a null name).",
+        "begin_pointer": "0x4C",
+        "entry_count": 5,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 8,
+            "null_terminated": true,
+            "end_offset": 0
+          }
+        ],
+        "join": false,
+        "max_display_width": 16,
+        "max_sub_count": 1
+      }
     },
     "text_14": {
       "begin_pointer": "0x14",
@@ -1566,6 +1899,12 @@
       "max_display_width": 70,
       "max_sub_count": 1
     },
+    "text_278": {
+      "begin_pointer": "0x278",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
     "text_27c": {
       "begin_pointer": "0x27C",
       "entry_count": 8,
@@ -1642,6 +1981,12 @@
       "begin_pointer": "0x2AC",
       "entry_count": 51,
       "max_display_width": 117,
+      "max_sub_count": 1
+    },
+    "text_2b0": {
+      "begin_pointer": "0x2B0",
+      "entry_count": 12,
+      "max_display_width": 2,
       "max_sub_count": 1
     },
     "text_2b4": {
@@ -2049,6 +2394,12 @@
       "max_display_width": 59,
       "max_sub_count": 1
     },
+    "text_3d8": {
+      "begin_pointer": "0x3D8",
+      "entry_count": 22,
+      "max_display_width": 172,
+      "max_sub_count": 1
+    },
     "text_3dc": {
       "begin_pointer": "0x3DC",
       "entry_count": 10,
@@ -2445,6 +2796,12 @@
       "begin_pointer": "0x4EC",
       "entry_count": 69,
       "max_display_width": 117,
+      "max_sub_count": 1
+    },
+    "text_4f0": {
+      "begin_pointer": "0x4F0",
+      "entry_count": 38,
+      "max_display_width": 113,
       "max_sub_count": 1
     },
     "text_4f4": {
@@ -2888,10 +3245,52 @@
       "max_display_width": 61,
       "max_sub_count": 1
     },
+    "text_640": {
+      "begin_pointer": "0x640",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_644": {
+      "begin_pointer": "0x644",
+      "entry_count": 8,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_648": {
+      "begin_pointer": "0x648",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_64c": {
+      "begin_pointer": "0x64C",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_650": {
+      "begin_pointer": "0x650",
+      "entry_count": 3,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_654": {
+      "begin_pointer": "0x654",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
     "text_658": {
       "begin_pointer": "0x658",
       "entry_count": 6,
       "max_display_width": 37,
+      "max_sub_count": 1
+    },
+    "text_65c": {
+      "begin_pointer": "0x65C",
+      "entry_count": 2,
+      "max_display_width": 6,
       "max_sub_count": 1
     },
     "text_660": {
@@ -3524,6 +3923,12 @@
       "max_display_width": 16,
       "max_sub_count": 1
     },
+    "text_824": {
+      "begin_pointer": "0x824",
+      "entry_count": 7,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
     "text_828": {
       "begin_pointer": "0x828",
       "entry_count": 2,
@@ -3554,6 +3959,12 @@
       "max_display_width": 23,
       "max_sub_count": 1
     },
+    "text_83c": {
+      "begin_pointer": "0x83C",
+      "entry_count": 14,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
     "text_840": {
       "begin_pointer": "0x840",
       "entry_count": 2,
@@ -3570,6 +3981,12 @@
       "begin_pointer": "0x848",
       "entry_count": 3,
       "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_84c": {
+      "begin_pointer": "0x84C",
+      "entry_count": 6,
+      "max_display_width": 2,
       "max_sub_count": 1
     },
     "text_850": {
@@ -4312,6 +4729,12 @@
       "max_display_width": 2,
       "max_sub_count": 1
     },
+    "text_a7c": {
+      "begin_pointer": "0xA7C",
+      "entry_count": 57,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
     "text_a80": {
       "begin_pointer": "0xA80",
       "entry_count": 469,
@@ -4744,6 +5167,18 @@
       "max_display_width": 556,
       "max_sub_count": 1
     },
+    "text_bac": {
+      "begin_pointer": "0xBAC",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_bb0": {
+      "begin_pointer": "0xBB0",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
     "text_bb4": {
       "begin_pointer": "0xBB4",
       "entry_count": 11,
@@ -4970,6 +5405,12 @@
       "begin_pointer": "0xC50",
       "entry_count": 17,
       "max_display_width": 60,
+      "max_sub_count": 1
+    },
+    "text_c54": {
+      "begin_pointer": "0xC54",
+      "entry_count": 17,
+      "max_display_width": 45,
       "max_sub_count": 1
     },
     "text_c58": {
@@ -5312,6 +5753,12 @@
       "begin_pointer": "0xD44",
       "entry_count": 17,
       "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_d48": {
+      "begin_pointer": "0xD48",
+      "entry_count": 10,
+      "max_display_width": 100,
       "max_sub_count": 1
     },
     "text_d4c": {
@@ -7348,6 +7795,25 @@
       "entry_size": 36,
       "field_offset": 4,
       "max_display_width": 22,
+      "max_sub_count": 1
+    }
+  },
+  "mfd": {
+    "_comment": "mhfmfd.bin: minigame data.",
+    "partnyaa_commentary": {
+      "_comment": "Commentary for the Partnyaa race minigame (とことこパートニャー): 37 string pointers, pointed to from +0x138 of the record at *0x4 (the count, 37, is the low half of the next word).",
+      "begin_pointer": "0x4",
+      "entry_count": 1,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 312,
+          "entry_size": 4,
+          "count": 37
+        }
+      ],
+      "join": false,
+      "max_display_width": 178,
       "max_sub_count": 1
     }
   }

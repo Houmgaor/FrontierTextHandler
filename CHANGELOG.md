@@ -33,11 +33,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
   Uncovered pac text goes from about a third of the file's characters
   (~5,600 strings) to 1.6% (~820 strings, mostly single labels).
+- **The rest of the `mhfdat.bin` text**: a quiz (`dat/quiz/…`, 290
+  questions with their answers), Caravan routes (`dat/caravan_route/…`,
+  279 routes with their destinations and objectives), the dojo drill
+  briefings (`dat/dojo_briefing`), party search purposes and preset
+  comments (`dat/party_search/…`) and secret area descriptions
+  (`dat/secret_area/…`). What remains unextracted is 13 tutorial page
+  lists that nothing in the file points to (older drafts) and a few labels.
+- **More `mhfpac.bin` text:** village and forge requests, guild cooking
+  recipes, key configuration labels and key names (hand-mapped), and 19
+  more flat tables from `tools/map_pac_tables.py` (furniture prompts,
+  option values, hunting contest labels, shop prompts). `pac/menu/smith`
+  now covers its whole table (155 rows; rows 0-21 are unchanged).
+- **`mhfmfd.bin` support** (`mfd/partnyaa_commentary`): the 37 announcer
+  lines of the Partnyaa race minigame, never translated in the English
+  client.
 - **`record_levels` options:** a `null_terminated` level of records wider
   than 4 bytes ends at the first all-zero record; `skip_entries` leaves top
   records whose lists another section reads. List pointers that are 0 or
   not 4-byte aligned (flag values) are skipped, and a pointer slot reached
-  twice is read only the first time, so no slot is in two rows.
+  twice is read only the first time, so no slot is in two rows. A level
+  can end at the first record whose u32 at `end_offset` is 0, take a fixed
+  `count`, or be `inline` (records inside the parent, such as a quiz
+  question's answers).
 - **Goocoo text** (`dat/goocoo/…`, 22 sections, 899 strings): accessory
   and garden names and descriptions, personalities, interactions and food
   descriptions. The English client never translated these.

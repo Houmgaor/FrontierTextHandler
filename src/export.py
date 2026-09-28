@@ -635,6 +635,7 @@ FILE_TYPE_DEFAULTS = {
     "rcc": "data/mhfrcc.bin",
     "msx": "data/mhfmsx.bin",
     "sqd": "data/mhfsqd.bin",
+    "mfd": "data/mhfmfd.bin",
 }
 
 
