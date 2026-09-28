@@ -10,9 +10,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Web interface** (`web/`, deployed to GitHub Pages): extract text and
   build game-ready files in the browser, with no installation. The tool
   runs locally through Pyodide in a Web Worker; game files never leave
-  the browser.
+  the browser. Available in English and French, and accepts
+  MHFrontier-Translation releases (`translations-<lang>.json.gz`) as
+  well as extracted CSV/JSON files.
 
 ### Fixed
+- **`--apply-translations` honours `--fold-unsupported-chars`.** It was
+  the one importer 1.8.0 missed, so any release with accented text (the
+  French one, for instance) failed with an `EncodingError`.
+- **No false placeholder warnings on per-language releases.**
+  `translations-<lang>.json.gz` entries carry no `source`, so every
+  colour code was reported as an extra placeholder (14,371 warnings for
+  the French release). Entries without a source are no longer checked.
+- The per-pointer "Assigned value" log line is now debug-level; applying
+  a large release printed one line per string.
 - **`pip install` works.** The build failed under setuptools 77+ (a
   license classifier alongside a PEP 639 license expression), and the
   `frontier-text-handler` entry point called `main()` without arguments.

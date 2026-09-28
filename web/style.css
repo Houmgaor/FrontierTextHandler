@@ -96,7 +96,44 @@ main { flex: 1; }
 
 /* ---- Title: red angular letters on overlapping gold diamonds ---- */
 
-header { padding-top: 1.75rem; text-align: center; }
+header { padding-top: 1rem; text-align: center; }
+
+/* Language switch, drawn like the tabs above the world select list. */
+.languages {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-bottom: .75rem;
+}
+
+.tab {
+  font: .85rem/1.2 var(--mono);
+  color: #b8ab98;
+  padding: .3rem .8rem .3rem 1.3rem;
+  background: linear-gradient(#3a2c22, #1a120e);
+  border: 1px solid #8a7058;
+  border-bottom-color: #4a3a2c;
+  cursor: pointer;
+  position: relative;
+}
+
+.tab[aria-pressed="true"] {
+  color: #1d1408;
+  background: linear-gradient(#f3ead0, #d9c99a);
+  border-color: #b89a55;
+}
+
+.tab[aria-pressed="true"]::before {
+  content: "▷";
+  position: absolute;
+  left: .35rem;
+  color: var(--cursor);
+  font-weight: 700;
+}
+
+.tab:hover { color: var(--dialog-text); }
+.tab[aria-pressed="true"]:hover { color: #1d1408; }
+.tab:focus-visible { outline: 2px solid var(--cursor); outline-offset: 1px; }
 
 .kicker {
   margin: 0;
@@ -184,7 +221,7 @@ h1 {
   font: .8rem/1.5 var(--mono);
   color: #d8d0c4;
 }
-#log:empty::before { content: "Nothing yet."; color: #8d8277; }
+#log:empty::before { content: attr(data-empty); color: #8d8277; }
 
 /* ---- Parchment panel (world/land select lists) ---- */
 
@@ -366,6 +403,17 @@ legend {
 }
 
 #translation-list { margin: .5rem 0 0; padding-left: 1.4rem; color: var(--row-blue); }
+#translation-list li { margin: .15rem 0; }
+
+select {
+  font: inherit;
+  color: var(--header-blue);
+  background: rgba(255, 252, 238, .8);
+  border: 1px solid var(--ink-soft);
+  padding: .05rem .3rem;
+  max-width: 100%;
+}
+select:focus-visible { outline: 2px solid var(--cursor); }
 #translation-list:empty { display: none; }
 
 /* ---- Footer ---- */

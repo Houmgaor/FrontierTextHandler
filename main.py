@@ -621,6 +621,7 @@ def main(args: argparse.Namespace | None = None) -> None:
             key_index=args.key_index,
             strict_placeholders=args.strict_placeholders,
             game_version=args.game_version,
+            fold_unsupported_chars=args.fold_unsupported_chars,
         )
         if results:
             total = sum(results.values())

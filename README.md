@@ -7,9 +7,11 @@ It is roughly a Python rewrite of FrontierTextTool
 ## Web interface (no install)
 
 Translators can use the tool from a browser at
-<https://houmgaor.github.io/FrontierTextHandler/>: open a game file,
-download its text as CSV/JSON, then upload the translated files to get a
-game-ready (compressed and encrypted) file back. Everything runs locally
+<https://houmgaor.github.io/FrontierTextHandler/> (in English or French):
+open a game file, download its text as CSV/JSON, then upload the translated
+files, or a [MHFrontier-Translation](https://github.com/Mogapedia/MHFrontier-Translation/releases)
+release such as `translations-fr.json.gz`, to get a game-ready (compressed
+and encrypted) file back. Everything runs locally
 in the browser tab through [Pyodide](https://pyodide.org/); game files
 are never uploaded. Opening and rebuilding `mhfdat.bin` takes about a
 minute each; smaller files take seconds.

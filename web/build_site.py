@@ -16,7 +16,7 @@ from pathlib import Path
 
 WEB_DIR = Path(__file__).resolve().parent
 ROOT = WEB_DIR.parent
-STATIC_FILES = ["index.html", "style.css", "app.js", "worker.js"]
+STATIC_FILES = ["index.html", "style.css", "app.js", "i18n.js", "worker.js"]
 
 
 def build_site(out_dir: Path) -> Path:

@@ -5,9 +5,12 @@ mocked; what is tested is the decode-once, apply-in-sequence and
 re-encode logic around them. The page itself is exercised in a browser.
 """
 
+import gzip
 import io
+import json
 import logging
 import os
+import struct
 import sys
 import tempfile
 import unittest
@@ -17,11 +20,30 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "web"))
 
 import bridge  # noqa: E402
+from src.common import GAME_ENCODING  # noqa: E402
 from src.crypto import decrypt, encrypt, is_encrypted_file  # noqa: E402
 from src.jkr_compress import compress_jkr_hfi  # noqa: E402
 from src.jkr_decompress import decompress_jkr, is_jkr_file  # noqa: E402
 
 PAYLOAD = b"decoded game data " * 64
+
+
+def _pointer_table_binary(strings):
+    """Header pointer, a pointer table at offset 8, then the strings."""
+    table = 8
+    offset = table + 4 * len(strings)
+    pointers, blobs = [], []
+    for text in strings:
+        pointers.append(offset)
+        blobs.append(text.encode(GAME_ENCODING) + b"\x00")
+        offset += len(blobs[-1])
+    return (struct.pack("<II", table, table + 4 * len(strings))
+            + b"".join(struct.pack("<I", p) for p in pointers) + b"".join(blobs))
+
+
+def _string_at_pointer(data, pointer):
+    start = struct.unpack_from("<I", data, pointer)[0]
+    return data[start:data.index(b"\x00", start)].decode(GAME_ENCODING)
 
 
 class TestWebBridge(unittest.TestCase):
@@ -123,6 +145,72 @@ class TestWebBridge(unittest.TestCase):
         self.assertIsNone(result["data"])
         self.assertEqual(result["applied"], [])
         compress.assert_not_called()
+
+    def _put_release(self, name, release):
+        raw = json.dumps(release, ensure_ascii=False).encode("utf-8")
+        with open(f"{bridge.TRANSLATION_DIR}/{name}", "wb") as f:
+            f.write(gzip.compress(raw) if name.endswith(".gz") else raw)
+
+    def test_stage_tells_releases_from_extracted_files(self):
+        self._put_game_file("mhfdat.bin", PAYLOAD)
+        bridge.load_game_file("mhfdat.bin")
+        self._put_release("translations-fr.json.gz", {
+            "fr": {"dat/armors/head": [], "dat/items/name": [], "pac/skills/name": []},
+            "en": {"pac/skills/name": []},
+        })
+        with open(f"{bridge.TRANSLATION_DIR}/dat-armors-head.json", "w") as f:
+            json.dump({"metadata": {"xpath": "dat/armors/head"}, "strings": []}, f)
+        with open(f"{bridge.TRANSLATION_DIR}/dat-armors-head.csv", "w") as f:
+            f.write("index,source,target\n")
+
+        staged = bridge.stage_translations(
+            "mhfdat.bin",
+            ["translations-fr.json.gz", "dat-armors-head.json", "dat-armors-head.csv"],
+        )
+
+        self.assertEqual(staged, [
+            {"name": "translations-fr.json.gz", "kind": "release",
+             "languages": {"fr": 2, "en": 0}},
+            {"name": "dat-armors-head.json", "kind": "section"},
+            {"name": "dat-armors-head.csv", "kind": "section"},
+        ])
+
+    def test_build_applies_release_language_for_this_file_only(self):
+        self._put_game_file("mhfdat.bin", _pointer_table_binary(["Helmet", "Sword"]))
+        bridge.load_game_file("mhfdat.bin")
+        self._put_release("translations-fr.json.gz", {"fr": {
+            "dat/armors/head": [{"location": "0x8@mhfdat.bin", "target": "Casque élite"}],
+            # Belongs to mhfpac.bin: must not be reported as a missing file.
+            "pac/skills/name": [{"location": "0x8@mhfpac.bin", "target": "Garde"}],
+        }})
+        bridge.stage_translations("mhfdat.bin", ["translations-fr.json.gz"])
+
+        result = bridge.build(
+            "mhfdat.bin", ["translations-fr.json.gz"],
+            release_languages={"translations-fr.json.gz": "fr"},
+            compress=False, encrypt_output=False,
+        )
+
+        self.assertEqual(result["applied"], ["translations-fr.json.gz"])
+        self.assertEqual(_string_at_pointer(result["data"], 8), "Casque elite")
+        self.assertEqual(_string_at_pointer(result["data"], 12), "Sword")
+        self.assertFalse(any("not found" in m for m in self.messages))
+
+    def test_build_reports_release_without_sections_for_this_file(self):
+        self._put_game_file("mhfdat.bin", _pointer_table_binary(["Helmet"]))
+        bridge.load_game_file("mhfdat.bin")
+        self._put_release("translations-en.json", {"en": {
+            "pac/skills/name": [{"location": "0x8@mhfpac.bin", "target": "Guard"}],
+        }})
+        bridge.stage_translations("mhfdat.bin", ["translations-en.json"])
+
+        result = bridge.build(
+            "mhfdat.bin", ["translations-en.json"],
+            release_languages={"translations-en.json": "en"},
+        )
+
+        self.assertIsNone(result["data"])
+        self.assertEqual(result["unchanged"], ["translations-en.json"])
 
 
 if __name__ == "__main__":
