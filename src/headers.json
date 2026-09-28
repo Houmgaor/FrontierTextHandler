@@ -150,6 +150,203 @@
         "entry_count": 4,
         "_comment": "count at *0x010+0x28"
       }
+    },
+    "goocoo": {
+      "_comment": "Goocoo (グーク) pet: accessories, garden, personality, interactions and food. Header block 0x3D8-0x470; every table is a flat s32p array, names and descriptions row for row. Row 0 of each accessory table is 'remove' (はずす / アクセサリを外します。).",
+      "accessory_series": {
+        "_comment": "Accessory series names (ギザギザシリーズ, 水玉シリーズ, ...).",
+        "begin_pointer": "0x400",
+        "entry_count": 32,
+        "max_display_width": 21,
+        "max_sub_count": 1
+      },
+      "accessory_1": {
+        "name": {
+          "_comment": "Accessory slot 1 names: hats, wigs and other headwear.",
+          "begin_pointer": "0x3D8",
+          "entry_count": 80,
+          "max_display_width": 20,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Accessory slot 1 descriptions, row for row with accessory_1/name.",
+          "begin_pointer": "0x3EC",
+          "entry_count": 80,
+          "max_display_width": 74,
+          "max_sub_count": 1
+        }
+      },
+      "accessory_2": {
+        "name": {
+          "_comment": "Accessory slot 2 names: ponchos, uniforms, overalls and other clothes.",
+          "begin_pointer": "0x3DC",
+          "entry_count": 65,
+          "max_display_width": 22,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Accessory slot 2 descriptions, row for row with accessory_2/name.",
+          "begin_pointer": "0x3F0",
+          "entry_count": 65,
+          "max_display_width": 74,
+          "max_sub_count": 1
+        }
+      },
+      "accessory_3": {
+        "name": {
+          "_comment": "Accessory slot 3 names: masks, snorkels, bottles.",
+          "begin_pointer": "0x3E0",
+          "entry_count": 67,
+          "max_display_width": 20,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Accessory slot 3 descriptions, row for row with accessory_3/name.",
+          "begin_pointer": "0x3F4",
+          "entry_count": 67,
+          "max_display_width": 76,
+          "max_sub_count": 1
+        }
+      },
+      "accessory_4": {
+        "name": {
+          "_comment": "Accessory slot 4 names: scarves, bags.",
+          "begin_pointer": "0x3E4",
+          "entry_count": 81,
+          "max_display_width": 18,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Accessory slot 4 descriptions, row for row with accessory_4/name.",
+          "begin_pointer": "0x3F8",
+          "entry_count": 81,
+          "max_display_width": 82,
+          "max_sub_count": 1
+        }
+      },
+      "accessory_5": {
+        "name": {
+          "_comment": "Accessory slot 5 names: cacti, snowmen, tail feathers and other props.",
+          "begin_pointer": "0x3E8",
+          "entry_count": 64,
+          "max_display_width": 22,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Accessory slot 5 descriptions, row for row with accessory_5/name.",
+          "begin_pointer": "0x3FC",
+          "entry_count": 64,
+          "max_display_width": 80,
+          "max_sub_count": 1
+        }
+      },
+      "garden_series": {
+        "_comment": "Garden set series names (きほんシリーズ, ミニチュアシリーズ, ...).",
+        "begin_pointer": "0x470",
+        "entry_count": 10,
+        "max_display_width": 18,
+        "max_sub_count": 1
+      },
+      "garden_floor": {
+        "name": {
+          "_comment": "Garden floor (芝生/床) names, one per garden series.",
+          "begin_pointer": "0x460",
+          "entry_count": 10,
+          "max_display_width": 18,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Garden floor descriptions, row for row with garden_floor/name.",
+          "begin_pointer": "0x46C",
+          "entry_count": 10,
+          "max_display_width": 70,
+          "max_sub_count": 1
+        }
+      },
+      "garden_pond": {
+        "name": {
+          "_comment": "Garden pond (水場) names, one per garden series.",
+          "begin_pointer": "0x45C",
+          "entry_count": 10,
+          "max_display_width": 18,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Garden pond descriptions, row for row with garden_pond/name.",
+          "begin_pointer": "0x468",
+          "entry_count": 10,
+          "max_display_width": 74,
+          "max_sub_count": 1
+        }
+      },
+      "garden_bed": {
+        "name": {
+          "_comment": "Garden bed (寝床) names, one per garden series.",
+          "begin_pointer": "0x458",
+          "entry_count": 10,
+          "max_display_width": 16,
+          "max_sub_count": 1
+        },
+        "description": {
+          "_comment": "Garden bed descriptions, row for row with garden_bed/name.",
+          "begin_pointer": "0x464",
+          "entry_count": 10,
+          "max_display_width": 70,
+          "max_sub_count": 1
+        }
+      },
+      "personality": {
+        "_comment": "Personality names (のんびり, さみしがり, ...); 3 null slots follow.",
+        "begin_pointer": "0x448",
+        "entry_count": 7,
+        "max_display_width": 12,
+        "max_sub_count": 1
+      },
+      "interaction_manner": {
+        "_comment": "How an interaction is done (心をこめてやさしく, ...), row for row with interaction_action.",
+        "begin_pointer": "0x444",
+        "entry_count": 15,
+        "max_display_width": 26,
+        "max_sub_count": 1
+      },
+      "interaction_action": {
+        "_comment": "Interaction verbs (なでまわす, 話しかける, ...).",
+        "begin_pointer": "0x440",
+        "entry_count": 15,
+        "max_display_width": 10,
+        "max_sub_count": 1
+      },
+      "food_description": {
+        "_comment": "Descriptions of the food given to the Goocoo (こんがり肉, ...).",
+        "begin_pointer": "0x408",
+        "entry_count": 46,
+        "max_display_width": 64,
+        "max_sub_count": 1
+      }
+    },
+    "tips": {
+      "_comment": "Tip pages shown as scrolls/boards; flat s32p arrays hung off the dat header, each padded with nulls after the last page.",
+      "hunter_basics": {
+        "_comment": "'＜ハンターの基本 その１＞' ... : hunter basics, 10 pages.",
+        "begin_pointer": "0x1A4",
+        "entry_count": 10,
+        "max_display_width": 332,
+        "max_sub_count": 1
+      },
+      "dojo_rules": {
+        "_comment": "'＜狩人道場の掟 その１＞' ... (我輩考案 version), 28 pages.",
+        "begin_pointer": "0x1AC",
+        "entry_count": 28,
+        "max_display_width": 420,
+        "max_sub_count": 1
+      },
+      "dojo_rules_instructor": {
+        "_comment": "'＜狩人道場の掟 その１＞' ... (教官考案 version), 30 pages.",
+        "begin_pointer": "0x1A8",
+        "entry_count": 30,
+        "max_display_width": 440,
+        "max_sub_count": 1
+      }
     }
   },
   "pac": {

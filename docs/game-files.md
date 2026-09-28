@@ -96,6 +96,29 @@ HR rank requirement label/value pairs. The struct is 20 bytes per row
 - `guide` — Hunting Horn note guide.
 - `tutorial` — Hunting Horn tutorial text.
 
+### `dat/goocoo/`
+The Goocoo (グーク) pet, from the header block `0x3D8`–`0x470`. Every table
+is a flat `s32p` array; names and descriptions pair row for row. This text is
+untranslated even in the English client.
+- `accessory_series` — Accessory series names (32).
+- `accessory_1` … `accessory_5` — `name` / `description` per accessory slot
+  (80, 65, 67, 81, 64 rows): headwear, clothes, masks and bottles, scarves
+  and bags, props. Row 0 is "remove".
+- `garden_series`, `garden_floor`, `garden_pond`, `garden_bed` — Garden sets:
+  series names and, per part, `name` / `description` (10 each).
+- `personality` (7), `interaction_manner` / `interaction_action` (15 each,
+  row for row), `food_description` (46).
+
+### `dat/tips/`
+Tip pages, flat `s32p` arrays padded with nulls:
+`hunter_basics` (`0x1A4`, 10), `dojo_rules` (`0x1AC`, 28) and
+`dojo_rules_instructor` (`0x1A8`, 30).
+
+Not extracted yet: the instructor's tutorial tips at `*0x1B0` (220 records of
+{title, page count, pointer to pages}, 1,164 pages) and the hunter's guide at
+`*0x1A0` (a tree: chapters, then per-weapon sections, then pages). Both need
+an extraction mode for records that point to a list of strings.
+
 ---
 
 ## `mhfpac.bin` — Skills and UI text
