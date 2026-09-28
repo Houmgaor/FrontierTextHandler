@@ -47,7 +47,7 @@ pointer table:
 | File | Strings extracted | Status |
 |------|------------------|--------|
 | `mhfdat.bin` | ~233,000 rows (weapons, armors, items, monsters, ranks, HH, Goocoo, tips) | Nearly complete: ~170 strings in tables no section covers (village gossip) |
-| `mhfpac.bin` | ~3,600 (skills + ~3,365 UI/dialogue tables) | Partial: a scan finds ~20,000 more pointers in tables no section covers |
+| `mhfpac.bin` | ~26,400 rows (skills + UI/dialogue tables) | Partial: ~4,700 strings in tables no section covers (lists of lists, structs) |
 | `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
 | `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
 | `mhfgao.bin` | 2,122 (Felyne equipment, dialogue, skills) | Complete |
@@ -149,7 +149,19 @@ integers and nested pointers, which only decoded as text by accident.
 
 ### `pac/text_*`
 Generic UI / system text tables. The numeric suffix is the header pointer
-offset where the table base is stored. Two layout families coexist:
+offset where the table base is stored (the header runs from `0x08` to
+`0x111C`; each table ends where the next one starts).
+
+Most of them (829 sections, from `text_98` up to `text_103c`) are flat string
+lists mapped by `tools/map_pac_tables.py`: every non-null word points to a
+string, `entry_count` stops at the last string, and `null_padding` is set
+when nulls sit between strings. The tool adds a table only if it reads the
+same pointer slots on every client passed with `--check`, and never one
+that overlaps an existing section. Not mapped yet: 31 tables that are lists
+of null-terminated lists, 96 struct tables, and 64 flat tables skipped as
+single strings, symbols or overlaps (about 4,700 strings in all).
+
+The hand-mapped tables below predate the tool. Two layout families coexist:
 
 - **Null-terminated grouped tables** (`text_14`, `text_18`, `text_1c`,
   `text_20`, `text_24`, `text_28`, `text_2c`, `text_30`, `text_34`,
