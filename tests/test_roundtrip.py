@@ -497,17 +497,18 @@ class TestNpcDialogueRoundTrip(unittest.TestCase):
         for npc_id, dialogues in npcs:
             block_offsets.append(current_offset)
             if not dialogues:
-                block = struct.pack("<I", 0)
+                block = struct.pack("<I", 0) + b"\x00"
             else:
+                # header_size = offset of the first string; a pointer for
+                # each later string; the strings; a padding NUL.
                 num_dlg = len(dialogues)
                 header_size = num_dlg * 4
                 encoded = [d.encode(GAME_ENCODING) + b"\x00" for d in dialogues]
-                pointers_section = 4 + num_dlg * 4
-                string_off = pointers_section
+                string_off = header_size
                 rel_ptrs = []
-                for enc in encoded:
-                    rel_ptrs.append(string_off)
+                for enc in encoded[:-1]:
                     string_off += len(enc)
+                    rel_ptrs.append(string_off)
 
                 block = bytearray()
                 block.extend(struct.pack("<I", header_size))
@@ -515,6 +516,7 @@ class TestNpcDialogueRoundTrip(unittest.TestCase):
                     block.extend(struct.pack("<I", rp))
                 for enc in encoded:
                     block.extend(enc)
+                block.append(0)
                 block = bytes(block)
 
             blocks.append(block)

@@ -46,8 +46,8 @@ def build_npc_dialogue(npcs: list[tuple[int, list[str]]]) -> bytes:
     npc_blocks: list[bytes] = []
     for npc_id, dialogues in npcs:
         if not dialogues:
-            # Empty: header_size = 0
-            npc_blocks.append(struct.pack("<I", 0))
+            # Empty: header_size = 0, then the padding NUL
+            npc_blocks.append(struct.pack("<I", 0) + b"\x00")
             continue
 
         num_dialogues = len(dialogues)
@@ -58,14 +58,14 @@ def build_npc_dialogue(npcs: list[tuple[int, list[str]]]) -> bytes:
         for dlg in dialogues:
             encoded_strings.append(encode_game_string(dlg) + b"\x00")
 
-        # Calculate relative pointers from block start
-        # Block layout: header_size(4) + pointers(N*4) + strings
-        pointers_section_size = 4 + num_dialogues * 4
-        string_offset = pointers_section_size
+        # Block layout, as in the game's stage files: header_size (the
+        # offset of the first string, 4 * N), a relative pointer for each
+        # string after the first, the strings, then a padding NUL.
+        string_offset = header_size
         relative_ptrs = []
-        for enc in encoded_strings:
-            relative_ptrs.append(string_offset)
+        for enc in encoded_strings[:-1]:
             string_offset += len(enc)
+            relative_ptrs.append(string_offset)
 
         # Build block
         block = bytearray()
@@ -74,6 +74,7 @@ def build_npc_dialogue(npcs: list[tuple[int, list[str]]]) -> bytes:
             block.extend(struct.pack("<I", rp))
         for enc in encoded_strings:
             block.extend(enc)
+        block.append(0)
         npc_blocks.append(bytes(block))
 
     # Compute block offsets
@@ -97,6 +98,53 @@ def build_npc_dialogue(npcs: list[tuple[int, list[str]]]) -> bytes:
         output.extend(block)
 
     return bytes(output)
+
+
+class TestNpcDialogueGameLayout(unittest.TestCase):
+    """The block layout of a real stage dialogue file, written out by hand.
+
+    The bytes below are the first two NPC blocks of st175's dialogue file
+    (0031 in st175.pac), with their table. header_size (8) is the offset
+    of the first string; only the second string has a pointer (0x18).
+    """
+
+    def _data(self) -> bytes:
+        first = encode_game_string("ブタは別扱い？\n") + b"\x00"
+        block0 = (struct.pack("<2I", 8, 8 + len(first)) + first
+                  + b"End of Line\x00" + b"\x00")          # padding NUL
+        second = encode_game_string("うるおい成分") + b"\x00"
+        block1 = struct.pack("<I", 4) + second + b"\x00"   # one string, no pointer
+        table = struct.pack("<6I", 0x6D, 24, 0x6F, 24 + len(block0),
+                            0xFFFFFFFF, 0xFFFFFFFF)
+        return table + block0 + block1 + b"\x00"           # file padding
+
+    def test_first_string_has_no_pointer(self):
+        result = extract_npc_dialogue_data(self._data())
+        self.assertEqual([r["text"] for r in result],
+                         ["ブタは別扱い？\n{j}End of Line", "うるおい成分"])
+
+    def test_rebuild_without_translation_is_identical(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "npc.bin")
+            with open(src, "wb") as f:
+                f.write(self._data())
+            out = rebuild_npc_dialogue(src, [], os.path.join(tmp, "out.bin"))
+            with open(out, "rb") as f:
+                self.assertEqual(f.read(), self._data())
+
+    def test_translation_keeps_every_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "npc.bin")
+            with open(src, "wb") as f:
+                f.write(self._data())
+            out = rebuild_npc_dialogue(
+                src, [(0, "Pigs are different?{j}End of Line")],
+                os.path.join(tmp, "out.bin"),
+            )
+            with open(out, "rb") as f:
+                result = extract_npc_dialogue_data(f.read())
+        self.assertEqual([r["text"] for r in result],
+                         ["Pigs are different?{j}End of Line", "うるおい成分"])
 
 
 class TestSplitJoinText(unittest.TestCase):

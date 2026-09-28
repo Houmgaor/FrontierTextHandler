@@ -36,8 +36,10 @@ def extract_npc_dialogue(file_path: str) -> list[dict[str, int | str]]:
     Binary format:
     - NPC table at offset 0: pairs of (npc_id: u32, pointer: u32)
       terminated by (0xFFFFFFFF, 0xFFFFFFFF)
-    - Per-NPC dialogue block: header_size (u32) followed by
-      relative pointers (u32 each), then null-terminated Shift-JIS strings
+    - Per-NPC dialogue block: header_size (u32), the offset of the first
+      string from the block start, so the block holds header_size / 4
+      strings; then one relative pointer (u32) per string after the
+      first; then the null-terminated Shift-JIS strings
 
     :param file_path: Path to the dialogue file (auto-decrypts/decompresses)
     :return: List of dicts with "offset" and "text" keys
@@ -127,36 +129,41 @@ def extract_npc_dialogue_data(data: bytes) -> list[dict[str, int | str]]:
             })
             continue
 
+        # header_size is the offset of the first string from the block
+        # start (it counts its own field): the first string has no
+        # pointer, and the header_size / 4 - 1 pointers after the field
+        # give the offsets of the others.
         num_dialogues = header_size // 4
-        pointers_start = block_ptr + 4  # skip header_size field
-        if pointers_start + header_size > len(data):
+        if block_ptr + header_size > len(data):
             raise ValueError(
                 f"NPC {npc_id:#x} block at {block_ptr:#x} declares "
-                f"{num_dialogues} pointers but only "
-                f"{len(data) - pointers_start} bytes remain — input is "
-                "likely not an NPC dialogue file."
+                f"{num_dialogues} strings but its header runs past the "
+                "end of the file — input is likely not an NPC dialogue file."
             )
+        string_ptrs = [(block_ptr + header_size, block_ptr)]
+        for i in range(1, num_dialogues):
+            ptr_pos = block_ptr + 4 * i
+            rel_ptr = struct.unpack_from("<I", data, ptr_pos)[0]
+            string_ptrs.append((block_ptr + rel_ptr, ptr_pos))
 
-        # Read relative pointers, remembering the slot position of each
-        # dialogue sub-pointer for downstream tools (even though the
-        # standalone NPC-dialogue rebuild regenerates the binary from
-        # scratch and doesn't use these offsets directly, keeping them
-        # gives every grouped entry the same shape).
+        # Each dialogue's sub_offset is its pointer slot (the header_size
+        # field for the first one). The standalone rebuild regenerates the
+        # blocks, so it does not use them, but every grouped entry keeps
+        # the same shape.
         dialogues: list[str] = []
         sub_offsets: list[int] = []
-        for i in range(num_dialogues):
-            ptr_pos = pointers_start + i * 4
-            if ptr_pos + 4 > len(data):
-                break
-            rel_ptr = struct.unpack_from("<I", data, ptr_pos)[0]
-            abs_ptr = block_ptr + rel_ptr
+        for i, (abs_ptr, slot) in enumerate(string_ptrs):
             if abs_ptr >= len(data):
-                break
+                raise ValueError(
+                    f"NPC {npc_id:#x} dialogue {i} points to {abs_ptr:#x}, "
+                    f"past the end of the file ({len(data):#x} bytes) — "
+                    "input is likely not an NPC dialogue file."
+                )
             bfile.seek(abs_ptr)
             raw = read_until_null(bfile)
             text = decode_game_string(raw, context=f"NPC {npc_id} dialogue {i}")
             dialogues.append(text)
-            sub_offsets.append(ptr_pos)
+            sub_offsets.append(slot)
 
         if not dialogues:
             results.append({
