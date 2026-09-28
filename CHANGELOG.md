@@ -110,7 +110,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   a seek relative to the end of the magic into an absolute one, and from
   the ImHex pattern that followed it. Import now also keeps the tail of the
   text block and the data after it, and updates the file size at `0x04`.
-  The four FTXT entries of `mazpac.bin` extract (156, 156, 154 and 154
+  The tail is 0xFF padding to a 4-byte boundary, then 8 bytes; the padding
+  is rewritten for the new strings so those 8 bytes stay aligned when a
+  translation changes the text length. The four FTXT entries of `mazpac.bin` extract (156, 156, 154 and 154
   strings) and rebuild byte-identical.
 - **NPC dialogue lost the first line of every NPC** (`--npc`, `--npc-dir`,
   `--npc-to-bin`). In a stage dialogue block, `header_size` is the offset
