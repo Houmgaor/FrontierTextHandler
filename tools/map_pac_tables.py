@@ -22,7 +22,7 @@ when it has one of three shapes:
 A table is skipped when it:
 - is already (even partly) covered by an existing pac section (flat and
   records tables),
-- has fewer than 2 strings, or is mostly symbols,
+- has fewer than 2 non-empty strings, or they are mostly symbols,
 - contains U+FFFD or private-use characters,
 - does not read the same (same pointer slots) in every --check file.
 
@@ -47,7 +47,7 @@ from src.line_length import measure_section_limits  # noqa: E402
 
 HEADER = range(0x08, 0x1120, 4)
 BAD = re.compile("[\ufffd\ue000-\uf8ff]")
-WORDY = re.compile(r"[\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9%]")
+WORDY = re.compile(r"[\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9%\uff10-\uff5a]")
 FLAG = 0x100  # index words below this are flags, not pointers
 RECORD_SIZES = (8, 12, 16, 20, 24, 28, 32)
 
@@ -63,7 +63,7 @@ def string_at(data: bytes, pointer: int) -> str | None:
         text = data[pointer:end].decode(common.GAME_ENCODING)
     except UnicodeDecodeError:
         return None
-    return text if all(c >= " " or c in "\n\x0b" for c in text) else None
+    return text if all(c >= " " or c in "\t\n\x0b" for c in text) else None
 
 
 def section_slots(data: bytes, config: dict) -> list[int]:
@@ -239,13 +239,14 @@ def add_table(data, others, pac, name, config, covered, skipped) -> bool:
         return False
     rows = common.extract_text_data_from_bytes(data, dict(config))
     texts = [t for r in rows for t in r["text"].split("{j}")]
-    if len(texts) < 2:
+    filled = [t for t in texts if t]
+    if len(filled) < 2:
         skipped["fewer than 2 strings"] += 1
         return False
     if any(BAD.search(t) for t in texts):
         skipped["U+FFFD or private-use characters"] += 1
         return False
-    if sum(1 for t in texts if WORDY.search(t)) < len(texts) / 2:
+    if sum(1 for t in filled if WORDY.search(t)) < len(filled) / 2:
         skipped["mostly symbols"] += 1
         return False
     slots = [r.get("sub_offsets", [r["offset"]]) for r in rows]

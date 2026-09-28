@@ -514,8 +514,12 @@ def read_record_lists(
     record, the pointer at ``pointer_offset`` to ``count`` records of the
     level's ``entry_size`` (the count is the u32 at ``count_offset``, or,
     for a level marked ``null_terminated``, the list runs up to the first
-    record whose bytes are all 0). The string pointers are at *field_offset* in the
-    innermost records.
+    record whose bytes are all 0, or whose u32 at ``end_offset`` is 0 when
+    the level gives one). A level marked ``inline`` has no pointer: its
+    ``count`` records sit in the parent record at ``pointer_offset`` (a
+    question's answer pairs); a pointer level may also give a fixed
+    ``count`` (1 for a pointer to a single record). The string pointers are at *field_offset* in
+    the innermost records.
 
     With *join*, each innermost list is one entry, its strings joined
     with ``{j}`` and its pointer slots in ``sub_offsets``, like any
@@ -529,7 +533,9 @@ def read_record_lists(
 
     :param levels: ``[{"pointer_offset": int, "count_offset": int,
         "entry_size": int}, ...]``, outermost first; a level may give
-        ``"null_terminated": true`` instead of ``count_offset``
+        ``"null_terminated": true`` (and optionally ``"end_offset"``)
+        or ``"count"`` instead of ``count_offset``, or ``"inline": true``
+        and ``"count"``
     :return: List of dicts with ``"offset"``, ``"text"`` and
         ``"sub_offsets"`` keys
     """
@@ -547,20 +553,29 @@ def read_record_lists(
                 if depth == 0 and i in skip_entries:
                     continue
                 record = start + i * size
+                item_size = level["entry_size"]
+                if level.get("inline"):
+                    children.append((record + level["pointer_offset"],
+                                     level["count"], item_size))
+                    continue
                 pointer = u32(record + level["pointer_offset"],
                               f"level {depth} list pointer at 0x{record:x}")
                 if not pointer or pointer % 4:
                     # 0, or a flag value: records are 4-byte aligned
                     continue
-                item_size = level["entry_size"]
                 if level.get("null_terminated"):
+                    end_offset = level.get("end_offset")
+                    words = (range(0, item_size, 4) if end_offset is None
+                             else (end_offset,))
                     length = 0
                     while any(
                         u32(pointer + item_size * length + k,
                             f"level {depth} list item at 0x{pointer:x}")
-                        for k in range(0, item_size, 4)
+                        for k in words
                     ):
                         length += 1
+                elif "count" in level:
+                    length = level["count"]
                 else:
                     length = u32(record + level["count_offset"],
                                  f"level {depth} list count at 0x{record:x}")
