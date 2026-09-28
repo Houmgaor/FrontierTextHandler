@@ -340,6 +340,71 @@ class TestApplyTranslationsFromReleaseJson(unittest.TestCase):
             b = bfile.read(1)
         self.assertEqual(raw_bytes.decode(GAME_ENCODING), "Shield")
 
+    def _write_game_dir(self, raw: bytes) -> tuple[str, str]:
+        game_dir = os.path.join(self.tmpdir, "game")
+        os.makedirs(os.path.join(game_dir, "dat"))
+        bin_path = os.path.join(game_dir, "dat", "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(raw)
+        return game_dir, bin_path
+
+    def _string_at_pointer(self, bin_path: str, ptr_off: int) -> str:
+        with open(bin_path, "rb") as f:
+            data = f.read()
+        str_off = struct.unpack_from("<I", data, ptr_off)[0]
+        return data[str_off:data.index(b"\x00", str_off)].decode(GAME_ENCODING)
+
+    def test_apply_folds_unsupported_chars_when_asked(self):
+        """French targets fold to what the game can encode.
+
+        Regression: --apply-translations ignored --fold-unsupported-chars,
+        so any accented translation failed to encode.
+        """
+        from src.common import EncodingError
+        from src.import_data import apply_translations_from_release_json
+
+        game_dir, bin_path = self._write_game_dir(
+            self._build_game_binary(["Helmet", "Sword"])
+        )
+        json_path = self._write_release_json("fr", {
+            "dat/armors/head": [(8, "Helmet", "Casque « élite »")],
+        })
+
+        with self.assertRaises(EncodingError):
+            apply_translations_from_release_json(
+                json_path, lang="fr", game_dir=game_dir,
+                compress=False, encrypt=False,
+            )
+        apply_translations_from_release_json(
+            json_path, lang="fr", game_dir=game_dir,
+            compress=False, encrypt=False, fold_unsupported_chars=True,
+        )
+        self.assertEqual(self._string_at_pointer(bin_path, 8), 'Casque " elite "')
+
+    def test_sourceless_entries_skip_placeholder_check(self):
+        """Per-language release files ship only index/target; no false alarms.
+
+        Regression: every colour code in a source-less entry was reported
+        as an extra placeholder, since the source compared against was "".
+        """
+        from src.import_data import apply_translations_from_release_json
+
+        game_dir, bin_path = self._write_game_dir(
+            self._build_game_binary(["Helmet", "Sword"])
+        )
+        path = os.path.join(self.tmpdir, "translations-fr.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"fr": {"dat/armors/head": [
+                {"location": "0x8@mhfdat.bin", "target": "{c05}Casque{/c}"},
+            ]}}, f)
+
+        with self.assertNoLogs("src.import_data", level="WARNING"):
+            results = apply_translations_from_release_json(
+                path, lang="fr", game_dir=game_dir,
+                compress=False, encrypt=False, strict_placeholders=True,
+            )
+        self.assertEqual(results[os.path.join("dat", "mhfdat.bin")], 1)
+
     def test_apply_encrypted_compressed_roundtrip(self):
         """Apply translations to an encrypted+compressed binary and verify."""
         from src.import_data import apply_translations_from_release_json

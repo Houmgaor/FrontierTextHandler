@@ -583,7 +583,7 @@ def append_to_binary(
             bfile.write(encoded + b"\x00")
 
             bfile.seek(pointer_offset)
-            logger.info("Assigned value %d at offset %d", new_pointer, pointer_offset)
+            logger.debug("Assigned value %d at offset %d", new_pointer, pointer_offset)
             bfile.write_int(new_pointer)
 
 
@@ -862,6 +862,7 @@ def apply_translations_from_release_json(
     headers_path: str = common.DEFAULT_HEADERS_PATH,
     strict_placeholders: bool = False,
     game_version: str = "zz",
+    fold_unsupported_chars: bool = False,
 ) -> dict[str, int]:
     """
     Apply translations from a MHFrontier-Translation release JSON to game files.
@@ -909,7 +910,12 @@ def apply_translations_from_release_json(
     :param headers_path: Path to ``headers.json`` (used to resolve indexes).
     :param strict_placeholders: If True, abort on the first entry
         whose target dropped or added a placeholder compared to its
-        source.
+        source. Entries without a ``source`` (per-language release
+        files ship only ``index`` and ``target``) are not checked.
+    :param fold_unsupported_chars: If True, fold characters the game
+        font cannot render (Latin diacritics, ligatures, typographic
+        punctuation) to ASCII equivalents. European translations need
+        this: CP932 cannot encode them at all.
     :return: Mapping of game-file relative path → number of strings applied.
     :raises ValueError: If *lang* is not present in the JSON.
     :raises PlaceholderValidationError: In strict mode, on the first
@@ -961,7 +967,10 @@ def apply_translations_from_release_json(
             # Placeholder check runs on the on-disk form (source and
             # target still carry {cNN}/{j}/{K…} at this point), before
             # color_codes_from_csv rewrites the target to game bytes.
-            validator.check(f"{xpath}[{i}]", source, target)
+            # Per-language release files carry no source, leaving
+            # nothing to compare against.
+            if source:
+                validator.check(f"{xpath}[{i}]", source, target)
             # Rewrite CSV-form color codes ({cNN}/{/c}) back to the game's
             # ‾CNN bytes before re-encoding. Release JSONs produced from
             # MHFrontier-Translation store the brace form since 1.6.0, so
@@ -1093,6 +1102,7 @@ def apply_translations_from_release_json(
 
         if not all_strings:
             continue
+        all_strings = _apply_folding(all_strings, fold_unsupported_chars, rel_path)
 
         logger.info("Applying %d translation(s) to %s", len(all_strings), rel_path)
 
