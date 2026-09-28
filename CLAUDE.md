@@ -21,7 +21,7 @@ python main.py --extract-all
 # Extract specific data section (auto-decrypts and decompresses)
 python main.py --xpath=dat/armors/legs
 python main.py --xpath=dat/weapons/melee/name
-python main.py --xpath=pac/skills/description
+python main.py --xpath=pac/skills/effect
 
 # Apply a MHFrontier-Translation release JSON to a game installation
 python main.py translations-translated.json --apply-translations --lang fr --game-dir ~/mhf --compress --encrypt

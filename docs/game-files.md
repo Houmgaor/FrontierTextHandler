@@ -47,7 +47,7 @@ pointer table:
 | File | Strings extracted | Status |
 |------|------------------|--------|
 | `mhfdat.bin` | ~17,000+ (weapons, armors, items, monsters, ranks, HH) | Complete |
-| `mhfpac.bin` | ~3,600 (skills + ~3,365 UI/dialogue tables) | Complete |
+| `mhfpac.bin` | ~3,600 (skills + ~3,365 UI/dialogue tables) | Partial: a scan finds ~20,000 more pointers in tables no section covers |
 | `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
 | `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
 | `mhfgao.bin` | 2,122 (Felyne equipment, dialogue, skills) | Complete |
@@ -101,11 +101,18 @@ HR rank requirement label/value pairs. The struct is 20 bytes per row
 ## `mhfpac.bin` — Skills and UI text
 
 ### `pac/skills/`
-Hunter skill text, four parallel sections:
+Hunter skill text:
 - `name` — Skill names.
 - `effect` — Skill effect text (current generation).
 - `effect_z` — Z-tier skill effect text.
-- `description` — Skill descriptions.
+- `caravan/name`, `caravan/description` — Caravan skills (狩人珠スキル,
+  "Caravan Gem" skills in the English client), 109 rows each, row for row.
+  Tables at header `0xA24` and `0xACC`; the last 3 of their 112 slots are
+  null. Row 0 is "no skill" / the "select a skill" prompt.
+
+Header `0xB8` is not a string table (until 1.9.0 FTH extracted it as
+`pac/skills/description`): it is an array of 11-word structs of small
+integers and nested pointers, which only decoded as text by accident.
 
 ### `pac/text_*`
 Generic UI / system text tables. The numeric suffix is the header pointer
@@ -202,15 +209,11 @@ Felyne (cat) companion equipment, dialogue templates and skill text.
   | 6 | Cheerful / spirited |
   | 7 | Cool / casual |
 
-- `situational_dialogue` — Situational Felyne lines extracted from a
-  mixed struct region at `0x21fe0..0x22880`. The region interleaves
-  string pointers, mid-character substring references (the runtime
-  composition engine), numeric IDs / bitfields, and padding. Walked via
-  `scan_region` mode which only emits pointers landing on a clean
-  Shift-JIS character boundary. Substring references stay in the file
-  and continue to resolve to the original Japanese bytes at runtime
-  (worst case: a partial Japanese fragment alongside a translated full
-  line).
+Header `0x40` (`0x21fe0..0x22880`) is not a string table either. Until
+1.9.0 FTH scanned it as `gao/situational_dialogue`, keeping any word that
+landed on a character boundary: 13 of the 15 rows started mid-string, and
+the real lines it reached are already extracted by `dialogue_type_*` and
+`skill_text`.
 
 ### Skills
 - `skill_text` — 238 entries: `[0..1]` are English headers, `[2..55]`
