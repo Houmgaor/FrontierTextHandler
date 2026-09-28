@@ -171,6 +171,23 @@ importers (on re-encode):
 Both transforms are skipped on the ReFrontier-compatible TSV path,
 which continues to carry raw game bytes.
 
+## Web Interface (`web/`)
+
+Static GitHub Pages site that runs the tool in the browser via Pyodide
+(`pages.yml` builds it on PRs and deploys from `main`).
+
+- `bridge.py` - Python glue called by the page: decodes a game file once
+  (decrypt/decompress are the slow steps), then extracts to a zip and
+  builds by chaining `import_from_csv` on the decoded copy, compressing
+  and encrypting once at the end. Tested in `tests/test_web_bridge.py`.
+- `worker.js` - Web Worker hosting Pyodide (pinned CDN version) so the
+  page stays responsive; `app.js` / `index.html` / `style.css` - the UI.
+- `build_site.py` - Writes `_site/`, bundling `bridge.py` and `src/`
+  (with `headers.json`) into `app.zip` for the worker.
+
+Pyodide runs about 2x slower than CPython: `mhfdat.bin` takes ~50 s to
+open and ~70 s to build.
+
 ## String Encoding
 
 Game files use CP932 (Windows-31J, Microsoft's Shift-JIS variant), not `shift_jisx0213`: the two differ on the NEC/IBM extension area where the game keeps Roman numerals (Ⅰ Ⅱ Ⅲ…). The codec is `GAME_ENCODING` in `src/common.py`; encoding/decoding is automatic.

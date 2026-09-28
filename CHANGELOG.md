@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Web interface** (`web/`, deployed to GitHub Pages): extract text and
+  build game-ready files in the browser, with no installation. The tool
+  runs locally through Pyodide in a Web Worker; game files never leave
+  the browser.
+
 ### Fixed
 - **`pip install` works.** The build failed under setuptools 77+ (a
   license classifier alongside a PEP 639 license expression), and the

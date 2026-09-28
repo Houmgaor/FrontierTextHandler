@@ -4,6 +4,23 @@ A utility to read text from Monster Hunter Frontier, edit and reinsert.
 It is roughly a Python rewrite of FrontierTextTool
 (from [ReFrontier](https://github.com/Houmgaor/ReFrontier), by mhvuze) in Python.
 
+## Web interface (no install)
+
+Translators can use the tool from a browser at
+<https://houmgaor.github.io/FrontierTextHandler/>: open a game file,
+download its text as CSV/JSON, then upload the translated files to get a
+game-ready (compressed and encrypted) file back. Everything runs locally
+in the browser tab through [Pyodide](https://pyodide.org/); game files
+are never uploaded. Opening and rebuilding `mhfdat.bin` takes about a
+minute each; smaller files take seconds.
+
+To run it locally:
+
+```commandline
+python web/build_site.py
+python -m http.server -d _site
+```
+
 ## Requirements
 
 - **Python 3.11+**

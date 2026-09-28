@@ -1,0 +1,380 @@
+/* Styled after Monster Hunter Frontier's own interface: parchment list
+   panels with gold corner knots (world/land select), dark notice dialogs
+   with diamond corners, 【bracketed】 choices, key-cap hints, and the
+   woven crimson band framing the menu screens. Everything is CSS and
+   inline SVG; no game assets are used. */
+
+:root {
+  color-scheme: dark;
+
+  --night: #0d0909;
+  --band: #6e1f31;
+  --band-light: #8e3348;
+
+  --paper: #efe6c6;
+  --paper-edge: #c9b784;
+  --ink: #1e160a;
+  --ink-soft: #5b4d33;
+  --header-blue: #1b2a8f;
+  --row-blue: #2c33c9;
+  --cursor: #1fa9b8;
+  --rule-teal: #2d8a80;
+
+  --dialog-top: #251a16;
+  --dialog-bottom: #0f0706;
+  --dialog-text: #f4efe6;
+  --info: #45a3ff;
+  --warn: #ff5147;
+  --glow: rgba(214, 112, 46, .75);
+
+  --gold: #d9b64c;
+  --gold-dark: #6f5213;
+  --title-red: #c9302c;
+
+  /* MS Mincho is the game's own face (Japanese Windows); elsewhere a
+     serif monospace keeps the same typewriter look. */
+  --mono: "MS Mincho", "Nimbus Mono PS", "Courier New", monospace;
+  --tile: clamp(1.9rem, 8.4vw, 3.6rem);
+
+  /* Parchment frame: bronze edge with a gold square knot on each corner. */
+  --frame-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36'%3E%3Crect x='7.5' y='7.5' width='21' height='21' fill='none' stroke='%235d4a26' stroke-width='3'/%3E%3Crect x='10.5' y='10.5' width='15' height='15' fill='none' stroke='%23b89a55'/%3E%3Cg fill='%23d9b64c' stroke='%234d3a0e'%3E%3Crect x='1.5' y='1.5' width='9' height='9'/%3E%3Crect x='25.5' y='1.5' width='9' height='9'/%3E%3Crect x='1.5' y='25.5' width='9' height='9'/%3E%3Crect x='25.5' y='25.5' width='9' height='9'/%3E%3C/g%3E%3Cg fill='none' stroke='%234d3a0e'%3E%3Cpath d='M4 8V4h4v3H5.5'/%3E%3Cpath d='M28 8V4h4v3h-2.5'/%3E%3Cpath d='M4 32v-4h4v3H5.5'/%3E%3Cpath d='M28 32v-4h4v3h-2.5'/%3E%3C/g%3E%3C/svg%3E");
+  /* Dialog frame: thin mauve-bronze line with a diamond on each corner. */
+  --frame-dialog: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Crect x='5.5' y='5.5' width='19' height='19' fill='none' stroke='%239a8374'/%3E%3Cg fill='%23120a08' stroke='%23b0906a'%3E%3Cpath d='M5.5 1.5l4 4-4 4-4-4z'/%3E%3Cpath d='M24.5 1.5l4 4-4 4-4-4z'/%3E%3Cpath d='M5.5 20.5l4 4-4 4-4-4z'/%3E%3Cpath d='M24.5 20.5l4 4-4 4-4-4z'/%3E%3C/g%3E%3Cg fill='%23b0906a'%3E%3Ccircle cx='5.5' cy='5.5' r='1.2'/%3E%3Ccircle cx='24.5' cy='5.5' r='1.2'/%3E%3Ccircle cx='5.5' cy='24.5' r='1.2'/%3E%3Ccircle cx='24.5' cy='24.5' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  /* Row of small triangles, the rule under list headers. */
+  --zigzag: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='7'%3E%3Cpath d='M1 6.5L4.5 1 8 6.5z' fill='%23231a10'/%3E%3C/svg%3E");
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--night); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--dialog-text);
+  font: 16px/1.6 var(--mono);
+  -webkit-font-smoothing: antialiased;
+  /* Faint interlaced scanlines over a dark diamond lattice. */
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(45deg, rgba(120, 60, 70, .07) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(-45deg, rgba(120, 60, 70, .07) 0 1px, transparent 1px 22px),
+    radial-gradient(ellipse at 50% 30%, #2a1620 0%, var(--night) 70%);
+  background-attachment: fixed;
+}
+
+/* Woven crimson band, as on the top and bottom of the menu screens. */
+.band {
+  height: 30px;
+  flex: none;
+  background:
+    repeating-linear-gradient(45deg, transparent 0 5px, rgba(255, 190, 200, .16) 5px 6px, transparent 6px 11px),
+    repeating-linear-gradient(-45deg, transparent 0 5px, rgba(0, 0, 0, .25) 5px 6px, transparent 6px 11px),
+    linear-gradient(var(--band-light), var(--band));
+  border-block: 2px solid #3d0f1a;
+}
+
+header, main, footer {
+  width: 100%;
+  max-width: 50rem;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+main { flex: 1; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Title: red angular letters on overlapping gold diamonds ---- */
+
+header { padding-top: 1.75rem; text-align: center; }
+
+.kicker {
+  margin: 0;
+  letter-spacing: .35em;
+  text-transform: uppercase;
+  font-size: .8rem;
+  color: #d9c79f;
+}
+
+h1 {
+  margin: .9rem 0 1.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .2rem calc(var(--tile) * .45);
+  line-height: 1;
+}
+
+.tiles { display: inline-flex; }
+
+.tiles > span {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--tile);
+  height: var(--tile);
+  margin: calc(var(--tile) * .16) calc(var(--tile) * -.06);
+  font: 900 calc(var(--tile) * .66) / 1 "Arial Black", "Helvetica Neue", Impact, sans-serif;
+  color: var(--title-red);
+  transform: skewX(-8deg);
+  text-shadow: 1px 1px 0 #5a0e0c, -1px 0 0 #f2d77a;
+  isolation: isolate;
+}
+
+.tiles > span::before {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  z-index: -1;
+  transform: skewX(8deg) rotate(45deg);
+  background: linear-gradient(135deg, #f0d56c, var(--gold) 45%, #a8821f);
+  border: 2px solid var(--gold-dark);
+  box-shadow: inset 0 0 0 2px rgba(255, 240, 180, .35), 0 2px 4px rgba(0, 0, 0, .6);
+}
+
+/* ---- Dark dialog (notices, tooltips, activity log) ---- */
+
+.dialog {
+  border: 10px solid transparent;
+  border-image: var(--frame-dialog) 10 / 10px stretch;
+  background: linear-gradient(var(--dialog-top), var(--dialog-bottom)) padding-box;
+  color: var(--dialog-text);
+  padding: .8rem 1.1rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .55);
+}
+
+.notice { text-align: left; margin: 0 auto 1.5rem; max-width: 40rem; }
+.notice p { margin: .15rem 0; }
+
+.bullet { padding-left: 1.5em; text-indent: -1.5em; }
+.bullet::before { content: "● "; color: var(--dialog-text); }
+.bullet.info { color: var(--info); }
+.bullet.info::before { color: var(--info); }
+.bullet.warn { color: var(--warn); }
+.bullet.warn::before { color: var(--warn); }
+.status { font-weight: 600; }
+.status.error, .status.error::before { color: var(--warn); }
+
+#activity { margin: 0 0 1.5rem; }
+#activity h2 {
+  margin: 0 0 .4rem;
+  font-size: .95rem;
+  font-weight: 400;
+  text-align: center;
+  letter-spacing: .1em;
+}
+#busy { margin: 0 0 .4rem; }
+
+#log {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: .8rem/1.5 var(--mono);
+  color: #d8d0c4;
+}
+#log:empty::before { content: "Nothing yet."; color: #8d8277; }
+
+/* ---- Parchment panel (world/land select lists) ---- */
+
+.panel {
+  color-scheme: light;
+  position: relative;
+  margin: 0 0 1.5rem;
+  padding: .9rem 1.3rem 1.2rem;
+  border: 12px solid transparent;
+  border-image: var(--frame-paper) 12 / 12px stretch;
+  background:
+    radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(120, 92, 40, .35) 100%),
+    repeating-linear-gradient(0deg, rgba(90, 70, 30, .025) 0 2px, transparent 2px 4px),
+    var(--paper);
+  background-clip: padding-box;
+  color: var(--ink);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .6);
+}
+
+.panel h2 {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin: 0 0 .7rem;
+  padding-bottom: .55rem;
+  font-size: 1.1rem;
+  color: var(--header-blue);
+  background: var(--zigzag) repeat-x left bottom / 9px 7px;
+}
+
+.panel p { margin: 0 0 .9rem; }
+
+code {
+  font-family: var(--mono);
+  color: var(--header-blue);
+  background: rgba(255, 255, 255, .45);
+  padding: 0 .25em;
+  border: 1px solid rgba(93, 74, 38, .35);
+}
+
+/* Key-cap hint, like the [F] [C] [Z] keys beside game menus. */
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  font: 700 .85rem/1 var(--mono);
+  color: #fff;
+  background: linear-gradient(#3d3430, #151010);
+  border: 1px solid #d8d0c8;
+  outline: 1px solid #3a302a;
+  box-shadow: inset 0 0 0 1px #000;
+}
+
+.info-line, .hint, #selected-count { color: var(--ink-soft); }
+.info-line:empty { display: none; }
+
+/* ---- 【Bracketed】 choices on a dark plate, glowing when selected ---- */
+
+.button {
+  display: inline-block;
+  font: 600 .95rem/1.2 var(--mono);
+  color: var(--dialog-text);
+  padding: .45rem .9rem;
+  border: 8px solid transparent;
+  border-image: var(--frame-dialog) 10 / 8px stretch;
+  background: linear-gradient(var(--dialog-top), var(--dialog-bottom)) padding-box;
+  cursor: pointer;
+  transition: background .12s;
+}
+
+.button::before { content: "【" / ""; }
+.button::after { content: "】" / ""; }
+
+.button:hover, .button:focus-visible,
+.file input:focus-visible + .button, .file:hover .button {
+  background:
+    linear-gradient(90deg, transparent, var(--glow) 25%, var(--glow) 75%, transparent) padding-box,
+    linear-gradient(var(--dialog-top), var(--dialog-bottom)) padding-box;
+  outline: none;
+}
+
+.file input:focus-visible + .button, .button:focus-visible {
+  box-shadow: 0 0 0 2px var(--cursor);
+}
+
+button:disabled, .file input:disabled + .button {
+  opacity: .45;
+  cursor: not-allowed;
+  background: linear-gradient(var(--dialog-top), var(--dialog-bottom)) padding-box;
+}
+
+.file input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+button.link {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--row-blue);
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+button.link:focus-visible { outline: 2px solid var(--cursor); }
+
+/* ---- Selectable rows with the cyan ▷ cursor ---- */
+
+.toolbar { display: flex; gap: 1.2rem; align-items: baseline; margin-bottom: .4rem; flex-wrap: wrap; }
+
+.sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0 1.2rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: .45rem .6rem;
+  margin-bottom: 1rem;
+  background: rgba(255, 252, 238, .5);
+  border: 1px solid rgba(93, 74, 38, .45);
+  box-shadow: inset 0 1px 4px rgba(93, 74, 38, .3);
+}
+
+.sections label, .option {
+  position: relative;
+  display: flex;
+  gap: .5rem;
+  align-items: baseline;
+  padding: .1rem 0 .1rem 1.4rem;
+  color: var(--row-blue);
+  cursor: pointer;
+}
+
+.sections input, .option input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.sections label::before, .option::before {
+  content: "▷";
+  position: absolute;
+  left: 0;
+  color: #9d9277;
+}
+
+.sections label:has(input:checked)::before, .option:has(input:checked)::before {
+  content: "▶";
+  color: var(--cursor);
+  text-shadow: 0 0 3px rgba(31, 169, 184, .6);
+}
+
+.sections label:hover, .option:hover,
+.sections label:has(input:focus-visible), .option:has(input:focus-visible) {
+  background: linear-gradient(transparent 70%, rgba(45, 138, 128, .55) 70% 85%, transparent 85%);
+}
+
+.option { color: var(--ink); }
+
+fieldset {
+  border: 0;
+  margin: 1rem 0;
+  padding: .5rem 0 0;
+  background: var(--zigzag) repeat-x left top / 9px 7px;
+}
+
+legend {
+  padding: 0;
+  float: left;
+  width: 100%;
+  margin: .2rem 0 .3rem;
+  color: var(--header-blue);
+  font-weight: 700;
+}
+
+#translation-list { margin: .5rem 0 0; padding-left: 1.4rem; color: var(--row-blue); }
+#translation-list:empty { display: none; }
+
+/* ---- Footer ---- */
+
+footer {
+  padding-bottom: 1.5rem;
+  text-align: center;
+  font-size: .8rem;
+  color: #cfc4b4;
+}
+footer p { margin: .15rem 0; }
+footer a { color: inherit; }
