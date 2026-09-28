@@ -185,6 +185,30 @@ class TestExtractAll(unittest.TestCase):
         self.assertEqual(len(generated), 1)
         self.assertTrue(os.path.exists(generated[0]))
 
+    def test_extract_all_decodes_each_file_once(self):
+        """Decrypting/decompressing is the slow part; sections share it."""
+        from unittest import mock
+        from src import common
+
+        data = self._build_standard_binary(["Alpha", "Beta"])
+        bin_path = os.path.join(self.tmpdir, "mhfdat.bin")
+        with open(bin_path, "wb") as f:
+            f.write(data)
+        section = {"begin_pointer": "0x0", "next_field_pointer": "0x4"}
+        headers_path = os.path.join(self.tmpdir, "headers.json")
+        with open(headers_path, "w") as f:
+            json.dump({"dat": {"a": section, "b": section, "c": section}}, f)
+
+        with mock.patch.object(
+            common, "load_file_data", wraps=common.load_file_data
+        ) as load:
+            generated = extract_all(
+                {"dat": bin_path}, os.path.join(self.tmpdir, "out"), headers_path
+            )
+
+        self.assertEqual(len(generated), 3)
+        load.assert_called_once_with(bin_path)
+
     def test_extract_all_missing_file_skips(self):
         headers_path = os.path.join(self.tmpdir, "headers.json")
         with open(headers_path, "w") as f:

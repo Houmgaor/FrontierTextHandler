@@ -191,8 +191,8 @@ Static GitHub Pages site that runs the tool in the browser via Pyodide
 - `build_site.py` - Writes `_site/`, bundling `bridge.py` and `src/`
   (with `headers.json`) into `app.zip` for the worker.
 
-Pyodide runs about 2x slower than CPython: `mhfdat.bin` takes ~50 s to
-open and ~70 s to build.
+Pyodide runs about 2x slower than CPython: `mhfdat.bin` takes ~4 s to
+open and ~40 s to build (almost all LZ compression).
 
 ## String Encoding
 
@@ -201,6 +201,22 @@ Game files use CP932 (Windows-31J, Microsoft's Shift-JIS variant), not `shift_ji
 ## Binary Modification Strategy
 
 New strings are appended to the end of the binary file and pointer values are updated to reference the new locations. This avoids size constraints of in-place replacement.
+
+## Codec Performance
+
+`crypto.py` and `jkr_*.py` are tuned for speed but must stay byte-identical
+to the original ReFrontier ports, frozen in `tests/reference_codecs/` and
+checked by `tests/test_codec_reference.py` (don't edit the reference copies).
+Per-byte Python loops are the thing to avoid, especially under Pyodide:
+
+- ECD is linear over GF(2); `encode_ecd`/`decode_ecd` work on whole buffers
+  (`bytes.translate`, big-integer XOR, a prefix XOR for the decrypt feedback,
+  and a lane-packed LCG for the keystream).
+- Huffman decoding is table-driven, one input byte per step; LZ decoding
+  copies with slices.
+- The LZ encoder keeps the original hash-chain search (so output is
+  unchanged) with precomputed hashes and an 8 KB ring for the chains. Its
+  per-token cost is now the floor for compression time.
 
 ## JPK/JKR Compression
 

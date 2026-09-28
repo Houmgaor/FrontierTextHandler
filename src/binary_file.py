@@ -35,6 +35,9 @@ class BinaryFile:
         self.file_path = file_path
         self.mode = mode
         self._size = _size
+        # The bytes behind an in-memory file, for fast scans; None for real
+        # files or once the content has been written to.
+        self._buffer: Optional[bytes] = None
 
         # Handle in-memory mode (from from_bytes)
         if _file is not None:
@@ -86,8 +89,35 @@ class BinaryFile:
         """Tell current pointer position."""
         return self.file.tell()
 
+    def read_until_null(self) -> bytes:
+        """
+        Read up to the next null byte, which is consumed, or to the end.
+
+        :return: The bytes before the terminator.
+        """
+        start = self.file.tell()
+        if self._buffer is not None:
+            end = self._buffer.find(b"\x00", start)
+            if end < 0:
+                self.file.seek(len(self._buffer))
+                return self._buffer[start:]
+            self.file.seek(end + 1)
+            return self._buffer[start:end]
+        parts = []
+        while True:
+            chunk = self.file.read(256)
+            end = chunk.find(b"\x00")
+            if end >= 0:
+                parts.append(chunk[:end])
+                self.file.seek(start + sum(map(len, parts)) + 1)
+                return b"".join(parts)
+            if not chunk:
+                return b"".join(parts)
+            parts.append(chunk)
+
     def write(self, value):
         """Write a value to the file."""
+        self._buffer = None
         self.file.write(value)
 
     def write_int(self, value):
@@ -119,9 +149,11 @@ class BinaryFile:
         :param data: Binary data to wrap.
         :return: BinaryFile instance backed by BytesIO.
         """
-        return cls(
+        instance = cls(
             file_path=None,
             mode="rb",
             _file=BytesIO(data),
             _size=len(data)
         )
+        instance._buffer = bytes(data)
+        return instance

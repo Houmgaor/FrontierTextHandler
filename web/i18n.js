@@ -15,7 +15,7 @@ const messages = {
     "engine.failed": "The Python engine could not start: {error}",
 
     "step1.title": "Open a game file",
-    "step1.help": "Pick <code>mhfdat.bin</code>, <code>mhfpac.bin</code>, <code>mhfinf.bin</code> or another text file from your game's <code>dat/</code> folder. Large files such as <code>mhfdat.bin</code> take about a minute to open.",
+    "step1.help": "Pick <code>mhfdat.bin</code>, <code>mhfpac.bin</code>, <code>mhfinf.bin</code> or another text file from your game's <code>dat/</code> folder.",
     "step1.choose": "Choose a game file",
     "file.info": "{name}: {layers} file, {size} decoded, {count} text sections.",
     "file.layers.both": "encrypted and compressed",
@@ -43,7 +43,7 @@ const messages = {
     "step3.compress": "Compress (needed by the game)",
     "step3.encrypt": "Encrypt (needed by the game)",
     "step3.build": "Build and download",
-    "step3.hint": "Replace the file in your game's <code>dat/</code> folder with the download. Keep a backup of the original.",
+    "step3.hint": "Building <code>mhfdat.bin</code> takes about 40 seconds, smaller files a few seconds. Replace the file in your game's <code>dat/</code> folder with the download, and keep a backup of the original.",
     "step3.nothing": "Nothing to build: no filled-in target column in these files, or the translations match the game file already.",
 
     "activity.title": "Activity",
@@ -72,7 +72,7 @@ const messages = {
     "engine.failed": `Le moteur Python n'a pas pu démarrer${NBSP}: {error}`,
 
     "step1.title": "Ouvrir un fichier du jeu",
-    "step1.help": "Choisissez <code>mhfdat.bin</code>, <code>mhfpac.bin</code>, <code>mhfinf.bin</code> ou un autre fichier de textes du dossier <code>dat/</code> de votre jeu. Les gros fichiers comme <code>mhfdat.bin</code> mettent environ une minute à s'ouvrir.",
+    "step1.help": "Choisissez <code>mhfdat.bin</code>, <code>mhfpac.bin</code>, <code>mhfinf.bin</code> ou un autre fichier de textes du dossier <code>dat/</code> de votre jeu.",
     "step1.choose": "Choisir un fichier du jeu",
     "file.info": `{name}${NBSP}: fichier {layers}, {size} une fois décodé, {count} sections de texte.`,
     "file.layers.both": "chiffré et compressé",
@@ -100,7 +100,7 @@ const messages = {
     "step3.compress": "Compresser (requis par le jeu)",
     "step3.encrypt": "Chiffrer (requis par le jeu)",
     "step3.build": "Générer et télécharger",
-    "step3.hint": "Remplacez le fichier du dossier <code>dat/</code> de votre jeu par celui téléchargé. Gardez une copie de l'original.",
+    "step3.hint": "La génération de <code>mhfdat.bin</code> prend environ 40 secondes, quelques secondes pour les fichiers plus petits. Remplacez le fichier du dossier <code>dat/</code> de votre jeu par celui téléchargé, en gardant une copie de l'original.",
     "step3.nothing": `Rien à générer${NBSP}: aucune colonne target remplie dans ces fichiers, ou les traductions correspondent déjà au fichier du jeu.`,
 
     "activity.title": "Journal",
