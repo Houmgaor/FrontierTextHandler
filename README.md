@@ -278,7 +278,9 @@ python main.py --decrypt data/mhfdat.bin output/mhfdat-decrypted.bin --save-meta
 
 ### FTXT files
 
-Extract text from standalone FTXT text files (magic `0x000B0000`):
+Extract text from standalone FTXT text files (magic `0x000B0000`), such as
+the four entries of `dat/extend/mazpac.bin` once unpacked (for example with
+ReFrontier):
 
 ```bash
 python main.py --ftxt data/some_ftxt_file.bin

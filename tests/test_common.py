@@ -454,7 +454,7 @@ class TestExtractFtxtData(unittest.TestCase):
         for s in strings:
             text_parts.append(s.encode(GAME_ENCODING) + b"\x00")
         text_block = b"".join(text_parts)
-        header = struct.pack("<I6xHI", FTXT_MAGIC, len(strings), len(text_block))
+        header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, len(strings), len(text_block))
         return header + text_block
 
     def test_basic_extraction(self):
@@ -976,7 +976,7 @@ class TestValidateFile(unittest.TestCase):
     def test_ftxt_detection(self):
         strings = [b"A\x00", b"B\x00"]
         text_block = b"".join(strings)
-        header = struct.pack("<I6xHI", FTXT_MAGIC, 2, len(text_block))
+        header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, 2, len(text_block))
         data = header + text_block
         path = self._write_temp(data)
         result = validate_file(path)
@@ -999,7 +999,7 @@ class TestExtractFtxt(unittest.TestCase):
         for s in strings:
             text_parts.append(s.encode(GAME_ENCODING) + b"\x00")
         text_block = b"".join(text_parts)
-        header = struct.pack("<I6xHI", FTXT_MAGIC, len(strings), len(text_block))
+        header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, len(strings), len(text_block))
         return header + text_block
 
     def test_extract_from_file(self):

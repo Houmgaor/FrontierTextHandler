@@ -50,14 +50,9 @@ def build_ftxt(strings: list[str]) -> bytes:
         encoded_parts.append(encode_game_string(s) + b"\x00")
     text_block = b"".join(encoded_parts)
 
-    # Build 16-byte header
-    header = bytearray(FTXT_HEADER_SIZE)
-    struct.pack_into("<I", header, 0x00, FTXT_MAGIC)       # magic
-    # 6 bytes padding (0x04-0x09)
-    struct.pack_into("<H", header, 0x0A, len(strings))     # string count
-    struct.pack_into("<I", header, 0x0C, len(text_block))  # text block size
-
-    return bytes(header) + text_block
+    # 20-byte header: magic, file size, 0, 1, string count, text block size
+    header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, len(strings), len(text_block))
+    return header + text_block
 
 
 def build_quest_file(
@@ -203,10 +198,41 @@ class TestExtractFtxtData(unittest.TestCase):
         strings = ["AB", "CD", "EF"]
         data = build_ftxt(strings)
         result = extract_ftxt_data(data)
-        # "AB" at 0x10, "CD" at 0x10+3, "EF" at 0x10+6
-        self.assertEqual(result[0]["offset"], 0x10)
-        self.assertEqual(result[1]["offset"], 0x10 + 3)  # "AB\0" = 3 bytes
-        self.assertEqual(result[2]["offset"], 0x10 + 6)  # "CD\0" = 3 bytes
+        # "AB" at 0x14, "CD" at 0x14+3, "EF" at 0x14+6
+        self.assertEqual(result[0]["offset"], 0x14)
+        self.assertEqual(result[1]["offset"], 0x14 + 3)  # "AB\0" = 3 bytes
+        self.assertEqual(result[2]["offset"], 0x14 + 6)  # "CD\0" = 3 bytes
+
+    def test_mazpac_layout(self):
+        """The header of a real FTXT (mazpac.bin entry 0), written out by hand.
+
+        Count 0x9C at 0x0E, block size at 0x10, strings from 0x14, a tail
+        of 0xFF and 8 bytes in the block, then other data after it.
+        """
+        strings = encode_game_string("駆け抜けろ！") + b"\x00" + b"AB\x00"
+        block = strings + bytes.fromhex("ff 02 00 94 25 98 54 0c 00")
+        after = b"\x00\x00\x00\x00\x05\x00\x05\x00"
+        data = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(block) + len(after),
+                           0, 1, 2, len(block)) + block + after
+        # Same bytes as the real header except the counts and sizes
+        self.assertEqual(data[0x08:0x0E], bytes.fromhex("00 00 00 00 01 00"))
+        self.assertEqual([r["text"] for r in extract_ftxt_data(data)],
+                         ["駆け抜けろ！", "AB"])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "src.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            same = rebuild_ftxt(src, [], os.path.join(tmpdir, "same.bin"))
+            with open(same, "rb") as f:
+                self.assertEqual(f.read(), data)
+            longer = rebuild_ftxt(src, [(0x14, "Run through!")],
+                                  os.path.join(tmpdir, "longer.bin"))
+            with open(longer, "rb") as f:
+                rebuilt = f.read()
+        self.assertEqual([r["text"] for r in extract_ftxt_data(rebuilt)],
+                         ["Run through!", "AB"])
+        self.assertTrue(rebuilt.endswith(block[len(strings):] + after))
+        self.assertEqual(struct.unpack_from("<I", rebuilt, 4)[0], len(rebuilt))
 
     def test_not_ftxt_raises(self):
         """Test that non-FTXT data raises ValueError."""
@@ -335,8 +361,8 @@ class TestFtxtImport(unittest.TestCase):
             with open(source_path, "wb") as f:
                 f.write(data)
 
-            # Translate "World" at offset 0x16 (0x10 + len("Hello\0"))
-            new_strings = [(0x10 + 6, "Monde")]
+            # Translate "World" at offset 0x1A (0x14 + len("Hello\0"))
+            new_strings = [(FTXT_HEADER_SIZE + 6, "Monde")]
             rebuild_ftxt(source_path, new_strings, output_path)
 
             # Verify the rebuilt file
@@ -368,11 +394,12 @@ class TestFtxtImport(unittest.TestCase):
             # Check header
             magic = struct.unpack_from("<I", rebuilt, 0)[0]
             self.assertEqual(magic, FTXT_MAGIC)
-            string_count = struct.unpack_from("<H", rebuilt, 0x0A)[0]
+            string_count = struct.unpack_from("<H", rebuilt, 0x0E)[0]
             self.assertEqual(string_count, 1)
-            text_block_size = struct.unpack_from("<I", rebuilt, 0x0C)[0]
+            text_block_size = struct.unpack_from("<I", rebuilt, 0x10)[0]
             expected_size = len(encode_game_string("LongerString")) + 1
             self.assertEqual(text_block_size, expected_size)
+            self.assertEqual(struct.unpack_from("<I", rebuilt, 0x04)[0], len(rebuilt))
 
     def test_round_trip_ftxt(self):
         """Test full round-trip: extract → edit CSV → reimport."""

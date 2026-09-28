@@ -530,7 +530,7 @@ def validate_file(file_path: str) -> ValidationResult:
     :return: ValidationResult with layer info and validity status
     """
     import os
-    from .ftxt import is_ftxt_file, FTXT_HEADER_SIZE
+    from .ftxt import is_ftxt_file, FTXT_HEADER_SIZE, FTXT_COUNT_OFFSET
 
     if not os.path.exists(file_path):
         return ValidationResult(
@@ -590,7 +590,7 @@ def validate_file(file_path: str) -> ValidationResult:
     # Inner format detection
     if is_ftxt_file(data):
         if len(data) >= FTXT_HEADER_SIZE:
-            string_count = struct.unpack_from("<H", data, 0x0A)[0]
+            string_count = struct.unpack_from("<H", data, FTXT_COUNT_OFFSET)[0]
             result.inner_format = f"FTXT ({string_count} strings)"
         else:
             result.inner_format = "FTXT (truncated header)"
@@ -625,6 +625,9 @@ from .pointer_tables import (  # noqa: E402, F401
 from .ftxt import (  # noqa: E402, F401
     FTXT_MAGIC,
     FTXT_HEADER_SIZE,
+    FTXT_SIZE_OFFSET,
+    FTXT_COUNT_OFFSET,
+    FTXT_BLOCK_SIZE_OFFSET,
     is_ftxt_file,
     extract_ftxt,
     extract_ftxt_data,

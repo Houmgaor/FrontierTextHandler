@@ -426,7 +426,7 @@ class TestFtxtRoundTrip(unittest.TestCase):
         for s in strings:
             text_parts.append(s.encode(GAME_ENCODING) + b"\x00")
         text_block = b"".join(text_parts)
-        header = struct.pack("<I6xHI", FTXT_MAGIC, len(strings), len(text_block))
+        header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, len(strings), len(text_block))
         return header + text_block
 
     def _write_temp(self, data: bytes) -> str:

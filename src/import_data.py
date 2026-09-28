@@ -787,7 +787,8 @@ def rebuild_ftxt(
 
     FTXT strings are sequential (not pointer-based), so we rebuild the
     entire text block. Strings are identified by their byte offset in the
-    original file.
+    original file. The block's tail and any data after the block are
+    kept; the header's block size (0x10) and file size (0x04) follow.
 
     :param source_file: Path to the original FTXT file
     :param new_strings: List of (offset, new_text) tuples from CSV
@@ -795,8 +796,8 @@ def rebuild_ftxt(
     :return: Path to the rebuilt file
     """
     from .common import (
-        load_file_data, is_ftxt_file, extract_ftxt_data,
-        read_until_null, decode_game_string, FTXT_HEADER_SIZE, FTXT_MAGIC
+        load_file_data, is_ftxt_file, extract_ftxt_data, FTXT_HEADER_SIZE,
+        FTXT_SIZE_OFFSET, FTXT_BLOCK_SIZE_OFFSET,
     )
 
     file_data = load_file_data(source_file)
@@ -821,12 +822,26 @@ def rebuild_ftxt(
         encoded = encode_game_string(text, context=f"FTXT offset 0x{orig_offset:x}")
         new_text_block.extend(encoded + b"\x00")
 
-    # Rebuild file: header + new text block
-    header = bytearray(file_data[:FTXT_HEADER_SIZE])
-    # Update text block size in header
-    struct.pack_into("<I", header, 0x0C, len(new_text_block))
+    # The text block ends with a tail after its last string (0xFF and a
+    # few bytes in mazpac); other data may follow the block. Keep both,
+    # and update the block size and the file size in the header.
+    old_block_end = FTXT_HEADER_SIZE + struct.unpack_from(
+        "<I", file_data, FTXT_BLOCK_SIZE_OFFSET
+    )[0]
+    if original_entries:
+        last = original_entries[-1]["offset"]
+        strings_end = file_data.index(b"\x00", last) + 1
+    else:
+        strings_end = FTXT_HEADER_SIZE
+    new_text_block.extend(file_data[strings_end:old_block_end])
 
-    output_data = bytes(header) + bytes(new_text_block)
+    header = bytearray(file_data[:FTXT_HEADER_SIZE])
+    struct.pack_into("<I", header, FTXT_BLOCK_SIZE_OFFSET, len(new_text_block))
+    output_data = bytes(header) + bytes(new_text_block) + file_data[old_block_end:]
+    if struct.unpack_from("<I", file_data, FTXT_SIZE_OFFSET)[0] == len(file_data):
+        output_data = bytearray(output_data)
+        struct.pack_into("<I", output_data, FTXT_SIZE_OFFSET, len(output_data))
+        output_data = bytes(output_data)
 
     with open(output_path, "wb") as f:
         f.write(output_data)

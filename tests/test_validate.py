@@ -88,7 +88,7 @@ class TestValidateFile(unittest.TestCase):
         # Build a minimal FTXT: magic + padding + count + text_block_size + strings
         strings = [b"Hello\x00", b"World\x00"]
         text_block = b"".join(strings)
-        header = struct.pack("<I6xHI", FTXT_MAGIC, len(strings), len(text_block))
+        header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, len(strings), len(text_block))
         data = header + text_block
         path = self._write_temp(data)
         result = validate_file(path)
