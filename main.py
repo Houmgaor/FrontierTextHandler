@@ -342,6 +342,8 @@ def main(args: argparse.Namespace | None = None) -> None:
                 mode = "null_terminated"
                 if config.get("grouped_entries"):
                     mode += "+grouped"
+            elif "record_levels" in config:
+                mode = "record_lists"
             elif "count_base_pointer" in config and "entry_size" in config:
                 mode = "indirect_strided"
             elif "count_base_pointer" in config:

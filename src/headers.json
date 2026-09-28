@@ -325,7 +325,7 @@
       }
     },
     "tips": {
-      "_comment": "Tip pages shown as scrolls/boards; flat s32p arrays hung off the dat header, each padded with nulls after the last page.",
+      "_comment": "Tip pages: flat s32p tables padded with nulls (hunter_basics, dojo_rules*), and two trees of records pointing to page lists (tutorial, guide).",
       "hunter_basics": {
         "_comment": "'＜ハンターの基本 その１＞' ... : hunter basics, 10 pages.",
         "begin_pointer": "0x1A4",
@@ -346,6 +346,79 @@
         "entry_count": 30,
         "max_display_width": 440,
         "max_sub_count": 1
+      },
+      "tutorial": {
+        "title": {
+          "_comment": "Instructor's tutorial tips: 220 records {title, page count, pages pointer} (12 bytes) at *0x1B0. Tip titles.",
+          "begin_pointer": "0x1B0",
+          "entry_count": 220,
+          "entry_size": 12,
+          "field_offset": 0,
+          "max_display_width": 42,
+          "max_sub_count": 1
+        },
+        "pages": {
+          "_comment": "Tutorial tip pages, one row per tip (row for row with title), pages joined with {j}.",
+          "begin_pointer": "0x1B0",
+          "entry_count": 220,
+          "entry_size": 12,
+          "record_levels": [
+            {
+              "pointer_offset": 8,
+              "count_offset": 4,
+              "entry_size": 4
+            }
+          ],
+          "max_display_width": 267,
+          "max_sub_count": 10
+        }
+      },
+      "guide": {
+        "chapter": {
+          "_comment": "Hunter's guide (ハンターの心得): 4 chapter records {title, sections pointer, section count} at *0x1A0. Chapter titles.",
+          "begin_pointer": "0x1A0",
+          "entry_count": 4,
+          "entry_size": 12,
+          "field_offset": 0,
+          "max_display_width": 48,
+          "max_sub_count": 1
+        },
+        "section": {
+          "_comment": "Guide section titles, one per row across all chapters (records {title, pages pointer, page count}).",
+          "begin_pointer": "0x1A0",
+          "entry_count": 4,
+          "entry_size": 12,
+          "record_levels": [
+            {
+              "pointer_offset": 4,
+              "count_offset": 8,
+              "entry_size": 12
+            }
+          ],
+          "join": false,
+          "max_display_width": 30,
+          "max_sub_count": 1
+        },
+        "pages": {
+          "_comment": "Guide pages, one row per section (row for row with section), pages joined with {j}.",
+          "begin_pointer": "0x1A0",
+          "entry_count": 4,
+          "entry_size": 12,
+          "record_levels": [
+            {
+              "pointer_offset": 4,
+              "count_offset": 8,
+              "entry_size": 12
+            },
+            {
+              "pointer_offset": 4,
+              "count_offset": 8,
+              "entry_size": 4
+            }
+          ],
+          "max_display_width": 248,
+          "max_sub_count": 5
+        }
       }
     }
   },

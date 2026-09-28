@@ -11,7 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and garden names and descriptions, personalities, interactions and food
   descriptions. The English client never translated these.
 - **Tip pages** (`dat/tips/…`): hunter basics and the two dojo rule sets
-  (68 pages).
+  (68 pages), the instructor's tutorial tips (220 titles, 1,164 pages) and
+  the hunter's guide (4 chapters, 58 sections, 167 pages).
+- **`record_levels` extraction mode** for records that point to lists of
+  records (a tip and its pages, a guide chapter and its sections). Rows are
+  one per list, joined with `{j}`, and import like any grouped entry.
 - **Caravan skills** (`pac/skills/caravan/name`, `pac/skills/caravan/description`):
   109 skill names and their descriptions (狩人珠スキル, "Caravan Gem" skills
   in the English client), from header `0xA24` and `0xACC`.

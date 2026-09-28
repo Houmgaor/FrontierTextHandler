@@ -46,7 +46,7 @@ pointer table:
 
 | File | Strings extracted | Status |
 |------|------------------|--------|
-| `mhfdat.bin` | ~17,000+ (weapons, armors, items, monsters, ranks, HH) | Partial: ~2,000 strings in tables no section covers (weapon hints, armour series names, tips) |
+| `mhfdat.bin` | ~233,000 rows (weapons, armors, items, monsters, ranks, HH, Goocoo, tips) | Nearly complete: ~170 strings in tables no section covers (village gossip) |
 | `mhfpac.bin` | ~3,600 (skills + ~3,365 UI/dialogue tables) | Partial: a scan finds ~20,000 more pointers in tables no section covers |
 | `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
 | `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
@@ -110,14 +110,20 @@ untranslated even in the English client.
   row for row), `food_description` (46).
 
 ### `dat/tips/`
-Tip pages, flat `s32p` arrays padded with nulls:
-`hunter_basics` (`0x1A4`, 10), `dojo_rules` (`0x1AC`, 28) and
-`dojo_rules_instructor` (`0x1A8`, 30).
+Tip pages. Flat `s32p` arrays padded with nulls: `hunter_basics`
+(`0x1A4`, 10), `dojo_rules` (`0x1AC`, 28) and `dojo_rules_instructor`
+(`0x1A8`, 30). Two trees, read with `record_levels`:
 
-Not extracted yet: the instructor's tutorial tips at `*0x1B0` (220 records of
-{title, page count, pointer to pages}, 1,164 pages) and the hunter's guide at
-`*0x1A0` (a tree: chapters, then per-weapon sections, then pages). Both need
-an extraction mode for records that point to a list of strings.
+- `tutorial/title`, `tutorial/pages` — The instructor's tutorial tips at
+  `*0x1B0`: 220 records `{title, page count, pages pointer}`; one row per tip,
+  its 1,164 pages joined with `{j}`.
+- `guide/chapter`, `guide/section`, `guide/pages` — The hunter's guide
+  (ハンターの心得) at `*0x1A0`: 4 chapters `{title, sections pointer, count}`,
+  58 sections `{title, pages pointer, count}` (general topics, then each
+  weapon), 167 pages. `section` and `pages` match row for row.
+
+Not extracted yet: about 120 short village gossip lines near `*0x150`, and 46
+tutorial pages no tip record points to.
 
 ---
 

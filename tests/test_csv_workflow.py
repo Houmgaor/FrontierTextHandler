@@ -1032,6 +1032,109 @@ class TestIsExtractionLeaf(unittest.TestCase):
         self.assertFalse(_is_extraction_leaf(config))
 
 
+class TestReadRecordLists(unittest.TestCase):
+    """Tests for record_levels extraction (records pointing to lists)."""
+
+    @staticmethod
+    def _build_guide() -> bytes:
+        """
+        A two-level tree like the hunter's guide at dat *0x1A0.
+
+        Header u32 -> 2 chapters {title, sections ptr, section count};
+        each section is {title, pages ptr, page count}; pages are string
+        pointers. Chapter 2 has an empty section (0 pages).
+        """
+        data = bytearray(4)
+        strings: list[tuple[int, str]] = []  # (slot to patch, text)
+
+        def u32(value: int = 0) -> int:
+            data.extend(struct.pack("<I", value))
+            return len(data) - 4
+
+        def patch(slot: int, value: int) -> None:
+            struct.pack_into("<I", data, slot, value)
+
+        struct.pack_into("<I", data, 0, len(data))
+        chapters = []
+        for title, count in (("Chapter A", 2), ("Chapter B", 2)):
+            chapters.append((u32(), u32(), u32(count)))
+            strings.append((chapters[-1][0], title))
+        pages_by_section = {"A1": ["a1 p1", "a1 p2"], "A2": ["a2 p1"],
+                            "B1": ["b1 p1", "b1 p2", "b1 p3"], "B2": []}
+        sections = iter(pages_by_section.items())
+        for _, ptr_slot, _ in chapters:
+            patch(ptr_slot, len(data))
+            records = []
+            for _ in range(2):
+                name, pages = next(sections)
+                records.append((u32(), u32(), u32(len(pages)), pages))
+                strings.append((records[-1][0], name))
+            for _, pages_slot, _, pages in records:
+                if pages:
+                    patch(pages_slot, len(data))
+                for text in pages:
+                    strings.append((u32(), text))
+        for slot, text in strings:
+            patch(slot, len(data))
+            data.extend(encode_game_string(text) + b"\x00")
+        return bytes(data)
+
+    LEVEL = {"pointer_offset": 4, "count_offset": 8, "entry_size": 12}
+    PAGES = {"pointer_offset": 4, "count_offset": 8, "entry_size": 4}
+    BASE = {"begin_pointer": "0x00", "entry_count": 2, "entry_size": 12}
+
+    def test_titles_use_struct_mode(self):
+        result = extract_text_data_from_bytes(
+            self._build_guide(), {**self.BASE, "field_offset": 0}
+        )
+        self.assertEqual([r["text"] for r in result], ["Chapter A", "Chapter B"])
+
+    def test_one_row_per_string_without_join(self):
+        config = {**self.BASE, "record_levels": [self.LEVEL], "join": False}
+        result = extract_text_data_from_bytes(self._build_guide(), config)
+        self.assertEqual([r["text"] for r in result], ["A1", "A2", "B1", "B2"])
+
+    def test_pages_joined_per_list(self):
+        config = {**self.BASE, "record_levels": [self.LEVEL, self.PAGES]}
+        binary = self._build_guide()
+        result = extract_text_data_from_bytes(binary, config)
+        # B2 has no pages, so it gives no row.
+        self.assertEqual(
+            [r["text"] for r in result],
+            ["a1 p1{j}a1 p2", "a2 p1", "b1 p1{j}b1 p2{j}b1 p3"],
+        )
+        # sub_offsets are the page pointer slots, which the importer rewrites.
+        for row in result:
+            self.assertEqual(row["offset"], row["sub_offsets"][0])
+            for slot, text in zip(row["sub_offsets"], row["text"].split("{j}")):
+                pointer = struct.unpack_from("<I", binary, slot)[0]
+                end = binary.index(b"\x00", pointer)
+                self.assertEqual(binary[pointer:end].decode(), text)
+
+    def test_rebuild_translates_pages_in_place(self):
+        """Grouped page rows import through rebuild_section like any other."""
+        from src.import_data import rebuild_section
+        config = {**self.BASE, "record_levels": [self.LEVEL, self.PAGES]}
+        binary = self._build_guide()
+        rows = extract_text_data_from_bytes(binary, config)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "out.bin")
+            rebuild_section(binary, config, [(rows[2]["offset"], "one{j}two{j}three")], out)
+            with open(out, "rb") as f:
+                rebuilt = f.read()
+        after = extract_text_data_from_bytes(rebuilt, config)
+        self.assertEqual(
+            [r["text"] for r in after],
+            ["a1 p1{j}a1 p2", "a2 p1", "one{j}two{j}three"],
+        )
+        # The titles, outside the section, are untouched.
+        titles = {**self.BASE, "record_levels": [self.LEVEL], "join": False}
+        self.assertEqual(
+            [r["text"] for r in extract_text_data_from_bytes(rebuilt, titles)],
+            ["A1", "A2", "B1", "B2"],
+        )
+
+
 class TestReadStructStrings(unittest.TestCase):
     """Tests for read_struct_strings function."""
 
