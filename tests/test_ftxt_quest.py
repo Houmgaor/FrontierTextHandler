@@ -24,6 +24,7 @@ from src import (
     compress_jkr_hfi,
 )
 from src.common import FTXT_MAGIC, FTXT_HEADER_SIZE
+from src.ftxt import repad_ftxt_tail
 from src.export import (
     export_as_csv,
     extract_ftxt_file,
@@ -233,6 +234,42 @@ class TestExtractFtxtData(unittest.TestCase):
                          ["Run through!", "AB"])
         self.assertTrue(rebuilt.endswith(block[len(strings):] + after))
         self.assertEqual(struct.unpack_from("<I", rebuilt, 4)[0], len(rebuilt))
+
+    def test_repad_ftxt_tail(self):
+        """0xFF padding follows the new end of the strings, at least one byte."""
+        rest = bytes.fromhex("02 00 94 25 98 54 0c 00")
+        # mazpac entry 0: strings end at 3 mod 4, one 0xFF
+        tail = b"\xff" + rest
+        self.assertEqual(repad_ftxt_tail(tail, 0x13, 0x13), tail)
+        self.assertEqual(repad_ftxt_tail(tail, 0x13, 0x15), b"\xff" * 3 + rest)
+        self.assertEqual(repad_ftxt_tail(tail, 0x13, 0x16), b"\xff" * 2 + rest)
+        self.assertEqual(repad_ftxt_tail(tail, 0x13, 0x18), b"\xff" * 4 + rest)
+        # Tails that don't follow the layout are kept
+        self.assertEqual(repad_ftxt_tail(rest, 0x13, 0x15), rest)
+        self.assertEqual(repad_ftxt_tail(b"\xff\xff" + rest, 0x13, 0x15),
+                         b"\xff\xff" + rest)
+
+    def test_rebuild_realigns_tail(self):
+        """A translation of another length keeps the 8 tail bytes aligned."""
+        strings = encode_game_string("駆け抜けろ！") + b"\x00"
+        rest = bytes.fromhex("02 00 94 25 98 54 0c 00")
+        block = strings + b"\xff" * 3 + rest
+        after = b"\x00\x00\x00\x00\x05\x00\x05\x00"
+        data = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(block) + len(after),
+                           0, 1, 1, len(block)) + block + after
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = os.path.join(tmpdir, "src.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            same = rebuild_ftxt(src, [], os.path.join(tmpdir, "same.bin"))
+            with open(same, "rb") as f:
+                self.assertEqual(f.read(), data)
+            out = rebuild_ftxt(src, [(0x14, "Run!")], os.path.join(tmpdir, "out.bin"))
+            with open(out, "rb") as f:
+                rebuilt = f.read()
+        # "Run!\0" ends at 0x19: three 0xFF bytes reach 0x1C
+        self.assertEqual(rebuilt[0x14:], b"Run!\x00" + b"\xff" * 3 + rest + after)
+        self.assertEqual(struct.unpack_from("<I", rebuilt, 0x10)[0], 16)
 
     def test_not_ftxt_raises(self):
         """Test that non-FTXT data raises ValueError."""

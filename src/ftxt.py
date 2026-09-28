@@ -12,8 +12,9 @@ Header (20 bytes):
     0x0C  u16  1 (unknown)
     0x0E  u16  string count
     0x10  u32  text block size
-    0x14       text block: the strings, then a short tail (0xFF and a few
-               bytes in mazpac) up to the block size
+    0x14       text block: the strings, then a short tail up to the block
+               size (in mazpac, 0xFF padding to a 4-byte boundary, then
+               8 bytes)
 
 ReFrontier's first FTXT reader (2019) skipped 10 bytes from after the
 magic, so it read the count at 0x0E. A 2026 refactor made that seek
@@ -35,6 +36,7 @@ __all__ = [
     "is_ftxt_file",
     "extract_ftxt",
     "extract_ftxt_data",
+    "repad_ftxt_tail",
 ]
 
 # FTXT file magic number
@@ -115,3 +117,26 @@ def extract_ftxt_data(data: bytes) -> list[dict[str, int | str | list[int]]]:
         })
 
     return results
+
+
+def repad_ftxt_tail(tail: bytes, old_strings_end: int, new_strings_end: int) -> bytes:
+    """
+    Re-pad the tail of a text block for strings that now end elsewhere.
+
+    In mazpac.bin the tail is 0xFF padding up to a 4-byte boundary (1 to 3
+    bytes in the files seen), then 8 bytes. The padding is rewritten for
+    the new end of the strings, with at least one 0xFF: strings that end
+    on a boundary get four. A tail that doesn't follow this layout is
+    kept as it is.
+
+    :param tail: Bytes between the end of the original strings and the end
+        of the text block
+    :param old_strings_end: File offset where the original strings ended
+    :param new_strings_end: File offset where the new strings end
+    :return: The tail to write after the new strings
+    """
+    rest = tail.lstrip(b"\xff")
+    padding = len(tail) - len(rest)
+    if padding == 0 or (old_strings_end + padding) % 4:
+        return tail
+    return b"\xff" * (4 - new_strings_end % 4) + rest
