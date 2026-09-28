@@ -226,14 +226,16 @@ def read_from_pointers(
 def read_multi_pointer_entries(
     bfile: BinaryFile,
     start_position: int,
-    pointers_per_entry: int
+    pointers_per_entry: int,
+    entry_count: int | None = None,
 ) -> list[dict[str, int | str | list[int]]]:
     """
-    Read null-terminated multi-pointer entries with correct grouping.
+    Read multi-pointer entries with correct grouping.
 
     Each entry has a fixed number of string pointers.  Null internal
-    pointers are skipped (they don't carry a string), and the terminator
-    is an entry whose **first** pointer is 0.  Sub-strings within a
+    pointers are skipped (they don't carry a string).  Without
+    *entry_count*, the terminator is an entry whose **first** pointer is
+    0; with it, exactly that many entries are read.  Sub-strings within a
     single entry are joined in ``text`` with the ``{j}`` marker, and
     their actual pointer-slot offsets (which may be non-contiguous if
     internal slots are null) are recorded in ``sub_offsets``.
@@ -241,18 +243,21 @@ def read_multi_pointer_entries(
     :param bfile: Binary file to read from
     :param start_position: File offset of the first entry
     :param pointers_per_entry: Number of u32 pointers per entry
+    :param entry_count: Number of entries, or None to scan for the
+        terminator
     :return: List of dicts with ``"offset"``, ``"text"``, and
         ``"sub_offsets"`` keys.
     """
     results: list[dict[str, int | str | list[int]]] = []
     pos = start_position
+    end = None if entry_count is None else start_position + entry_count * pointers_per_entry * 4
 
-    while True:
+    while pos != end:
         bfile.validate_offset(pos, context="multi-pointer entry scan")
-        bfile.seek(pos)
-        first_ptr = bfile.read_int()
-        if first_ptr == 0:
-            break
+        if end is None:
+            bfile.seek(pos)
+            if bfile.read_int() == 0:
+                break
 
         # Read all pointers for this entry
         bfile.seek(pos)
@@ -688,6 +693,12 @@ def extract_text_data_from_bytes(
         bfile.validate_offset(begin_pointer + 3, context="begin_pointer dereference")
         bfile.seek(begin_pointer)
         start_position = bfile.read_int()
+        if config.get("grouped_entries") and pointers_per_entry > 1:
+            # Fixed-size groups: entry boundaries come from the layout,
+            # not from null separators (some tables have none).
+            return read_multi_pointer_entries(
+                bfile, start_position, pointers_per_entry, entry_count
+            )
         read_length = entry_count * pointers_per_entry * 4
         return read_file_section(bfile, start_position, read_length)
 

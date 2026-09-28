@@ -48,6 +48,15 @@ of the old codecs, and on real game files). Timings on `mhfdat.bin`
   well as extracted CSV/JSON files.
 
 ### Fixed
+- **Grouped pac tables extract as groups again.** Since 1.6.0, the 11
+  `mhfpac.bin` tables marked `grouped_entries` that also carry an
+  `entry_count` (`pac/text_14` to `pac/text_54`) came out one row per
+  pointer, e.g. 100 rows instead of 50 name/description pairs for
+  `pac/text_50`. Translations made in the grouped form could no longer be
+  imported: `--csv-to-bin` stopped with "grouped entry has 2 sub-strings
+  but the live section has 1", and `--apply-translations` skipped them
+  with a warning (97 French control-binding strings). Files extracted
+  with 1.6.0–1.8.0 from these tables should be extracted again.
 - **Web interface: no more broken page right after a deploy.** Browsers
   may cache each file for 10 minutes, so a new page could run with an old
   worker ("commands[command] is not a function"). The build now versions
