@@ -70,6 +70,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in the English client), from header `0xA24` and `0xACC`.
 
 ### Fixed
+- **Scenario files missed text, mixed up translations and read junk**
+  (`--scenario`, `--scenario-dir`, `--scenario-to-bin`). Checked on all
+  145,376 files of Erupe's `bin/scenarios`:
+  - A sub-header chunk's entry count is not its number of strings: quest
+    scenarios declare 4 but hold about 10 before the `0xFF` sentinel (the
+    quest objective and the NPC's replies). FTH stopped at the count and
+    missed 631,230 strings; it now reads to the sentinel.
+  - chunk0 can be JKR-compressed (9,345 files); it was read as inline text,
+    giving a `KR\x1a…` row. It is now decompressed like chunk1 and chunk2.
+  - Rows in compressed chunks were keyed by the chunk's file offset plus
+    their position in the decompressed data, so chunk1's keys ran into
+    chunk2's and a translation could land in the wrong chunk. Each
+    compressed chunk now has its own key range from `0x100000`.
+  - Dialogue-script bytes taken for text (`m\x02`, …) are skipped.
+
+  Every file extracts (4.65 million rows, up from 4.09 million), and a
+  rebuild translating every row reads back correctly. Scenario rows
+  change, so an existing scenario translation needs merging again.
 - **FTXT files read no text and import corrupted them** (`--ftxt`,
   `--ftxt-to-bin`). The header has the string count at `0x0E`, the text
   block size at `0x10` and the strings from `0x14`; FTH read the count at

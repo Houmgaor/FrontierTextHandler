@@ -1793,9 +1793,12 @@ def rebuild_scenario_file(
     :return: Path to the rebuilt file
     """
     from .common import load_file_data, encode_game_string
-    from .scenario import _parse_chunk0, _parse_chunk1, _scan_decompressed_strings
+    from .scenario import (
+        _parse_chunk0, _parse_chunk1, _scan_decompressed_strings, jkr_row_bases,
+    )
 
     file_data = load_file_data(source_file)
+    jkr_bases = jkr_row_bases(file_data)
 
     # Build translation map
     translation_map: dict[int, str] = {}
@@ -1809,8 +1812,8 @@ def rebuild_scenario_file(
 
         ``entries`` carry the same offsets extraction produced: for an
         uncompressed chunk that is an absolute file offset; for a JKR chunk
-        it is ``base + position_in_decompressed_buffer`` (see
-        :func:`scenario._scan_decompressed_strings`). Subtracting ``base``
+        it is ``base + position_in_decompressed_buffer``, with the chunk's
+        base from :func:`scenario.jkr_row_bases`. Subtracting ``base``
         yields the position inside ``buffer`` in both cases.
         """
         for entry in entries:
@@ -1852,14 +1855,15 @@ def rebuild_scenario_file(
                 if pos + i < len(buffer):
                     buffer[pos + i] = 0x00
 
-    def _rebuild_jkr(chunk_bytes: bytes, base: int) -> bytes:
+    def _rebuild_jkr(chunk_bytes: bytes, chunk_offset: int) -> bytes:
         """Decompress, patch, and recompress a JKR chunk."""
+        base = jkr_bases.get(chunk_offset, chunk_offset)
         try:
             decompressed = bytearray(decompress_jkr(chunk_bytes))
         except JKRError as exc:
             logger.warning(
                 "Cannot decompress scenario chunk at 0x%x (%s); leaving as-is",
-                base, exc,
+                chunk_offset, exc,
             )
             return chunk_bytes
         entries = _scan_decompressed_strings(bytes(decompressed), base)
@@ -1888,12 +1892,16 @@ def rebuild_scenario_file(
             f.write(file_data)
         return output_path
 
-    # chunk0 — quest name/description, always uncompressed.
+    # chunk0 — quest name/description: sub-header, inline, or JKR.
     c0_off = 8
-    c0_buf = bytearray(file_data[c0_off:c0_off + c0_size])
-    if c0_size > 0:
-        _patch(c0_buf, _parse_chunk0(file_data, c0_off, c0_size), c0_off)
-    new_c0 = bytes(c0_buf)
+    c0_bytes = file_data[c0_off:c0_off + c0_size]
+    if c0_size > 0 and is_jkr_file(c0_bytes):
+        new_c0 = _rebuild_jkr(c0_bytes, c0_off)
+    else:
+        c0_buf = bytearray(c0_bytes)
+        if c0_size > 0:
+            _patch(c0_buf, _parse_chunk0(file_data, c0_off, c0_size), c0_off)
+        new_c0 = bytes(c0_buf)
 
     # chunk1 — NPC dialog, either an uncompressed sub-header chunk or JKR.
     c1_off = 8 + c0_size

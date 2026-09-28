@@ -113,6 +113,60 @@ def _build_jkr_chunk(strings: list[str]) -> bytes:
     return compress_jkr_hfi(decompressed)
 
 
+class TestScenarioGameLayout(unittest.TestCase):
+    """Layouts found in Erupe's bin/scenarios that the builders above miss."""
+
+    def _rebuild(self, data: bytes, translations: list[tuple[int, str]]) -> bytes:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "src.bin")
+            with open(src, "wb") as f:
+                f.write(data)
+            out = rebuild_scenario_file(src, translations, os.path.join(tmp, "out.bin"))
+            with open(out, "rb") as f:
+                return f.read()
+
+    def test_strings_past_the_declared_count(self):
+        """Quest scenarios declare 4 strings in chunk1 but hold more before 0xFF."""
+        c1 = bytearray(_build_subheader_chunk(
+            ["A", "B", "C", "D", "Hunt a Gypceros!", "Too bad."], metadata_size=0x2C
+        ))
+        c1[4] = 4  # entry_count, as in the game files
+        data = struct.pack(">II", 0, len(c1)) + bytes(c1) + struct.pack(">I", 0)
+        result = extract_scenario_file_data(data)
+        self.assertEqual([r["text"] for r in result],
+                         ["A", "B", "C", "D", "Hunt a Gypceros!", "Too bad."])
+
+    def test_jkr_chunk0(self):
+        """chunk0 can be JKR-compressed (episode titles)."""
+        c0 = _build_jkr_chunk(["第１話　想い出", "第２話　昔話"])
+        data = struct.pack(">II", len(c0), 0) + c0 + struct.pack(">I", 0)
+        result = extract_scenario_file_data(data)
+        self.assertEqual([r["text"] for r in result], ["第１話　想い出", "第２話　昔話"])
+        rebuilt = self._rebuild(data, [(result[0]["offset"], "Ep. 1")])
+        self.assertEqual([r["text"] for r in extract_scenario_file_data(rebuilt)],
+                         ["Ep. 1", "第２話　昔話"])
+
+    def test_jkr_row_keys_do_not_collide(self):
+        """Rows of chunk1 and chunk2 get distinct keys and translations stay put.
+
+        Decompressed chunks are larger than compressed ones: keyed by their
+        own file offset, chunk1's rows ran into chunk2's.
+        """
+        c1 = _build_jkr_chunk(["あ" * 40] * 8)
+        c2 = _build_jkr_chunk(["い" * 40] * 8)
+        data = (struct.pack(">II", 0, len(c1)) + c1
+                + struct.pack(">I", len(c2)) + c2)
+        rows = extract_scenario_file_data(data)
+        offsets = [r["offset"] for r in rows]
+        self.assertEqual(len(set(offsets)), 16)
+        # chunk1's keys all come before chunk2's: the ranges do not overlap
+        self.assertLess(max(offsets[:8]), min(offsets[8:]))
+        rebuilt = self._rebuild(data, [(offsets[3], "chunk1 row 3")])
+        texts = [r["text"] for r in extract_scenario_file_data(rebuilt)]
+        self.assertEqual(texts[3], "chunk1 row 3")
+        self.assertEqual(texts[:3] + texts[4:], ["あ" * 40] * 7 + ["い" * 40] * 8)
+
+
 class TestExtractScenario(unittest.TestCase):
     """Tests for scenario file extraction."""
 
@@ -755,13 +809,6 @@ class TestScanNullTerminatedStrings(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["text"], "Hello")
         self.assertEqual(result[1]["text"], "World")
-
-    def test_max_count(self):
-        from src.scenario import _scan_null_terminated_strings
-        text = encode_game_string("A") + b"\x00" + encode_game_string("B") + b"\x00"
-        result = _scan_null_terminated_strings(text, 0, len(text), max_count=1)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["text"], "A")
 
     def test_ff_sentinel(self):
         from src.scenario import _scan_null_terminated_strings
