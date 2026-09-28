@@ -48,6 +48,12 @@ of the old codecs, and on real game files). Timings on `mhfdat.bin`
   well as extracted CSV/JSON files.
 
 ### Fixed
+- **Web interface: no more broken page right after a deploy.** Browsers
+  may cache each file for 10 minutes, so a new page could run with an old
+  worker ("commands[command] is not a function"). The build now versions
+  every reference between the site's files, and the page checks that the
+  worker and Python bridge come from its own build, asking for a reload
+  otherwise.
 - Truncated JKR files now raise `JKRError`. Type 2 (HFIRW) crashed with a
   bare `IndexError`, and type 4 (HFI) with a cut-off Huffman table silently
   decompressed to zeros.

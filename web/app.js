@@ -6,6 +6,10 @@ import { currentLanguage, setLanguage, t } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
 
+// Build id, set by build_site.py (see there): the worker and the Python
+// bridge must come from the same build as this page.
+const BUILD = "__BUILD__";
+
 const worker = new Worker("worker.js", { type: "module" });
 const pending = new Map();
 let nextId = 0;
@@ -323,7 +327,14 @@ setLanguage(currentLanguage());
 showTab("editor");
 
 busy(t("busy.engine"), () => call("init"))
-  .then(({ pyodide, tool }) => {
+  .then(({ pyodide, tool, builds }) => {
+    if (builds.some((build) => build !== BUILD)) {
+      // A cached file from an older version: the page cannot work.
+      $("engine").dataset.i18n = "engine.stale";
+      $("engine").textContent = t("engine.stale");
+      $("engine").classList.add("error");
+      return;
+    }
     $("engine").dataset.i18n = "engine.ready";
     $("engine").textContent = t("engine.ready");
     $("versions").textContent = `${tool} (Pyodide ${pyodide})`;

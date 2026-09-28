@@ -2,6 +2,8 @@
 // stays responsive during the slow decrypt/compress steps.
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
 
+// Build id, set by build_site.py; the page checks it matches its own.
+const BUILD = "__BUILD__";
 const IN_DIR = "/work/in";
 const TRANSLATION_DIR = "/work/translations";
 
@@ -17,7 +19,7 @@ const ready = (async () => {
   const bridge = py.pyimport("bridge");
   bridge.set_reporter(log);
   const toolVersion = py.pyimport("src").__version__;
-  return { py, bridge, toolVersion };
+  return { py, bridge, toolVersion, bridgeBuild: bridge.BUILD };
 })();
 
 // Python dicts become plain objects, lists arrays, bytes Uint8Array.
@@ -34,8 +36,8 @@ function clearDir(py, dir) {
 }
 
 const commands = {
-  async init({ py, toolVersion }) {
-    return { pyodide: py.version, tool: toolVersion };
+  async init({ py, toolVersion, bridgeBuild }) {
+    return { pyodide: py.version, tool: toolVersion, builds: [BUILD, bridgeBuild] };
   },
 
   async load({ py, bridge }, { name, data }) {
