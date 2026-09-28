@@ -101,10 +101,14 @@ HR rank requirement label/value pairs. The struct is 20 bytes per row
 ## `mhfpac.bin` — Skills and UI text
 
 ### `pac/skills/`
-Hunter skill text:
-- `name` — Skill names.
-- `effect` — Skill effect text (current generation).
-- `effect_z` — Z-tier skill effect text.
+Hunter skill text, one skill per row:
+- `name` — Skill point names (225).
+- `effect` — Activated skill names (535).
+- `effect_z` — Zenith skill names: three lists of 27, 27 and 53 (107 rows).
+
+These tables end in (or, for `effect_z`, are separated by) null pointers
+that are padding, marked `null_padding` in `headers.json`. Before 1.10.0
+each table came out as a single row joining every name with `{j}`.
 - `caravan/name`, `caravan/description` — Caravan skills (狩人珠スキル,
   "Caravan Gem" skills in the English client), 109 rows each, row for row.
   Tables at header `0xA24` and `0xACC`; the last 3 of their 112 slots are

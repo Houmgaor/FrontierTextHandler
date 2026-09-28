@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   109 skill names and their descriptions (狩人珠スキル, "Caravan Gem" skills
   in the English client), from header `0xA24` and `0xACC`.
 
+### Fixed
+- **Skill lists have one skill per row.** `pac/skills/name`, `pac/skills/effect`
+  and `pac/skills/effect_z` each came out as a single row joining every name
+  with `{j}` (225, 535 and 53 parts): a null pointer anywhere in a flat table
+  made nulls act as group separators, and these tables are padded with
+  nulls. The new `null_padding` option in `headers.json` keeps one row per
+  pointer; the padding stays in place on import. Files extracted from these
+  three sections should be extracted again.
+
 ### Removed
 - **`pac/skills/description`** and **`gao/situational_dialogue`**, which were
   not text. Header `0xB8` in `mhfpac.bin` is an array of small-integer structs,

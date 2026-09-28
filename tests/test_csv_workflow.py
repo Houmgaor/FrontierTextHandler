@@ -2456,6 +2456,24 @@ class TestGroupedEntriesExtraction(unittest.TestCase):
         self.assertEqual(result[0]["sub_offsets"], [0x04, 0x08])
         self.assertEqual(result[1]["sub_offsets"], [0x0C])
 
+    def test_null_padding_keeps_one_row_per_pointer(self):
+        """Nulls padding a name list do not merge the names into one row.
+
+        Without null_padding, any null in the window switches to grouping,
+        so a list with trailing padding came out as a single row.
+        """
+        binary = self._build_grouped_null_terminated_binary(
+            [["A", "B"], ["C", None], [None, "D"]], 2
+        )
+        config = {"begin_pointer": "0x00", "entry_count": 6}
+        grouped = extract_text_data_from_bytes(binary, config)
+        self.assertEqual([row["text"] for row in grouped], ["A{j}B{j}C", "D"])
+
+        config["null_padding"] = True
+        result = extract_text_data_from_bytes(binary, config)
+        self.assertEqual([row["text"] for row in result], ["A", "B", "C", "D"])
+        self.assertEqual([row["offset"] for row in result], [0x04, 0x08, 0x0C, 0x18])
+
     def test_entry_count_without_grouping_stays_flat(self):
         """Without grouped_entries, entry_count keeps one row per pointer."""
         binary = self._build_grouped_null_terminated_binary([["A", "B"], ["C", "D"]], 2)
