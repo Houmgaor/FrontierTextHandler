@@ -10,6 +10,7 @@ computed on decoded bytes, so files extracted here match CLI extractions.
 Nothing leaves the browser: there is no network access from this module.
 """
 
+import csv
 import gzip
 import io
 import json
@@ -22,12 +23,16 @@ import zipfile
 
 from src import common
 from src.crypto import DEFAULT_KEY_INDEX, decrypt, encrypt, is_encrypted_file
-from src.export import extract_from_file
+from src.export import _dumps_translation_json, extract_from_file, translation_document
 from src.import_data import (
     XPATH_PREFIX_TO_GAME_FILE,
     apply_translations_from_release_json,
     import_from_csv,
+    infer_xpath,
 )
+from src.line_length import validate_line_length
+from src.placeholder_validation import validate_placeholders
+from src.text_folding import fold_unsupported_chars as fold_text
 from src.jkr_compress import compress_jkr_hfi
 from src.jkr_decompress import decompress_jkr, is_jkr_file
 
@@ -252,6 +257,180 @@ def _apply_release(
     return True
 
 
+# ---------------------------------------------------------------------------
+# In-page editor
+#
+# The page keeps the translator's work (xpath -> {index: target}, targets in
+# the same brace form as CSV/JSON files) and asks here for section texts,
+# row checks, the standard JSON files, and targets read from files.
+# ---------------------------------------------------------------------------
+
+
+def _decoded(name: str) -> bytes:
+    with open(f"{DECODED_DIR}/{name}", "rb") as f:
+        return f.read()
+
+
+def _entries(name: str, xpath: str, data: bytes | None = None) -> list:
+    """Extracted entries of *xpath* in the loaded file *name*."""
+    config = common.read_extraction_config(xpath)
+    return common.extract_text_data_from_bytes(
+        _decoded(name) if data is None else data, config
+    )
+
+
+def section_rows(name: str, xpath: str) -> dict:
+    """
+    Source texts of one section, by index, in CSV/JSON (brace) form.
+
+    :return: ``{"sources": [...], "max_width": n, "max_subs": n}``; the
+        limits come from headers.json and are 0 when unknown.
+    """
+    config = common.read_extraction_config(xpath)
+    rows = translation_document(_entries(name, xpath), name, xpath=xpath)["strings"]
+    return {
+        "sources": [row["source"] for row in rows],
+        "max_width": config.get("max_display_width", 0),
+        "max_subs": config.get("max_sub_count", 0),
+    }
+
+
+_encodable: dict[str, bool] = {}
+
+
+def _cannot_encode(text: str) -> str:
+    """Characters of *text* the game encoding cannot represent."""
+    bad = []
+    for char in text:
+        ok = _encodable.get(char)
+        if ok is None:
+            try:
+                char.encode(common.GAME_ENCODING)
+                ok = True
+            except UnicodeEncodeError:
+                ok = False
+            _encodable[char] = ok
+        if not ok and char not in bad:
+            bad.append(char)
+    return "".join(bad)
+
+
+def check_rows(xpath: str, rows: list, fold: bool = True) -> list[list[dict]]:
+    """
+    Check (source, target) pairs of one section.
+
+    Issues are data for the page to phrase in its own language:
+    ``placeholder`` (marker, source, target counts), ``folded`` (text as
+    the game will show it), ``unencodable`` (chars), ``width`` (sub,
+    width, max) and ``subs`` (count, max). Width is measured on the text
+    as shown, after folding.
+    """
+    config = common.read_extraction_config(xpath)
+    max_width = config.get("max_display_width", 0)
+    max_subs = config.get("max_sub_count", 0)
+    results = []
+    for source, target in rows:
+        issues = [
+            {"kind": "placeholder", "marker": issue.marker,
+             "source": issue.source_count, "target": issue.target_count}
+            for issue in validate_placeholders(source, target)
+        ]
+        shown = fold_text(target) if fold else target
+        if shown != target:
+            issues.append({"kind": "folded", "text": shown})
+        bad = _cannot_encode(shown)
+        if bad:
+            issues.append({"kind": "unencodable", "chars": bad})
+        if max_width:
+            for issue in validate_line_length(shown, max_width, max_subs):
+                if issue.kind == "width":
+                    issues.append({"kind": "width", "sub": issue.sub_index,
+                                   "width": issue.width, "max": issue.max_width})
+                else:
+                    issues.append({"kind": "subs", "count": issue.count,
+                                   "max": issue.max_count})
+        results.append(issues)
+    return results
+
+
+def _edit_documents(name: str, edits: dict) -> dict[str, str]:
+    """Standard JSON translation files for *edits*, by file name."""
+    data = _decoded(name)
+    fingerprint = common.compute_binary_fingerprint(data)
+    documents = {}
+    for xpath, targets in edits.items():
+        targets = {int(index): text for index, text in targets.items() if text}
+        if not targets:
+            continue
+        document = translation_document(
+            _entries(name, xpath, data), name, xpath=xpath,
+            fingerprint=fingerprint, targets=targets,
+        )
+        documents[xpath.replace("/", "-") + ".json"] = _dumps_translation_json(document)
+    return documents
+
+
+def export_edits(name: str, edits: dict) -> bytes:
+    """Zip of the editor's work, one standard JSON file per section."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for file_name, text in sorted(_edit_documents(name, edits).items()):
+            archive.writestr(file_name, text)
+    return buffer.getvalue()
+
+
+def read_edits(name: str, translations: list[str], release_languages: dict | None = None) -> dict:
+    """
+    Read targets from staged translation files for the loaded file *name*.
+
+    Index-keyed CSV/JSON files and release entries are read; legacy
+    offset-keyed rows cannot be placed in the editor and are skipped.
+
+    :return: ``{"edits": {xpath: {index: target}}, "skipped": [{"name", "reason"}]}``
+        with reasons ``legacy``, ``other_file`` or ``unknown_section``.
+    """
+    file_type = _loaded[name]["file_type"]
+    release_languages = release_languages or {}
+    edits: dict[str, dict[int, str]] = {}
+    skipped = []
+
+    def add(xpath: str, index, target) -> None:
+        if target:
+            edits.setdefault(xpath, {})[int(index)] = target
+
+    for translation in translations:
+        path = f"{TRANSLATION_DIR}/{translation}"
+        if translation in _releases:
+            lang = release_languages.get(translation)
+            for xpath, entries in _releases[translation].get(lang, {}).items():
+                if xpath.split("/")[0] == file_type:
+                    for entry in entries:
+                        if isinstance(entry, dict) and "index" in entry:
+                            add(xpath, entry["index"], entry.get("target"))
+            continue
+
+        if translation.lower().endswith(".json"):
+            with open(path, encoding="utf-8") as f:
+                document = json.load(f)
+            rows = document.get("strings", []) if isinstance(document, dict) else []
+            xpath = (document.get("metadata") or {}).get("xpath") or infer_xpath(path)
+        else:
+            with open(path, newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+            xpath = infer_xpath(path)
+
+        if rows and "index" not in rows[0]:
+            skipped.append({"name": translation, "reason": "legacy"})
+        elif not xpath:
+            skipped.append({"name": translation, "reason": "unknown_section"})
+        elif xpath.split("/")[0] != file_type:
+            skipped.append({"name": translation, "reason": "other_file"})
+        else:
+            for row in rows:
+                add(xpath, row["index"], row.get("target"))
+    return {"edits": edits, "skipped": skipped}
+
+
 def build(
     name: str,
     translations: list[str],
@@ -259,6 +438,7 @@ def build(
     compress: bool = True,
     encrypt_output: bool = True,
     fold_unsupported_chars: bool = True,
+    edits: dict | None = None,
 ) -> dict:
     """
     Apply staged translation files to a loaded file.
@@ -269,6 +449,8 @@ def build(
 
     :param release_languages: Language to apply for each release file,
         by file name. Other files are imported as extracted CSV/JSON.
+    :param edits: The in-page editor's work, ``{xpath: {index: target}}``,
+        applied after the files so it wins over them.
     :return: ``{"data": bytes, "applied": [...], "unchanged": [...]}``
     """
     build_dir = f"{WORK}/build"
@@ -279,6 +461,12 @@ def build(
     shutil.copyfile(f"{DECODED_DIR}/{name}", current)
 
     release_languages = release_languages or {}
+    translations = list(translations)
+    for file_name, text in _edit_documents(name, edits or {}).items():
+        editor_name = f"editor-{file_name}"
+        with open(f"{TRANSLATION_DIR}/{editor_name}", "w", encoding="utf-8") as f:
+            f.write(text)
+        translations.append(editor_name)
     applied, unchanged = [], []
     for index, translation in enumerate(translations):
         if translation in release_languages:

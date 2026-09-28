@@ -1,6 +1,7 @@
 // Page logic: forwards user files to the Pyodide worker and offers the
 // results as downloads.
 
+import { createEditor } from "./editor.js";
 import { currentLanguage, setLanguage, t } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
@@ -46,7 +47,7 @@ function showStatus(text, isError = false) {
 // Runs *task* while showing an elapsed-time counter and locking inputs,
 // since the slow steps take up to a couple of minutes on mhfdat.bin.
 async function busy(label, task) {
-  const controls = document.querySelectorAll("main input, main button, main select");
+  const controls = document.querySelectorAll("main input, main button, main select, main textarea");
   const previous = new Map([...controls].map((el) => [el, el.disabled]));
   controls.forEach((el) => (el.disabled = true));
   const start = performance.now();
@@ -110,11 +111,38 @@ async function openGameFile(file) {
   );
   renderFileInfo();
   renderSections(gameFile.sections);
-  $("step-extract").hidden = false;
+  $("step-translate").hidden = false;
   $("step-build").hidden = false;
   $("translations").value = "";
   staged = [];
   renderTranslations();
+  $("build").disabled = false; // The editor alone can provide translations.
+  await editor.open(gameFile);
+  renderIncluded();
+}
+
+// ---- Step 2: translate in the page, or as files ----
+
+const editor = createEditor({
+  call,
+  busy,
+  t,
+  getFold: () => $("opt-fold").checked,
+  onChange: () => renderIncluded(),
+});
+
+function showTab(tab) {
+  for (const name of ["editor", "files"]) {
+    $(`tab-${name}`).setAttribute("aria-selected", String(name === tab));
+    $(`tab-${name}`).setAttribute("aria-pressed", String(name === tab));
+    $(`panel-${name}`).hidden = name !== tab;
+  }
+}
+
+async function exportEdits() {
+  const result = await busy(t("busy.exportEdits"), () => editor.exportZip());
+  const stem = gameFile.name.replace(/\.bin$/i, "");
+  download(result.zip, `${stem}-translations.zip`, "application/zip");
 }
 
 // ---- Step 2: extract text ----
@@ -190,7 +218,35 @@ function renderTranslations() {
     return li;
   });
   $("translation-list").replaceChildren(...items);
-  $("build").disabled = staged.length === 0;
+  $("open-in-editor").hidden = staged.length === 0;
+}
+
+function renderIncluded() {
+  const count = editor.count();
+  $("editor-included").textContent = count ? t("step3.editorIncluded", { count }) : "";
+}
+
+function releaseLanguages() {
+  return Object.fromEntries(
+    staged.filter((item) => item.kind === "release").map((item) => [item.name, item.language]),
+  );
+}
+
+async function openInEditor() {
+  const result = await busy(t("busy.readEdits"), () =>
+    call("readEdits", {
+      name: gameFile.name,
+      translations: staged.map((item) => item.name),
+      releaseLanguages: releaseLanguages(),
+    }),
+  );
+  for (const { name, reason } of result.skipped) {
+    log(t(`log.skipped.${reason}`, { name }));
+  }
+  const { added, kept } = await editor.importEdits(result.edits);
+  showTab("editor");
+  showStatus(t("step3.opened", { count: added }) + (kept ? ` ${t("step3.kept", { count: kept })}` : ""));
+  $("step-translate").scrollIntoView({ behavior: "smooth" });
 }
 
 async function stageTranslations(files) {
@@ -204,9 +260,6 @@ async function stageTranslations(files) {
 }
 
 async function buildGameFile() {
-  const releaseLanguages = Object.fromEntries(
-    staged.filter((item) => item.kind === "release").map((item) => [item.name, item.language]),
-  );
   const options = {
     fold: $("opt-fold").checked,
     compress: $("opt-compress").checked,
@@ -216,7 +269,8 @@ async function buildGameFile() {
     call("build", {
       name: gameFile.name,
       translations: staged.map((item) => item.name),
-      releaseLanguages,
+      releaseLanguages: releaseLanguages(),
+      edits: editor.edits(),
       options,
     }),
   );
@@ -236,6 +290,8 @@ function switchLanguage(language) {
   renderFileInfo();
   if (gameFile) updateSelectedCount();
   renderTranslations();
+  editor.relabel();
+  renderIncluded();
 }
 
 // Errors are already shown by busy(); this keeps them out of the console
@@ -254,11 +310,17 @@ $("translations").addEventListener("change", quietly(async (event) => {
   if (event.target.files.length) await stageTranslations(event.target.files);
 }));
 $("build").addEventListener("click", quietly(buildGameFile));
+$("open-in-editor").addEventListener("click", quietly(openInEditor));
+$("editor-export").addEventListener("click", quietly(exportEdits));
+$("tab-editor").addEventListener("click", () => showTab("editor"));
+$("tab-files").addEventListener("click", () => showTab("files"));
+$("opt-fold").addEventListener("change", () => editor.recheck().catch(() => {}));
 document.querySelectorAll("[data-language]").forEach((button) =>
   button.addEventListener("click", () => switchLanguage(button.dataset.language)),
 );
 
 setLanguage(currentLanguage());
+showTab("editor");
 
 busy(t("busy.engine"), () => call("init"))
   .then(({ pyodide, tool }) => {

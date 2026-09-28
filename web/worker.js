@@ -55,14 +55,34 @@ const commands = {
     return toJs(bridge.stage_translations(name, py.toPy(translations.map((f) => f.name))));
   },
 
-  async build({ py, bridge }, { name, translations, releaseLanguages, options }) {
+  async build({ py, bridge }, { name, translations, releaseLanguages, edits, options }) {
     return toJs(
       bridge.build.callKwargs(name, py.toPy(translations), {
         release_languages: py.toPy(releaseLanguages),
+        edits: py.toPy(edits),
         compress: options.compress,
         encrypt_output: options.encrypt,
         fold_unsupported_chars: options.fold,
       }),
+    );
+  },
+
+  // In-page editor.
+  async section({ bridge }, { name, xpath }) {
+    return toJs(bridge.section_rows(name, xpath));
+  },
+
+  async check({ py, bridge }, { xpath, rows, fold }) {
+    return toJs(bridge.check_rows(xpath, py.toPy(rows), fold));
+  },
+
+  async exportEdits({ py, bridge }, { name, edits }) {
+    return { zip: toJs(bridge.export_edits(name, py.toPy(edits))) };
+  },
+
+  async readEdits({ py, bridge }, { name, translations, releaseLanguages }) {
+    return toJs(
+      bridge.read_edits(name, py.toPy(translations), py.toPy(releaseLanguages)),
     );
   },
 };
