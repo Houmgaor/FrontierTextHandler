@@ -11,7 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   help pages, event and guild screens, messages. They are the flat string
   lists of the file header, mapped by the new `tools/map_pac_tables.py`,
   which checks each table against other clients and existing sections.
-  Uncovered pac text goes from ~20,100 to ~4,700 strings.
+  It also maps 30 tables that are lists of null-terminated string lists
+  (3,957 strings, one row per list), read with a new `null_terminated`
+  option for `record_levels` levels. Uncovered pac text goes from ~20,100
+  to ~2,500 strings.
 - **Goocoo text** (`dat/goocoo/…`, 22 sections, 899 strings): accessory
   and garden names and descriptions, personalities, interactions and food
   descriptions. The English client never translated these.
