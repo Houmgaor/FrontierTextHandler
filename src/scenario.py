@@ -13,14 +13,19 @@ Container format (big-endian sizes):
     [chunk2_data: chunk2_size bytes]
 """
 import logging
+import re
 import struct
 
 from .binary_file import BinaryFile
 from .common import decode_game_string, load_file_data
 from .pointer_tables import read_until_null
-from .jkr_decompress import decompress_jkr, is_jkr_file
+from .jkr_decompress import JKRHeader, decompress_jkr, is_jkr_file
 
 logger = logging.getLogger(__name__)
+
+# Script bytes the JKR scan takes for text: control characters other than
+# tab and line breaks, or bytes that do not decode. No real line has them.
+_SCRIPT_BYTES = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffd]")
 
 
 def extract_scenario_file(file_path: str) -> list[dict[str, int | str]]:
@@ -109,6 +114,12 @@ def _parse_subheader_chunk(
         type(u8), pad(u8), size(u16 LE), entry_count(u8),
         unk(u8), metadata_total_size(u8), unk(u8)
 
+    The strings run from the end of the metadata to the 0xFF sentinel (or
+    the end of the chunk). entry_count is not their number: in quest
+    scenarios chunk1 declares 4 strings but holds about 10 (the quest
+    objective and the NPC's replies follow the first 4), and the client
+    reaches them through byte offsets in the metadata.
+
     :param data: Full file data
     :param chunk_offset: Absolute offset of chunk data in the file
     :param chunk_size: Size of chunk data in bytes
@@ -126,7 +137,6 @@ def _parse_subheader_chunk(
         return []
 
     # Read sub-header
-    entry_count = data[chunk_offset + 4]
     metadata_total = data[chunk_offset + 6]
 
     # Strings start after sub-header (8 bytes) + metadata
@@ -136,9 +146,7 @@ def _parse_subheader_chunk(
     if strings_offset >= chunk_end:
         return []
 
-    return _scan_null_terminated_strings(
-        data, strings_offset, chunk_end, entry_count
-    )
+    return _scan_null_terminated_strings(data, strings_offset, chunk_end)
 
 
 def _parse_inline_chunk(
@@ -202,7 +210,7 @@ def _parse_chunk0(
     chunk_size: int,
 ) -> list[dict[str, int | str]]:
     """
-    Parse chunk0 data, auto-detecting sub-header vs inline format.
+    Parse chunk0 data, auto-detecting JKR, sub-header or inline format.
 
     Sub-header format: byte[1] == 0x00 (padding byte in sub-header)
     Inline format: byte[1] != 0x00 (first byte of Shift-JIS string)
@@ -215,6 +223,8 @@ def _parse_chunk0(
     if chunk_size < 2:
         return []
 
+    if is_jkr_file(data[chunk_offset:chunk_offset + chunk_size]):
+        return _parse_jkr_chunk(data, chunk_offset, chunk_size)
     if data[chunk_offset + 1] == 0x00:
         return _parse_subheader_chunk(data, chunk_offset, chunk_size)
     else:
@@ -237,6 +247,43 @@ def _parse_chunk1(
     return _parse_subheader_chunk(data, chunk_offset, chunk_size)
 
 
+JKR_ROW_BASE = 0x100000
+
+
+def jkr_row_bases(data: bytes) -> dict[int, int]:
+    """
+    Row-offset base of each JKR-compressed chunk, keyed by its file offset.
+
+    A row inside a compressed chunk is keyed by base + its position in the
+    decompressed data. Decompressed chunks are larger than compressed
+    ones, so the chunk's own file offset as base made keys of one chunk
+    run into the next (a translation for chunk1 landed in chunk2). The
+    bases start at JKR_ROW_BASE, past any scenario file (the client takes
+    chunks of at most 0x8000 bytes), and follow each other by the
+    decompressed sizes in the JKR headers. Those sizes do not change when
+    strings are patched in place, so a rebuilt file keeps the same keys.
+
+    :param data: Full scenario file data
+    :return: ``{chunk file offset: row base}`` for the JKR chunks
+    """
+    if len(data) < 8:
+        return {}
+    c0_size, c1_size = struct.unpack_from(">2I", data, 0)
+    chunks = [(8, c0_size), (8 + c0_size, c1_size)]
+    c2_header = 8 + c0_size + c1_size
+    if c2_header + 4 <= len(data):
+        chunks.append((c2_header + 4, struct.unpack_from(">I", data, c2_header)[0]))
+    bases: dict[int, int] = {}
+    base = JKR_ROW_BASE
+    for offset, size in chunks:
+        chunk = data[offset:offset + size]
+        header = JKRHeader.from_bytes(chunk) if is_jkr_file(chunk) else None
+        if header is not None:
+            bases[offset] = base
+            base += header.decompressed_size
+    return bases
+
+
 def _parse_jkr_chunk(
     data: bytes,
     chunk_offset: int,
@@ -247,6 +294,9 @@ def _parse_jkr_chunk(
 
     The decompressed data contains repeated entries of metadata bytes
     followed by null-terminated Shift-JIS strings.
+
+    Row offsets are the chunk's base from :func:`jkr_row_bases` plus the
+    position in the decompressed data.
 
     :param data: Full file data
     :param chunk_offset: Absolute offset of JKR data
@@ -277,14 +327,14 @@ def _parse_jkr_chunk(
         )
         return []
 
-    return _scan_decompressed_strings(decompressed, chunk_offset)
+    base = jkr_row_bases(data).get(chunk_offset, chunk_offset)
+    return _scan_decompressed_strings(decompressed, base)
 
 
 def _scan_null_terminated_strings(
     data: bytes,
     start: int,
     end: int,
-    max_count: int = 0,
 ) -> list[dict[str, int | str]]:
     """
     Scan for null-terminated Shift-JIS strings in a byte range.
@@ -292,17 +342,12 @@ def _scan_null_terminated_strings(
     :param data: Full file data
     :param start: Start offset (inclusive)
     :param end: End offset (exclusive)
-    :param max_count: Maximum number of strings to read (0 = unlimited)
     :return: List of dicts with "offset" and "text" keys
     """
     results: list[dict[str, int | str]] = []
     pos = start
-    count = 0
 
     while pos < end:
-        if max_count > 0 and count >= max_count:
-            break
-
         # Skip padding/null bytes
         if data[pos] == 0x00:
             pos += 1
@@ -322,7 +367,6 @@ def _scan_null_terminated_strings(
                 raw, context=f"offset 0x{string_start:x}"
             )
             results.append({"offset": string_start, "text": text})
-            count += 1
 
         # Skip null terminator
         if pos < end:
@@ -384,11 +428,13 @@ def _scan_decompressed_strings(
                 text = decode_game_string(
                     raw, context=f"JKR decompressed at 0x{string_start:x}"
                 )
-                # Use base_offset + string position for unique offset
-                results.append({
-                    "offset": base_offset + string_start,
-                    "text": text,
-                })
+                # Skip dialogue-script bytes that happen to look like text
+                if not _SCRIPT_BYTES.search(text):
+                    # Use base_offset + string position for unique offset
+                    results.append({
+                        "offset": base_offset + string_start,
+                        "text": text,
+                    })
 
         # Skip null terminator
         if pos < length:
