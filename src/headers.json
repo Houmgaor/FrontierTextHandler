@@ -636,9 +636,9 @@
   "sqd": {
     "_comment": "Squad / NPC partner data (mhfsqd.bin). Greenfield RE: the file header at 0x00-0x38 stores 15 u32 pointers that delimit struct-strided tables in the data region, with a flat Shift-JIS string blob at 0x40-0x14C0. String pointers are embedded as fields within structs (not s32p arrays). First-pass coverage: 6 header-rooted struct-strided tables (~190 strings). Tables at 0x00/0x04/0x08/0x0C/0x1C/0x20/0x2C/0x30/0x34/0x38 are non-string / complex and not yet extracted.",
     "npc_names": {
-      "_comment": "NPC partner names (Aaron, Bart, Calvin, Tania, ...). 43 entries, stride 8, string ptr at field 0. End matches header 0x20 (0x1B58).",
+      "_comment": "NPC partner names (Aaron, Bart, Calvin, Tania, ...). 40 entries, stride 8, string ptr at field 0. Ends where star_rank starts (header 0x24 = 0x1B40); the next 3 structs are the star labels.",
       "begin_pointer": "0x28",
-      "entry_count": 43,
+      "entry_count": 40,
       "entry_size": 8,
       "field_offset": 0,
       "max_display_width": 10,
@@ -691,18 +691,18 @@
     }
   },
   "rcc": {
-    "_comment": "Reception / event info strings (mhfrcc.bin). First-pass coverage: the English event-info pointer table at 0x580 is clean (7 entries). Japanese equivalents live in a variable-length struct region near 0x5c0 mixed with numeric fields and are not yet fully mapped.",
+    "_comment": "Reception / event info strings (mhfrcc.bin). The header pairs each table pointer with its count: 0x00/0x04 = event struct table (events_full), 0x08/0x0C = UI label pointer table (events_en), 0x10/0x14 = a third table (count 0).",
     "events_en": {
-      "_comment": "English event info strings referenced by a contiguous 7-entry s32p table pointed to by u32 at file offset 0x08.",
+      "_comment": "Event screen UI labels (Japanese, despite the name: button hints, 'not available in the beginner district'). s32p table at *0x08, count at 0x0C (8).",
       "begin_pointer": "0x08",
-      "entry_count": 7,
+      "entry_count": 8,
       "entry_size": 4,
       "field_offset": 0,
       "max_display_width": 22,
       "max_sub_count": 1
     },
     "events_full": {
-      "_comment": "Event info multi-field struct table at 0x5c0 (7 rows x 36-byte stride). Header u32 at 0x00 = 0x5c0 (base), header u32 at 0x04 = 7 (count). Each row carries up to 4 string pointer fields at +0x14 (title), +0x18 (description/alt title), +0x1C / +0x20 (usually '−' placeholders but row 1 stores 'Guild Conquest is underway!' and a '残り時間…' template). Supersets events_en (row.+0x14 == events_en entries).",
+      "_comment": "Event info multi-field struct table at 0x5c0 (7 rows x 36-byte stride). Header u32 at 0x00 = 0x5c0 (base), header u32 at 0x04 = 7 (count). Each row carries up to 4 string pointer fields at +0x14 (title), +0x18 (description/alt title), +0x1C / +0x20 (usually '−' placeholders but row 1 stores 'Guild Conquest is underway!' and a '残り時間…' template).",
       "begin_pointer": "0x00",
       "entry_count": 7,
       "entry_size": 36,
