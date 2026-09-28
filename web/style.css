@@ -349,6 +349,18 @@ button.link:focus-visible { outline: 2px solid var(--cursor); }
   box-shadow: inset 0 1px 4px rgba(93, 74, 38, .3);
 }
 
+.sections .group {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: .35rem;
+  color: var(--header-blue);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sections .group:first-child { margin-top: 0; }
+.sections .group:hover { text-decoration: underline dotted; }
+
 .sections label, .option {
   position: relative;
   display: flex;
@@ -472,6 +484,14 @@ input[type="search"], input[type="number"] {
 
 input[type="search"]:focus-visible, input[type="number"]:focus-visible {
   outline: 2px solid var(--cursor);
+}
+
+.elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem .9rem;
+  margin: -.2rem 0 .6rem;
+  color: var(--ink-soft);
 }
 
 .rows {

@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Web interface: sections grouped by folder, and search across them.**
+  The editor menu and the file list group sections by folder (`pac`,
+  `pac/skills`, `dat/goocoo/accessory_1`, …) and sort `text_<offset>`
+  tables by offset. Typing in the editor's search box also lists the other
+  sections whose original text or translation contains it; one click opens
+  a section, filtered. A file list heading selects or clears its group.
 - **829 `mhfpac.bin` UI text tables** (`pac/text_<offset>`, 23,099 rows): menus,
   help pages, event and guild screens, messages. They are the flat string
   lists of the file header, mapped by the new `tools/map_pac_tables.py`,

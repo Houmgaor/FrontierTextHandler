@@ -2,6 +2,7 @@
 // results as downloads.
 
 import { createEditor } from "./editor.js";
+import { groupSections, leafOf } from "./sections.js";
 import { currentLanguage, setLanguage, t } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
@@ -161,17 +162,33 @@ function updateSelectedCount() {
   $("extract").disabled = count === 0;
 }
 
+// Sections grouped by folder; a group heading selects or clears the group.
 function renderSections(sections) {
   $("sections").replaceChildren(
-    ...sections.map((xpath) => {
-      const label = document.createElement("label");
-      const box = Object.assign(document.createElement("input"), {
-        type: "checkbox",
-        value: xpath,
-        checked: true,
+    ...groupSections(sections).flatMap(([parent, members]) => {
+      const heading = Object.assign(document.createElement("button"), {
+        type: "button",
+        className: "group link",
+        textContent: `${parent}/ (${members.length})`,
       });
-      label.append(box, xpath);
-      return label;
+      const labels = members.map((xpath) => {
+        const label = document.createElement("label");
+        label.title = xpath;
+        const box = Object.assign(document.createElement("input"), {
+          type: "checkbox",
+          value: xpath,
+          checked: true,
+        });
+        label.append(box, leafOf(xpath));
+        return label;
+      });
+      heading.addEventListener("click", () => {
+        const boxes = labels.map((label) => label.querySelector("input"));
+        const check = boxes.some((box) => !box.checked);
+        boxes.forEach((box) => (box.checked = check));
+        updateSelectedCount();
+      });
+      return [heading, ...labels];
     }),
   );
   updateSelectedCount();

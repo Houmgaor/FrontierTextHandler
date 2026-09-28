@@ -240,6 +240,21 @@ class TestWebEditor(unittest.TestCase):
             {"sources": ["Helmet", "Sword"], "max_width": 12, "max_subs": 1},
         )
 
+    def test_search_sections(self):
+        self._load(["Helmet", "Iron Sword", "sword of fire"])
+        found = bridge.search_sections("mhfdat.bin", "SWORD")
+        dat_sections = [x for x in bridge.common.get_all_xpaths() if x.startswith("dat/")]
+        # read_extraction_config is mocked: every dat section reads the same table.
+        self.assertEqual(found, [[x, 2] for x in dat_sections])
+        self.assertEqual(bridge.search_sections("mhfdat.bin", "shield"), [])
+
+    def test_search_sections_forgets_a_replaced_file(self):
+        self._load(["Helmet"])
+        self.assertEqual(bridge.search_sections("mhfdat.bin", "sword"), [])
+        self._put_game_file("mhfdat.bin", _pointer_table_binary(["Sword"]))
+        bridge.load_game_file("mhfdat.bin")
+        self.assertTrue(bridge.search_sections("mhfdat.bin", "sword"))
+
     def test_check_rows(self):
         self._load(["Helmet"])
         results = bridge.check_rows("dat/armors/head", [

@@ -2,11 +2,15 @@
 // editable target, checked by the Python tool as you type, and saved in
 // this browser (store.js).
 
+import { groupSections, leafOf } from "./sections.js";
 import { loadSections, openStore, saveSection } from "./store.js";
 
 const PAGE_SIZE = 25;
 const SAVE_DELAY = 400; // ms after the last keystroke
 const CHECK_DELAY = 250;
+const SEARCH_DELAY = 400;
+const SEARCH_MIN = 2; // characters before searching the other sections
+const ELSEWHERE_SHOWN = 12;
 
 const $ = (id) => document.getElementById(id);
 
@@ -28,6 +32,8 @@ export function createEditor({ call, busy, t, getFold, onChange = () => {} }) {
   let saveState = "saved";
   const saveTimers = new Map();
   const checkTimers = new Map();
+  let searchTimer = null;
+  let searchSerial = 0;
 
   const storeReady = openStore().then((ok) => (persistent = ok));
 
@@ -133,12 +139,20 @@ export function createEditor({ call, busy, t, getFold, onChange = () => {} }) {
     return Object.values(rowsOf(section)).filter((row) => row.target).length;
   }
 
+  function optionLabel(section) {
+    const count = translatedCount(section);
+    const name = leafOf(section);
+    return count ? `${name} · ${t("editor.translatedShort", { count })}` : name;
+  }
+
+  // Sections grouped by folder: a file can have hundreds of them.
   function renderSectionOptions() {
     const select = $("editor-section");
-    select.replaceChildren(...game.sections.map((section) => {
-      const count = translatedCount(section);
-      const label = count ? `${section} · ${t("editor.translatedShort", { count })}` : section;
-      return new Option(label, section);
+    select.replaceChildren(...groupSections(game.sections).map(([parent, sections]) => {
+      const group = document.createElement("optgroup");
+      group.label = parent;
+      group.append(...sections.map((section) => new Option(optionLabel(section), section)));
+      return group;
     }));
     if (xpath) select.value = xpath;
   }
@@ -150,9 +164,7 @@ export function createEditor({ call, busy, t, getFold, onChange = () => {} }) {
       done: done.toLocaleString(), total: sources.length.toLocaleString(), warnings,
     });
     const option = [...$("editor-section").options].find((o) => o.value === xpath);
-    if (option) {
-      option.textContent = done ? `${xpath} · ${t("editor.translatedShort", { count: done })}` : xpath;
-    }
+    if (option) option.textContent = optionLabel(xpath);
   }
 
   function renderRowState(index) {
@@ -258,15 +270,82 @@ export function createEditor({ call, busy, t, getFold, onChange = () => {} }) {
     render();
   }
 
+  // ---- Search in the other sections ----
+
+  // Sections other than the open one whose original text (searched in
+  // Python) or translation (saved here) contains the query.
+  async function searchElsewhere() {
+    const needle = query.trim();
+    const serial = ++searchSerial;
+    const line = $("editor-elsewhere");
+    if (needle.length < SEARCH_MIN || !game) {
+      line.hidden = true;
+      return;
+    }
+    line.hidden = false;
+    line.textContent = t("editor.searching");
+    let found;
+    try {
+      found = new Map(await call("search", { name: game.name, query: needle }));
+    } catch {
+      found = new Map();
+    }
+    if (serial !== searchSerial) return; // A newer search is running.
+    const lower = needle.toLocaleLowerCase();
+    for (const [section, rows] of saved) {
+      if (!game.sections.includes(section)) continue;
+      const hits = Object.values(rows)
+        .filter((row) => row.target?.toLocaleLowerCase().includes(lower)).length;
+      if (hits) found.set(section, Math.max(found.get(section) ?? 0, hits));
+    }
+    found.delete(xpath);
+    renderElsewhere([...found]);
+  }
+
+  function renderElsewhere(found) {
+    const line = $("editor-elsewhere");
+    if (!found.length) {
+      line.hidden = true;
+      return;
+    }
+    const ordered = groupSections(found.map(([section]) => section)).flatMap(([, s]) => s);
+    const counts = new Map(found);
+    const links = ordered.slice(0, ELSEWHERE_SHOWN).map((section) => {
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "link";
+      link.textContent = `${section} (${counts.get(section)})`;
+      link.addEventListener("click", () => {
+        openSection(section).then(searchElsewhere).catch(() => {});
+      });
+      return link;
+    });
+    const label = document.createElement("span");
+    label.textContent = t("editor.elsewhere");
+    line.replaceChildren(label, ...links);
+    if (ordered.length > ELSEWHERE_SHOWN) {
+      const more = document.createElement("span");
+      more.textContent = t("editor.elsewhereMore", { count: ordered.length - ELSEWHERE_SHOWN });
+      line.append(more);
+    }
+    line.hidden = false;
+  }
+
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(searchElsewhere, SEARCH_DELAY);
+  }
+
   // ---- Wiring ----
 
   $("editor-section").addEventListener("change", (event) => {
-    openSection(event.target.value).catch(() => {});
+    openSection(event.target.value).then(searchElsewhere).catch(() => {});
   });
   $("editor-search").addEventListener("input", (event) => {
     query = event.target.value;
     page = 0;
     render();
+    scheduleSearch();
   });
   $("editor-filter").addEventListener("change", (event) => {
     filter = event.target.value;
@@ -287,9 +366,11 @@ export function createEditor({ call, busy, t, getFold, onChange = () => {} }) {
       game = gameFile;
       saved = await loadSections(game.file_type);
       xpath = null;
+      $("editor-elsewhere").hidden = true;
       renderSectionOptions();
-      const started = game.sections.find((section) => translatedCount(section));
-      if (game.sections.length) await openSection(started ?? game.sections[0]);
+      const ordered = groupSections(game.sections).flatMap(([, sections]) => sections);
+      const started = ordered.find((section) => translatedCount(section));
+      if (ordered.length) await openSection(started ?? ordered[0]);
       renderSectionOptions();
     },
 
@@ -353,6 +434,7 @@ export function createEditor({ call, busy, t, getFold, onChange = () => {} }) {
       if (!game) return;
       renderSectionOptions();
       render();
+      if (!$("editor-elsewhere").hidden) searchElsewhere();
     },
   };
 }

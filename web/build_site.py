@@ -31,7 +31,9 @@ from pathlib import Path
 
 WEB_DIR = Path(__file__).resolve().parent
 ROOT = WEB_DIR.parent
-STATIC_FILES = ["index.html", "style.css", "app.js", "editor.js", "store.js", "i18n.js", "worker.js"]
+STATIC_FILES = [
+    "index.html", "style.css", "app.js", "editor.js", "sections.js", "store.js", "i18n.js", "worker.js",
+]
 BUILD_PLACEHOLDER = "__BUILD__"
 
 # "file.js", './file.js' or "app.zip" in quotes, for any file of the site.

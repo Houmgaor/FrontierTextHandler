@@ -74,6 +74,10 @@ const commands = {
     return toJs(bridge.section_rows(name, xpath));
   },
 
+  async search({ bridge }, { name, query }) {
+    return toJs(bridge.search_sections(name, query));
+  },
+
   async check({ py, bridge }, { xpath, rows, fold }) {
     return toJs(bridge.check_rows(xpath, py.toPy(rows), fold));
   },
