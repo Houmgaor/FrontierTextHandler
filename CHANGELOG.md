@@ -17,8 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **Python 3.11+ required.** `requires-python` goes from 3.7 (never true:
   the code uses PEP 604 `X | Y` annotations) to 3.11, as 3.10 reaches
-  end of life in October 2026. CI now tests 3.11–3.15 (3.15 as a
-  pre-release until its October 2026 release).
+  end of life in October 2026. CI now tests 3.11–3.14.
 - CI: `actions/checkout` and `actions/setup-python` bumped to v7, and a
   job step installs the package and runs it from outside the repository.
 - Docs updated for CP932: the colour-code prefix `0x7E` now decodes as
