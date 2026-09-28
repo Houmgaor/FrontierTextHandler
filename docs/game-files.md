@@ -47,7 +47,7 @@ pointer table:
 | File | Strings extracted | Status |
 |------|------------------|--------|
 | `mhfdat.bin` | ~233,000 rows (weapons, armors, items, monsters, ranks, HH, Goocoo, tips) | Nearly complete: ~170 strings in tables no section covers (village gossip) |
-| `mhfpac.bin` | ~26,800 rows (skills + UI/dialogue tables) | Partial: ~2,500 strings in tables no section covers (struct tables) |
+| `mhfpac.bin` | ~29,700 rows (skills, UI, help, dialogue) | Nearly complete: ~820 strings (1.6% of the text) in tables no section covers |
 | `mhfinf.bin` | ~22,700 (quests × 8 text fields each) | Complete |
 | `mhfjmp.bin` | 53 (menu titles, descriptions, strings) | Complete |
 | `mhfgao.bin` | 2,122 (Felyne equipment, dialogue, skills) | Complete |
@@ -147,25 +147,55 @@ Header `0xB8` is not a string table (until 1.9.0 FTH extracted it as
 `pac/skills/description`): it is an array of 11-word structs of small
 integers and nested pointers, which only decoded as text by accident.
 
+### Record trees (hand-mapped)
+Tables whose records point to lists of records, read with `record_levels`:
+
+| Section | Header | Layout |
+|---------|--------|--------|
+| `hunter_navi/chapter/{name,title}` | `0xC4` | 14 chapters {name, title, steps} (12 bytes) |
+| `hunter_navi/step/{title,summary,pages}` | `0xC4` → | steps {title, summary, pages, page count} (16 bytes, zero record ends), pages {flags, text} (8 bytes); 164 steps |
+| `help/{topic,section,pages}` | `0xF8` | 14 topics (24 bytes, with the `.txb` path) → sections {title, pages, count} (12 bytes) → pages {flags, text, text} (12 bytes) |
+| `guide/{topic,section,page}` | `0xE4` | 5 records (28 bytes) {title, section titles list, pages list, …} |
+| `unlock_notice/{title,body}` | `0x88` | 181 records {id, type, title, body} (16 bytes) |
+| `article/{title,body}` | `0x90` | 5 pointers → lists of {id, 0, title, body} (16 bytes), 93 articles |
+| `scene_dialogue` | `0xD8` | 2,920 pointers → scenes of {speaker, line} (8 bytes, zero record ends); 579 scenes, 220 distinct. Pointers to the zeroed end of the file are empty scenes |
+| `town_info` | `0xAB8` | the first 33 words, string pointers; records follow |
+
+The Hunter Navi steps and pages are stored in the table at `0xCEC`, and
+the guide pages in the one at `0x1110` (`pac/text_1110` reads only that
+table's index lists). The records are reached from `0xC4` and `0xE4`, not
+from the tables they sit in.
+
 ### `pac/text_*`
 Generic UI / system text tables. The numeric suffix is the header pointer
 offset where the table base is stored (the header runs from `0x08` to
 `0x111C`; each table ends where the next one starts).
 
-Most of them (859 sections) are mapped by `tools/map_pac_tables.py`, in two
+Most of them (930 sections) are mapped by `tools/map_pac_tables.py`, in three
 shapes:
 
 - 829 flat string lists: every non-null word points to a string,
   `entry_count` stops at the last string, and `null_padding` is set when
   nulls sit between strings.
-- 30 lists of lists: the table starts with pointers to null-terminated
-  string lists stored after them (ranking headers, menus, help pages).
-  They use `record_levels` with a `null_terminated` level; one row per list.
+- 46 lists of lists: the table starts with an index of pointers to
+  null-terminated string lists (ranking headers, menus, help pages), with
+  0 or small flag values between them. They use `record_levels` with a
+  `null_terminated` level; one row per list. Index entries whose list
+  another section already reads are listed in `skip_entries`.
+- 55 record tables: fixed-size records up to the first all-zero one, with
+  one string field (NPC dialogue, such as the caravan balloon crew's
+  `{flag, line}` pairs), read in struct mode.
 
 The tool adds a table only if it reads the same pointer slots on every
 client passed with `--check`, and never one that overlaps an existing
-section. Not mapped yet: 96 struct tables, and 65 tables skipped as single
-strings, symbols or overlaps.
+section. Flat and record tables own their slots, so they are added before
+the lists. Not mapped yet: ~20 tables of other shapes (variable-length
+records such as the village quest requests at `0x38`/`0x3C`), and ~70
+skipped as single strings or symbols.
+
+Run it after the named sections below, so their slots count as covered.
+It sorts `text_<offset>` sections by offset, so a run from scratch writes
+the same file.
 
 The hand-mapped tables below predate the tool. Two layout families coexist:
 

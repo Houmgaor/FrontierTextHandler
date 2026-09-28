@@ -1132,6 +1132,66 @@ class TestReadRecordLists(unittest.TestCase):
         self.assertEqual([r["text"] for r in result], ["a1{j}a2", "b1"])
         self.assertEqual([r["sub_offsets"] for r in result], [[16, 20], [28]])
 
+    def test_null_terminated_records_end_at_zero_record(self):
+        """Wider records end at the first all-zero record, like pac scenes."""
+        # Header -> [scene ptr] ; scene: {1, "x"}, {0, "y"}, {2, "z"}, {0, 0}
+        data = bytearray(struct.pack("<2I", 4, 8))
+        data += struct.pack("<8I", 1, 0, 0, 0, 2, 0, 0, 0)
+        for slot, text in zip((12, 20, 28), ("x", "y", "z")):
+            struct.pack_into("<I", data, slot, len(data))
+            data += encode_game_string(text) + b"\x00"
+        config = {
+            "begin_pointer": "0x00", "entry_count": 1, "entry_size": 4,
+            "field_offset": 4,
+            "record_levels": [
+                {"pointer_offset": 0, "entry_size": 8, "null_terminated": True}
+            ],
+        }
+        result = extract_text_data_from_bytes(bytes(data), config)
+        # {0, "y"} starts with 0 but is not a terminator.
+        self.assertEqual([r["text"] for r in result], ["x{j}y{j}z"])
+        self.assertEqual(result[0]["sub_offsets"], [12, 20, 28])
+
+    @staticmethod
+    def _build_index(index: list) -> tuple[bytes, dict]:
+        """Header -> index of list pointers; list A "a1","a2" at 32, B "b1" at 44.
+
+        *index* items are "A", "A+4" (the tail of A), "B" or a raw int.
+        """
+        targets = {"A": 32, "A+4": 36, "B": 44}
+        data = bytearray(struct.pack("<I", 4))
+        data += struct.pack("<7I", *[targets.get(i, i) for i in index] + [0] * (7 - len(index)))
+        data += struct.pack("<5I", 0, 0, 0, 0, 0)       # A at 32, B at 44
+        for slot, text in zip((32, 36, 44), ("a1", "a2", "b1")):
+            struct.pack_into("<I", data, slot, len(data))
+            data += encode_game_string(text) + b"\x00"
+        config = {
+            "begin_pointer": "0x00", "entry_count": len(index), "entry_size": 4,
+            "record_levels": [
+                {"pointer_offset": 0, "entry_size": 4, "null_terminated": True}
+            ],
+        }
+        return bytes(data), config
+
+    def test_flags_and_repeated_lists(self):
+        """Flag values are not lists, and a slot is read only once."""
+        data, config = self._build_index(["A", 1, "A", "A+4", "B"])
+        result = extract_text_data_from_bytes(data, config)
+        self.assertEqual([r["text"] for r in result], ["a1{j}a2", "b1"])
+
+    def test_list_tail_read_first(self):
+        """A list starting in another's tail keeps its slots; the other keeps the rest."""
+        data, config = self._build_index(["A+4", "A"])
+        result = extract_text_data_from_bytes(data, config)
+        self.assertEqual([r["text"] for r in result], ["a2", "a1"])
+        self.assertEqual([r["sub_offsets"] for r in result], [[36], [32]])
+
+    def test_skip_entries(self):
+        """skip_entries leaves lists that another section reads."""
+        data, config = self._build_index(["A", "B"])
+        result = extract_text_data_from_bytes(data, {**config, "skip_entries": [0]})
+        self.assertEqual([r["text"] for r in result], ["b1"])
+
     def test_rebuild_translates_pages_in_place(self):
         """Grouped page rows import through rebuild_section like any other."""
         from src.import_data import rebuild_section
@@ -2689,6 +2749,14 @@ class TestNewPacXpaths(unittest.TestCase):
         # Header 0xB8 and gao 0x40 are not string tables.
         self.assertNotIn("pac/skills/description", result)
         self.assertNotIn("gao/situational_dialogue", result)
+
+    def test_pac_record_trees(self):
+        """The hand-mapped pac trees are listed as leaves."""
+        result = get_all_xpaths(DEFAULT_HEADERS_PATH)
+        for xpath in ("pac/hunter_navi/chapter/name", "pac/hunter_navi/step/pages",
+                      "pac/help/pages", "pac/guide/page", "pac/unlock_notice/body",
+                      "pac/article/body", "pac/scene_dialogue", "pac/town_info"):
+            self.assertIn(xpath, result)
 
 
 class TestParseJoinedText(unittest.TestCase):

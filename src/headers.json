@@ -497,6 +497,256 @@
         "_comment": "Options menu tabs: title + Display(Town/Gen-Quests/High Grade), Input Options, NPC Settings, Chat, Sound, Post Screenshot, Other (slots 0-10; null at slot 20)"
       }
     },
+    "hunter_navi": {
+      "_comment": "Hunter Navi (ハンターナビ) goals: 14 chapter records {name, title, steps pointer} (12 bytes) at *0xC4; each points to steps {title, summary, pages pointer, page count} (16 bytes, ending with a zero record), and each step to pages {flags, text} (8 bytes).",
+      "chapter": {
+        "name": {
+          "_comment": "Chapter tab names ('ＨＲ用' ...).",
+          "begin_pointer": "0xC4",
+          "entry_count": 14,
+          "entry_size": 12,
+          "field_offset": 0,
+          "max_display_width": 8,
+          "max_sub_count": 1
+        },
+        "title": {
+          "_comment": "Chapter titles ('ようこそ！MHF-Ｚの世界へ！' ...).",
+          "begin_pointer": "0xC4",
+          "entry_count": 14,
+          "entry_size": 12,
+          "field_offset": 4,
+          "max_display_width": 34,
+          "max_sub_count": 1
+        }
+      },
+      "step": {
+        "title": {
+          "_comment": "Step titles ('①MHF-Ｚへようこそ！' ...).",
+          "begin_pointer": "0xC4",
+          "entry_count": 14,
+          "entry_size": 12,
+          "record_levels": [
+            {
+              "pointer_offset": 8,
+              "entry_size": 16,
+              "null_terminated": true
+            }
+          ],
+          "field_offset": 0,
+          "join": false,
+          "max_display_width": 41,
+          "max_sub_count": 1
+        },
+        "summary": {
+          "_comment": "Step summaries, one per step.",
+          "begin_pointer": "0xC4",
+          "entry_count": 14,
+          "entry_size": 12,
+          "record_levels": [
+            {
+              "pointer_offset": 8,
+              "entry_size": 16,
+              "null_terminated": true
+            }
+          ],
+          "field_offset": 4,
+          "join": false,
+          "max_display_width": 109,
+          "max_sub_count": 1
+        },
+        "pages": {
+          "_comment": "Step explanation pages, one row per step.",
+          "begin_pointer": "0xC4",
+          "entry_count": 14,
+          "entry_size": 12,
+          "record_levels": [
+            {
+              "pointer_offset": 8,
+              "entry_size": 16,
+              "null_terminated": true
+            },
+            {
+              "pointer_offset": 8,
+              "count_offset": 12,
+              "entry_size": 8
+            }
+          ],
+          "field_offset": 4,
+          "max_display_width": 385,
+          "max_sub_count": 5
+        }
+      }
+    },
+    "help": {
+      "_comment": "Event and minigame help ('狩煉道とは？' ...): 14 topic records {title, subtitle, sections pointer, .txb path, ...} (24 bytes) at *0xF8; sections {title, pages pointer, page count} (12 bytes, ending with a zero record); pages {flags, text, text} (12 bytes, the second text is always empty).",
+      "topic": {
+        "_comment": "Topic titles.",
+        "begin_pointer": "0xF8",
+        "entry_count": 14,
+        "entry_size": 24,
+        "field_offset": 0,
+        "max_display_width": 28,
+        "max_sub_count": 1
+      },
+      "section": {
+        "_comment": "Section titles ('操作説明' ...).",
+        "begin_pointer": "0xF8",
+        "entry_count": 14,
+        "entry_size": 24,
+        "record_levels": [
+          {
+            "pointer_offset": 8,
+            "entry_size": 12,
+            "null_terminated": true
+          }
+        ],
+        "join": false,
+        "max_display_width": 34,
+        "max_sub_count": 1
+      },
+      "pages": {
+        "_comment": "Help pages, one row per section.",
+        "begin_pointer": "0xF8",
+        "entry_count": 14,
+        "entry_size": 24,
+        "record_levels": [
+          {
+            "pointer_offset": 8,
+            "entry_size": 12,
+            "null_terminated": true
+          },
+          {
+            "pointer_offset": 4,
+            "count_offset": 8,
+            "entry_size": 12
+          }
+        ],
+        "field_offset": 4,
+        "max_display_width": 668,
+        "max_sub_count": 13
+      }
+    },
+    "guide": {
+      "_comment": "Counter guides ('ここでは、猟団迎撃戦に関する' ...): 5 records (28 bytes) at *0xE4 {title, section titles list, pages list, ...}, both lists of string pointers ending at 0.",
+      "topic": {
+        "_comment": "Guide titles.",
+        "begin_pointer": "0xE4",
+        "entry_count": 5,
+        "entry_size": 28,
+        "field_offset": 0,
+        "max_display_width": 16,
+        "max_sub_count": 1
+      },
+      "section": {
+        "_comment": "Section titles.",
+        "begin_pointer": "0xE4",
+        "entry_count": 5,
+        "entry_size": 28,
+        "record_levels": [
+          {
+            "pointer_offset": 4,
+            "entry_size": 4,
+            "null_terminated": true
+          }
+        ],
+        "join": false,
+        "max_display_width": 34,
+        "max_sub_count": 1
+      },
+      "page": {
+        "_comment": "Guide pages, one row per page.",
+        "begin_pointer": "0xE4",
+        "entry_count": 5,
+        "entry_size": 28,
+        "record_levels": [
+          {
+            "pointer_offset": 8,
+            "entry_size": 4,
+            "null_terminated": true
+          }
+        ],
+        "join": false,
+        "max_display_width": 507,
+        "max_sub_count": 1
+      }
+    },
+    "unlock_notice": {
+      "_comment": "Notices shown when something unlocks (hunter rank, dojo drills, ...): 181 records {id, type, title, body} (16 bytes) at *0x88.",
+      "title": {
+        "begin_pointer": "0x88",
+        "entry_count": 181,
+        "entry_size": 16,
+        "field_offset": 8,
+        "max_display_width": 29,
+        "max_sub_count": 1
+      },
+      "body": {
+        "begin_pointer": "0x88",
+        "entry_count": 181,
+        "entry_size": 16,
+        "field_offset": 12,
+        "max_display_width": 483,
+        "max_sub_count": 1
+      }
+    },
+    "article": {
+      "_comment": "Magazine articles ('料理を変えた男たち' ...): 5 pointers at *0x90 to lists of {id, 0, title, body} (16 bytes, ending with a zero record).",
+      "title": {
+        "begin_pointer": "0x90",
+        "entry_count": 5,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 16,
+            "null_terminated": true
+          }
+        ],
+        "field_offset": 8,
+        "join": false,
+        "max_display_width": 20,
+        "max_sub_count": 1
+      },
+      "body": {
+        "begin_pointer": "0x90",
+        "entry_count": 5,
+        "entry_size": 4,
+        "record_levels": [
+          {
+            "pointer_offset": 0,
+            "entry_size": 16,
+            "null_terminated": true
+          }
+        ],
+        "field_offset": 12,
+        "join": false,
+        "max_display_width": 458,
+        "max_sub_count": 1
+      }
+    },
+    "scene_dialogue": {
+      "_comment": "Short NPC scenes: 2,920 pointers at *0xD8 to lists of {speaker, line} (8 bytes, ending with a zero record); one row per scene. Many scenes repeat (579 rows, 220 distinct); pointers to the zeroed end of the file are empty scenes.",
+      "begin_pointer": "0xD8",
+      "entry_count": 2920,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 8,
+          "null_terminated": true
+        }
+      ],
+      "field_offset": 4,
+      "max_display_width": 53,
+      "max_sub_count": 6
+    },
+    "town_info": {
+      "_comment": "Town and feature descriptions ('――――\\n各地方から狩人や旅人が…'): the first 33 string pointers at *0xAB8; records follow.",
+      "begin_pointer": "0xAB8",
+      "entry_count": 33,
+      "max_display_width": 270,
+      "max_sub_count": 1
+    },
     "text_14": {
       "begin_pointer": "0x14",
       "null_terminated": true,
@@ -578,6 +828,24 @@
       "max_sub_count": 4,
       "entry_count": 92
     },
+    "text_40": {
+      "begin_pointer": "0x40",
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 581,
+      "max_sub_count": 1,
+      "entry_count": 607,
+      "_comment": "count at *0x10+0x04"
+    },
+    "text_44": {
+      "begin_pointer": "0x44",
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 162,
+      "max_sub_count": 1,
+      "entry_count": 106,
+      "_comment": "count at *0x10+0x06"
+    },
     "text_48": {
       "_comment": "Skill tree / decoration name pairs: fixed 423 entries, 2 s32p each (8 bytes per entry).",
       "field_0": {
@@ -615,24 +883,6 @@
       "max_sub_count": 2,
       "entry_count": 50
     },
-    "text_40": {
-      "begin_pointer": "0x40",
-      "entry_size": 8,
-      "field_offset": 4,
-      "max_display_width": 581,
-      "max_sub_count": 1,
-      "entry_count": 607,
-      "_comment": "count at *0x10+0x04"
-    },
-    "text_44": {
-      "begin_pointer": "0x44",
-      "entry_size": 8,
-      "field_offset": 4,
-      "max_display_width": 162,
-      "max_sub_count": 1,
-      "entry_count": 106,
-      "_comment": "count at *0x10+0x06"
-    },
     "text_60": {
       "begin_pointer": "0x60",
       "entry_size": 16,
@@ -668,6 +918,49 @@
       "max_sub_count": 1,
       "entry_count": 18,
       "_comment": "count at *0x10+0x28"
+    },
+    "text_8c": {
+      "begin_pointer": "0x8C",
+      "entry_count": 9,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_94": {
+      "field_0": {
+        "begin_pointer": "0x94",
+        "entry_size": 16,
+        "field_offset": 4,
+        "max_display_width": 16,
+        "max_sub_count": 1,
+        "entry_count": 153,
+        "_comment": "count at *0x10+0x1C"
+      },
+      "field_1": {
+        "begin_pointer": "0x94",
+        "entry_size": 16,
+        "field_offset": 8,
+        "max_display_width": 16,
+        "max_sub_count": 1,
+        "entry_count": 153,
+        "_comment": "count at *0x10+0x1C"
+      }
+    },
+    "text_98": {
+      "begin_pointer": "0x98",
+      "entry_count": 20,
+      "null_padding": true,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_a8": {
+      "begin_pointer": "0xA8",
+      "entry_count": 5,
+      "entry_size": 12,
+      "field_offset": 0,
+      "max_display_width": 16,
+      "max_sub_count": 1
     },
     "text_c8": {
       "begin_pointer": "0xC8",
@@ -705,37 +998,434 @@
       "entry_count": 24,
       "_comment": "count at *0x10+0x5C"
     },
-    "text_94": {
-      "field_0": {
-        "begin_pointer": "0x94",
-        "entry_size": 16,
-        "field_offset": 4,
-        "max_display_width": 16,
-        "max_sub_count": 1,
-        "entry_count": 153,
-        "_comment": "count at *0x10+0x1C"
-      },
-      "field_1": {
-        "begin_pointer": "0x94",
-        "entry_size": 16,
-        "field_offset": 8,
-        "max_display_width": 16,
-        "max_sub_count": 1,
-        "entry_count": 153,
-        "_comment": "count at *0x10+0x1C"
-      }
+    "text_e0": {
+      "begin_pointer": "0xE0",
+      "entry_count": 10,
+      "entry_size": 12,
+      "field_offset": 0,
+      "max_display_width": 182,
+      "max_sub_count": 1
     },
-    "text_98": {
-      "begin_pointer": "0x98",
-      "entry_count": 20,
-      "null_padding": true,
-      "max_display_width": 24,
+    "text_e8": {
+      "begin_pointer": "0xE8",
+      "entry_count": 111,
+      "entry_size": 12,
+      "field_offset": 8,
+      "max_display_width": 137,
+      "max_sub_count": 1
+    },
+    "text_ec": {
+      "begin_pointer": "0xEC",
+      "entry_count": 110,
+      "entry_size": 12,
+      "field_offset": 8,
+      "max_display_width": 144,
       "max_sub_count": 1
     },
     "text_f0": {
       "begin_pointer": "0xF0",
       "entry_count": 9,
       "max_display_width": 52,
+      "max_sub_count": 1
+    },
+    "text_f4": {
+      "begin_pointer": "0xF4",
+      "entry_count": 8,
+      "entry_size": 12,
+      "field_offset": 0,
+      "max_display_width": 171,
+      "max_sub_count": 1
+    },
+    "text_14c": {
+      "begin_pointer": "0x14C",
+      "entry_count": 122,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 168,
+      "max_sub_count": 1
+    },
+    "text_150": {
+      "begin_pointer": "0x150",
+      "entry_count": 27,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 85,
+      "max_sub_count": 1
+    },
+    "text_154": {
+      "begin_pointer": "0x154",
+      "entry_count": 41,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 137,
+      "max_sub_count": 1
+    },
+    "text_158": {
+      "begin_pointer": "0x158",
+      "entry_count": 22,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 108,
+      "max_sub_count": 1
+    },
+    "text_15c": {
+      "begin_pointer": "0x15C",
+      "entry_count": 7,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 33,
+      "max_sub_count": 1
+    },
+    "text_160": {
+      "begin_pointer": "0x160",
+      "entry_count": 9,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_164": {
+      "begin_pointer": "0x164",
+      "entry_count": 17,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 49,
+      "max_sub_count": 1
+    },
+    "text_168": {
+      "begin_pointer": "0x168",
+      "entry_count": 10,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_16c": {
+      "begin_pointer": "0x16C",
+      "entry_count": 14,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_170": {
+      "begin_pointer": "0x170",
+      "entry_count": 17,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 47,
+      "max_sub_count": 1
+    },
+    "text_174": {
+      "begin_pointer": "0x174",
+      "entry_count": 11,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_178": {
+      "begin_pointer": "0x178",
+      "entry_count": 14,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_17c": {
+      "begin_pointer": "0x17C",
+      "entry_count": 17,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_180": {
+      "begin_pointer": "0x180",
+      "entry_count": 9,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_184": {
+      "begin_pointer": "0x184",
+      "entry_count": 13,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_188": {
+      "begin_pointer": "0x188",
+      "entry_count": 10,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_18c": {
+      "begin_pointer": "0x18C",
+      "entry_count": 18,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_190": {
+      "begin_pointer": "0x190",
+      "entry_count": 16,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_194": {
+      "begin_pointer": "0x194",
+      "entry_count": 15,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_198": {
+      "begin_pointer": "0x198",
+      "entry_count": 16,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_19c": {
+      "begin_pointer": "0x19C",
+      "entry_count": 18,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 43,
+      "max_sub_count": 1
+    },
+    "text_1a0": {
+      "begin_pointer": "0x1A0",
+      "entry_count": 14,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_1a4": {
+      "begin_pointer": "0x1A4",
+      "entry_count": 16,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_1a8": {
+      "begin_pointer": "0x1A8",
+      "entry_count": 16,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_1ac": {
+      "begin_pointer": "0x1AC",
+      "entry_count": 16,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_1b0": {
+      "begin_pointer": "0x1B0",
+      "entry_count": 19,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_1b4": {
+      "begin_pointer": "0x1B4",
+      "entry_count": 10,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 50,
+      "max_sub_count": 1
+    },
+    "text_1b8": {
+      "begin_pointer": "0x1B8",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_1bc": {
+      "begin_pointer": "0x1BC",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_1c0": {
+      "begin_pointer": "0x1C0",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_1c4": {
+      "begin_pointer": "0x1C4",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_1c8": {
+      "begin_pointer": "0x1C8",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_1cc": {
+      "begin_pointer": "0x1CC",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 35,
+      "max_sub_count": 1
+    },
+    "text_1d0": {
+      "begin_pointer": "0x1D0",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_1d4": {
+      "begin_pointer": "0x1D4",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_1d8": {
+      "begin_pointer": "0x1D8",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_1dc": {
+      "begin_pointer": "0x1DC",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_1e0": {
+      "begin_pointer": "0x1E0",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_1e4": {
+      "begin_pointer": "0x1E4",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_1e8": {
+      "begin_pointer": "0x1E8",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_1ec": {
+      "begin_pointer": "0x1EC",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_1f0": {
+      "begin_pointer": "0x1F0",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_1f4": {
+      "begin_pointer": "0x1F4",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 30,
+      "max_sub_count": 1
+    },
+    "text_1f8": {
+      "begin_pointer": "0x1F8",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_1fc": {
+      "begin_pointer": "0x1FC",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_200": {
+      "begin_pointer": "0x200",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_204": {
+      "begin_pointer": "0x204",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_208": {
+      "begin_pointer": "0x208",
+      "entry_count": 6,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 30,
+      "max_sub_count": 1
+    },
+    "text_20c": {
+      "begin_pointer": "0x20C",
+      "entry_count": 5,
+      "entry_size": 8,
+      "field_offset": 4,
+      "max_display_width": 44,
       "max_sub_count": 1
     },
     "text_218": {
@@ -5726,6 +6416,20 @@
       "max_display_width": 57,
       "max_sub_count": 13
     },
+    "text_1048": {
+      "begin_pointer": "0x1048",
+      "entry_count": 20,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 52,
+      "max_sub_count": 3
+    },
     "text_104c": {
       "begin_pointer": "0x104C",
       "entry_count": 2,
@@ -5753,6 +6457,24 @@
       ],
       "max_display_width": 14,
       "max_sub_count": 6
+    },
+    "text_1064": {
+      "begin_pointer": "0x1064",
+      "entry_count": 40,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "skip_entries": [
+        0,
+        4
+      ],
+      "max_display_width": 144,
+      "max_sub_count": 219
     },
     "text_1068": {
       "begin_pointer": "0x1068",
@@ -5823,6 +6545,32 @@
       ],
       "max_display_width": 18,
       "max_sub_count": 21
+    },
+    "text_1084": {
+      "begin_pointer": "0x1084",
+      "entry_count": 19,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "skip_entries": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "max_display_width": 250,
+      "max_sub_count": 18
     },
     "text_1088": {
       "begin_pointer": "0x1088",
@@ -5978,6 +6726,34 @@
       "max_display_width": 44,
       "max_sub_count": 10
     },
+    "text_10b4": {
+      "begin_pointer": "0x10B4",
+      "entry_count": 14,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 24,
+      "max_sub_count": 11
+    },
+    "text_10b8": {
+      "begin_pointer": "0x10B8",
+      "entry_count": 14,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 24,
+      "max_sub_count": 11
+    },
     "text_10bc": {
       "begin_pointer": "0x10BC",
       "entry_count": 10,
@@ -5991,6 +6767,95 @@
       ],
       "max_display_width": 114,
       "max_sub_count": 382
+    },
+    "text_10c0": {
+      "begin_pointer": "0x10C0",
+      "entry_count": 12,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 296,
+      "max_sub_count": 225
+    },
+    "text_10cc": {
+      "begin_pointer": "0x10CC",
+      "entry_count": 13,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "skip_entries": [
+        0,
+        1,
+        2
+      ],
+      "max_display_width": 24,
+      "max_sub_count": 18
+    },
+    "text_10d0": {
+      "begin_pointer": "0x10D0",
+      "entry_count": 5,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 73,
+      "max_sub_count": 35
+    },
+    "text_10d4": {
+      "begin_pointer": "0x10D4",
+      "entry_count": 19,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 210,
+      "max_sub_count": 33
+    },
+    "text_10d8": {
+      "begin_pointer": "0x10D8",
+      "entry_count": 31,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 435,
+      "max_sub_count": 23
+    },
+    "text_10dc": {
+      "begin_pointer": "0x10DC",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 543,
+      "max_sub_count": 70
     },
     "text_10e0": {
       "begin_pointer": "0x10E0",
@@ -6062,6 +6927,34 @@
       "max_display_width": 233,
       "max_sub_count": 26
     },
+    "text_10f4": {
+      "begin_pointer": "0x10F4",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 33,
+      "max_sub_count": 3
+    },
+    "text_10f8": {
+      "begin_pointer": "0x10F8",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
     "text_10fc": {
       "begin_pointer": "0x10FC",
       "entry_count": 2,
@@ -6117,6 +7010,48 @@
       ],
       "max_display_width": 108,
       "max_sub_count": 20
+    },
+    "text_1110": {
+      "begin_pointer": "0x1110",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 24,
+      "max_sub_count": 10
+    },
+    "text_1114": {
+      "begin_pointer": "0x1114",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 40,
+      "max_sub_count": 7
+    },
+    "text_1118": {
+      "begin_pointer": "0x1118",
+      "entry_count": 4,
+      "entry_size": 4,
+      "record_levels": [
+        {
+          "pointer_offset": 0,
+          "entry_size": 4,
+          "null_terminated": true
+        }
+      ],
+      "max_display_width": 40,
+      "max_sub_count": 7
     },
     "text_111c": {
       "begin_pointer": "0x111C",

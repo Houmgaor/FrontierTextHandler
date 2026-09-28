@@ -2,6 +2,7 @@
 Pointer table reading and text extraction from binary game files.
 """
 import struct
+from collections.abc import Collection
 from typing import Optional
 
 from .binary_file import BinaryFile, InvalidPointerError
@@ -501,6 +502,7 @@ def read_record_lists(
     levels: list[dict],
     field_offset: int = 0,
     join: bool = True,
+    skip_entries: Collection[int] = (),
 ) -> list[dict[str, int | str | list[int]]]:
     """
     Read strings from records that point to lists of records.
@@ -511,14 +513,19 @@ def read_record_lists(
     bytes at *base_offset*, each level in *levels* follows, in every
     record, the pointer at ``pointer_offset`` to ``count`` records of the
     level's ``entry_size`` (the count is the u32 at ``count_offset``, or,
-    for a level marked ``null_terminated``, the list of u32 pointers runs
-    up to the first 0). The string pointers are at *field_offset* in the
+    for a level marked ``null_terminated``, the list runs up to the first
+    record whose bytes are all 0). The string pointers are at *field_offset* in the
     innermost records.
 
     With *join*, each innermost list is one entry, its strings joined
     with ``{j}`` and its pointer slots in ``sub_offsets``, like any
     grouped entry; otherwise every string is its own entry. Null string
-    pointers and empty lists are skipped.
+    pointers and empty lists are skipped, and so are list pointers that
+    are 0 or not 4-byte aligned (flag values such as 1). A pointer slot
+    reached twice (two records pointing to the same list, or into its
+    tail) is read the first time only, so no slot is in two entries.
+    *skip_entries* are indexes of top records not to follow, for lists
+    that another section already reads.
 
     :param levels: ``[{"pointer_offset": int, "count_offset": int,
         "entry_size": int}, ...]``, outermost first; a level may give
@@ -537,32 +544,41 @@ def read_record_lists(
         children = []
         for start, count, size in lists:
             for i in range(count):
+                if depth == 0 and i in skip_entries:
+                    continue
                 record = start + i * size
                 pointer = u32(record + level["pointer_offset"],
                               f"level {depth} list pointer at 0x{record:x}")
-                if not pointer:
+                if not pointer or pointer % 4:
+                    # 0, or a flag value: records are 4-byte aligned
                     continue
+                item_size = level["entry_size"]
                 if level.get("null_terminated"):
                     length = 0
-                    while u32(pointer + 4 * length,
-                              f"level {depth} list item at 0x{pointer:x}"):
+                    while any(
+                        u32(pointer + item_size * length + k,
+                            f"level {depth} list item at 0x{pointer:x}")
+                        for k in range(0, item_size, 4)
+                    ):
                         length += 1
                 else:
                     length = u32(record + level["count_offset"],
                                  f"level {depth} list count at 0x{record:x}")
                 if length:
-                    children.append((pointer, length, level["entry_size"]))
+                    children.append((pointer, length, item_size))
         lists = children
 
     results: list[dict[str, int | str | list[int]]] = []
+    seen: set[int] = set()
     for start, count, size in lists:
         texts: list[str] = []
         slots: list[int] = []
         for i in range(count):
             slot = start + i * size + field_offset
             pointer = u32(slot, f"string pointer slot 0x{slot:x}")
-            if pointer == 0:
+            if pointer == 0 or slot in seen:
                 continue
+            seen.add(slot)
             bfile.validate_offset(pointer, context=f"string at 0x{pointer:x}")
             bfile.seek(pointer)
             texts.append(decode_game_string(
@@ -774,6 +790,7 @@ def extract_text_data_from_bytes(
             config["record_levels"],
             config.get("field_offset", 0),
             config.get("join", True),
+            set(config.get("skip_entries", ())),
         )
 
     elif "entry_count" in config and "entry_size" in config:
