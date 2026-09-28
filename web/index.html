@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FrontierTextHandler</title>
+  <meta name="description" content="Extract and reinsert Monster Hunter Frontier game text in your browser.">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="band" aria-hidden="true"></div>
+
+  <header>
+    <p class="kicker">Monster Hunter Frontier</p>
+    <h1>
+      <span class="visually-hidden">FrontierTextHandler</span>
+      <span class="tiles" aria-hidden="true"><span>T</span><span>E</span><span>X</span><span>T</span></span>
+      <span class="tiles" aria-hidden="true"><span>H</span><span>A</span><span>N</span><span>D</span><span>L</span><span>E</span><span>R</span></span>
+    </h1>
+    <div class="dialog notice">
+      <p class="bullet info">Extract the game's text for translation, then put your
+        translations back into a game-ready file.</p>
+      <p class="bullet warn">Everything runs in this browser tab. Your game files
+        are never uploaded.</p>
+      <p id="engine" class="bullet status" role="status">Loading the Python engine…</p>
+    </div>
+  </header>
+
+  <main>
+    <section id="step-load" class="panel">
+      <h2><kbd>1</kbd> Open a game file</h2>
+      <p>Pick <code>mhfdat.bin</code>, <code>mhfpac.bin</code>,
+        <code>mhfinf.bin</code> or another text file from your game's
+        <code>dat/</code> folder. Large files such as <code>mhfdat.bin</code>
+        take about a minute to open.</p>
+      <label class="file">
+        <input id="game-file" type="file" accept=".bin" disabled>
+        <span class="button">Choose a game file</span>
+      </label>
+      <p id="file-info" class="info-line"></p>
+    </section>
+
+    <section id="step-extract" class="panel" hidden>
+      <h2><kbd>2</kbd> Extract text</h2>
+      <p>Download the sections you want to translate as CSV and JSON files.
+        Fill in the <code>target</code> column and leave rows you are not
+        translating empty.</p>
+      <div class="toolbar">
+        <button type="button" id="select-all" class="link">Select all</button>
+        <button type="button" id="select-none" class="link">Select none</button>
+        <span id="selected-count"></span>
+      </div>
+      <div id="sections" class="sections"></div>
+      <button type="button" id="extract" class="button">Download text (.zip)</button>
+    </section>
+
+    <section id="step-build" class="panel" hidden>
+      <h2><kbd>3</kbd> Build the translated file</h2>
+      <p>Add your translated CSV or JSON files. They must come from the same
+        game file you opened in step 1.</p>
+      <label class="file">
+        <input id="translations" type="file" accept=".csv,.json" multiple>
+        <span class="button">Choose translation files</span>
+      </label>
+      <ul id="translation-list"></ul>
+      <fieldset>
+        <legend>Options</legend>
+        <label class="option"><input id="opt-fold" type="checkbox" checked>
+          <span>Replace characters the game font cannot show (é → e, œ → oe, « → &quot;)</span></label>
+        <label class="option"><input id="opt-compress" type="checkbox" checked>
+          <span>Compress (needed by the game)</span></label>
+        <label class="option"><input id="opt-encrypt" type="checkbox" checked>
+          <span>Encrypt (needed by the game)</span></label>
+      </fieldset>
+      <button type="button" id="build" class="button" disabled>Build and download</button>
+      <p class="hint">Replace the file in your game's <code>dat/</code> folder
+        with the download. Keep a backup of the original.</p>
+    </section>
+
+    <section id="activity" class="dialog">
+      <h2>Activity</h2>
+      <p id="busy" class="bullet status" role="status" hidden></p>
+      <pre id="log" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <footer>
+    <p><a href="https://github.com/Houmgaor/FrontierTextHandler">FrontierTextHandler</a>
+      <span id="versions"></span> · GPL-3.0</p>
+    <p>A community tool. Not affiliated with the game's publisher.</p>
+  </footer>
+
+  <div class="band" aria-hidden="true"></div>
+</body>
+</html>
