@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Caravan skills** (`pac/skills/caravan/name`, `pac/skills/caravan/description`):
+  109 skill names and their descriptions (狩人珠スキル, "Caravan Gem" skills
+  in the English client), from header `0xA24` and `0xACC`.
+
+### Removed
+- **`pac/skills/description`** and **`gao/situational_dialogue`**, which were
+  not text. Header `0xB8` in `mhfpac.bin` is an array of small-integer structs,
+  and `0x40` in `mhfgao.bin` a mixed data region; both were read as pointers
+  and produced fragments starting mid-string or binary garbage (U+FFFD).
+  Importing any translation into `pac/skills/description` failed, since the
+  garbage cannot be re-encoded. The real Felyne lines that
+  `situational_dialogue` reached are extracted by `gao/dialogue_type_*` and
+  `gao/skill_text`. Translation files for these two sections should be
+  deleted.
+
 ## [1.9.0] - 2026-09-28
 
 ### Performance

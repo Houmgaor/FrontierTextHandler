@@ -2542,7 +2542,11 @@ class TestNewPacXpaths(unittest.TestCase):
         self.assertIn("pac/skills/name", result)
         self.assertIn("pac/skills/effect", result)
         self.assertIn("pac/skills/effect_z", result)
-        self.assertIn("pac/skills/description", result)
+        self.assertIn("pac/skills/caravan/name", result)
+        self.assertIn("pac/skills/caravan/description", result)
+        # Header 0xB8 and gao 0x40 are not string tables.
+        self.assertNotIn("pac/skills/description", result)
+        self.assertNotIn("gao/situational_dialogue", result)
 
 
 class TestParseJoinedText(unittest.TestCase):

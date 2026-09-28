@@ -176,12 +176,21 @@
         "entry_count": 120,
         "_comment": "end_pointer 0xFB0 → next section start"
       },
-      "description": {
-        "begin_pointer": "0xB8",
-        "max_display_width": 303,
-        "max_sub_count": 225,
-        "entry_count": 2334,
-        "_comment": "end_pointer 0xC0 → next section start"
+      "caravan": {
+        "name": {
+          "_comment": "Caravan skill (狩人珠スキル) names. 112 slots before the description table at 0xACC; the last 3 are null.",
+          "begin_pointer": "0xA24",
+          "max_display_width": 20,
+          "max_sub_count": 1,
+          "entry_count": 109
+        },
+        "description": {
+          "_comment": "Caravan skill descriptions, row for row with caravan/name (row 0 is the 'select a skill' prompt).",
+          "begin_pointer": "0xACC",
+          "max_display_width": 102,
+          "max_sub_count": 1,
+          "entry_count": 109
+        }
       }
     },
     "menu": {
@@ -619,14 +628,6 @@
       "field_offset": 0,
       "max_display_width": 27,
       "max_sub_count": 1
-    },
-    "situational_dialogue": {
-      "_comment": "end_pointer 0x48 → next section start",
-      "begin_pointer": "0x40",
-      "scan_region": true,
-      "max_display_width": 112,
-      "max_sub_count": 1,
-      "scan_end_pointer": "0x48"
     }
   },
   "sqd": {
