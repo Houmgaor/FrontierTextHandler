@@ -70,6 +70,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in the English client), from header `0xA24` and `0xACC`.
 
 ### Fixed
+- **FTXT files read no text and import corrupted them** (`--ftxt`,
+  `--ftxt-to-bin`). The header has the string count at `0x0E`, the text
+  block size at `0x10` and the strings from `0x14`; FTH read the count at
+  `0x0A` (0 on real files) and wrote the block size at `0x0C`, over the
+  count. The `0x0A` layout came from ReFrontier, whose 2026 refactor turned
+  a seek relative to the end of the magic into an absolute one, and from
+  the ImHex pattern that followed it. Import now also keeps the tail of the
+  text block and the data after it, and updates the file size at `0x04`.
+  The four FTXT entries of `mazpac.bin` extract (156, 156, 154 and 154
+  strings) and rebuild byte-identical.
 - **NPC dialogue lost the first line of every NPC** (`--npc`, `--npc-dir`,
   `--npc-to-bin`). In a stage dialogue block, `header_size` is the offset
   of the first string and counts its own field, so the first string has no

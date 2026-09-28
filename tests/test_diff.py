@@ -52,12 +52,9 @@ def _build_ftxt(strings: list[str]) -> bytes:
         encoded_parts.append(encode_game_string(s) + b"\x00")
     text_block = b"".join(encoded_parts)
 
-    header = bytearray(FTXT_HEADER_SIZE)
-    struct.pack_into("<I", header, 0x00, FTXT_MAGIC)
-    struct.pack_into("<H", header, 0x0A, len(strings))
-    struct.pack_into("<I", header, 0x0C, len(text_block))
-
-    return bytes(header) + text_block
+    # magic, file size, 0, 1, string count, text block size
+    header = struct.pack("<IIIHHI", FTXT_MAGIC, 0x14 + len(text_block), 0, 1, len(strings), len(text_block))
+    return header + text_block
 
 
 class TestLocationKey(unittest.TestCase):
