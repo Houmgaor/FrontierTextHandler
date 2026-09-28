@@ -1,12 +1,15 @@
 // Page logic: forwards user files to the Pyodide worker and offers the
 // results as downloads.
 
+import { currentLanguage, setLanguage, t } from "./i18n.js";
+
 const $ = (id) => document.getElementById(id);
 
 const worker = new Worker("worker.js", { type: "module" });
 const pending = new Map();
 let nextId = 0;
 let gameFile = null; // Summary returned by the worker's "load" command.
+let staged = []; // Translation files as described by the worker's "stage" command.
 
 worker.onmessage = ({ data }) => {
   if (data.type === "log") {
@@ -27,35 +30,40 @@ function call(command, args = {}, transfer = []) {
 }
 
 function log(message) {
-  const time = new Date().toLocaleTimeString();
+  const time = new Date().toLocaleTimeString(currentLanguage());
   const output = $("log");
   output.textContent += `[${time}] ${message}\n`;
   output.scrollTop = output.scrollHeight;
 }
 
+function showStatus(text, isError = false) {
+  const status = $("busy");
+  status.hidden = false;
+  status.textContent = text;
+  status.classList.toggle("error", isError);
+}
+
 // Runs *task* while showing an elapsed-time counter and locking inputs,
 // since the slow steps take up to a couple of minutes on mhfdat.bin.
 async function busy(label, task) {
-  const status = $("busy");
-  const controls = document.querySelectorAll("main input, main button");
+  const controls = document.querySelectorAll("main input, main button, main select");
   const previous = new Map([...controls].map((el) => [el, el.disabled]));
   controls.forEach((el) => (el.disabled = true));
   const start = performance.now();
-  const tick = () => {
-    status.textContent = `${label}… ${Math.round((performance.now() - start) / 1000)} s`;
-  };
+  const seconds = (digits) =>
+    ((performance.now() - start) / 1000).toLocaleString(currentLanguage(), {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  const tick = () => showStatus(t("busy.running", { label, seconds: seconds(0) }));
   tick();
-  status.hidden = false;
-  status.classList.remove("error");
   const timer = setInterval(tick, 1000);
   try {
     const result = await task();
-    const seconds = ((performance.now() - start) / 1000).toFixed(1);
-    status.textContent = `${label}: done in ${seconds} s`;
+    showStatus(t("busy.done", { label, seconds: seconds(1) }));
     return result;
   } catch (error) {
-    status.textContent = `${label} failed: ${error.message}`;
-    status.classList.add("error");
+    showStatus(t("busy.failed", { label, error: error.message }), true);
     log(`error: ${error.message}`);
     throw error;
   } finally {
@@ -72,8 +80,44 @@ function download(bytes, fileName, type = "application/octet-stream") {
 }
 
 function formatSize(bytes) {
-  return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} KB`;
+  const format = (value, digits) =>
+    value.toLocaleString(currentLanguage(), { maximumFractionDigits: digits });
+  return bytes >= 1e6
+    ? t("unit.mb", { value: format(bytes / 1e6, 1) })
+    : t("unit.kb", { value: format(bytes / 1e3, 0) });
 }
+
+// ---- Step 1: open a game file ----
+
+function renderFileInfo() {
+  if (!gameFile) return;
+  const layers =
+    gameFile.encrypted && gameFile.compressed ? "both"
+      : gameFile.encrypted ? "encrypted"
+        : gameFile.compressed ? "compressed" : "plain";
+  $("file-info").textContent = t("file.info", {
+    name: gameFile.name,
+    layers: t(`file.layers.${layers}`),
+    size: formatSize(gameFile.decoded_size),
+    count: gameFile.sections.length,
+  });
+}
+
+async function openGameFile(file) {
+  const data = await file.arrayBuffer();
+  gameFile = await busy(t("busy.open", { name: file.name }), () =>
+    call("load", { name: file.name, data }, [data]),
+  );
+  renderFileInfo();
+  renderSections(gameFile.sections);
+  $("step-extract").hidden = false;
+  $("step-build").hidden = false;
+  $("translations").value = "";
+  staged = [];
+  renderTranslations();
+}
+
+// ---- Step 2: extract text ----
 
 function selectedSections() {
   return [...document.querySelectorAll("#sections input:checked")].map((el) => el.value);
@@ -81,13 +125,12 @@ function selectedSections() {
 
 function updateSelectedCount() {
   const count = selectedSections().length;
-  $("selected-count").textContent = `${count} selected`;
+  $("selected-count").textContent = t("step2.selected", { count });
   $("extract").disabled = count === 0;
 }
 
 function renderSections(sections) {
-  const container = $("sections");
-  container.replaceChildren(
+  $("sections").replaceChildren(
     ...sections.map((xpath) => {
       const label = document.createElement("label");
       const box = Object.assign(document.createElement("input"), {
@@ -107,65 +150,92 @@ function setAllSections(checked) {
   updateSelectedCount();
 }
 
-async function openGameFile(file) {
-  const data = await file.arrayBuffer();
-  gameFile = await busy(`Opening ${file.name}`, () =>
-    call("load", { name: file.name, data }, [data]),
-  );
-  const layers = [gameFile.encrypted && "encrypted", gameFile.compressed && "compressed"]
-    .filter(Boolean)
-    .join(" and ");
-  $("file-info").textContent =
-    `${gameFile.name}: ${layers || "plain"} file, ${formatSize(gameFile.decoded_size)} ` +
-    `decoded, ${gameFile.sections.length} text sections.`;
-  renderSections(gameFile.sections);
-  $("step-extract").hidden = false;
-  $("step-build").hidden = false;
-  $("translations").value = "";
-  $("translation-list").replaceChildren();
-  $("build").disabled = true;
-}
-
 async function extractText() {
   const xpaths = selectedSections();
-  const result = await busy(`Extracting ${xpaths.length} section(s)`, () =>
+  const result = await busy(t("busy.extract", { count: xpaths.length }), () =>
     call("extract", { name: gameFile.name, xpaths }),
   );
   const stem = gameFile.name.replace(/\.bin$/i, "");
   download(result.zip, `${stem}-text.zip`, "application/zip");
-  if (result.failed.length) log(`Skipped: ${result.failed.join(", ")}`);
+  if (result.failed.length) log(t("log.skipped", { list: result.failed.join(", ") }));
 }
 
-function listTranslations(files) {
-  $("translation-list").replaceChildren(
-    ...[...files].map((file) => Object.assign(document.createElement("li"), { textContent: file.name })),
+// ---- Step 3: build the translated file ----
+
+// Default release language: the page's, else the one with the most
+// sections for this game file.
+function defaultReleaseLanguage(languages) {
+  if ((languages[currentLanguage()] ?? 0) > 0) return currentLanguage();
+  return Object.entries(languages).sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+function renderTranslations() {
+  const items = staged.map((item) => {
+    const li = document.createElement("li");
+    if (item.kind !== "release") {
+      li.textContent = item.name;
+      return li;
+    }
+    const select = document.createElement("select");
+    select.dataset.release = item.name;
+    const label = t("step3.release", { name: item.name });
+    select.setAttribute("aria-label", label);
+    for (const [lang, count] of Object.entries(item.languages)) {
+      select.append(new Option(t("step3.releaseOption", { lang, count }), lang));
+    }
+    select.value = item.language ?? defaultReleaseLanguage(item.languages);
+    select.addEventListener("change", () => (item.language = select.value));
+    item.language = select.value;
+    li.append(`${label} `, select);
+    return li;
+  });
+  $("translation-list").replaceChildren(...items);
+  $("build").disabled = staged.length === 0;
+}
+
+async function stageTranslations(files) {
+  const translations = await Promise.all(
+    [...files].map(async (file) => ({ name: file.name, data: await file.arrayBuffer() })),
   );
-  $("build").disabled = files.length === 0;
+  staged = await busy(t("busy.stage"), () =>
+    call("stage", { name: gameFile.name, translations }, translations.map((f) => f.data)),
+  );
+  renderTranslations();
 }
 
 async function buildGameFile() {
-  const files = [...$("translations").files];
-  const translations = await Promise.all(
-    files.map(async (file) => ({ name: file.name, data: await file.arrayBuffer() })),
+  const releaseLanguages = Object.fromEntries(
+    staged.filter((item) => item.kind === "release").map((item) => [item.name, item.language]),
   );
   const options = {
     fold: $("opt-fold").checked,
     compress: $("opt-compress").checked,
     encrypt: $("opt-encrypt").checked,
   };
-  const result = await busy(`Building ${gameFile.name}`, () =>
-    call("build", { name: gameFile.name, translations, options }, translations.map((t) => t.data)),
+  const result = await busy(t("busy.build", { name: gameFile.name }), () =>
+    call("build", {
+      name: gameFile.name,
+      translations: staged.map((item) => item.name),
+      releaseLanguages,
+      options,
+    }),
   );
-  if (result.unchanged.length) log(`No changes from: ${result.unchanged.join(", ")}`);
+  if (result.unchanged.length) log(t("log.unchanged", { list: result.unchanged.join(", ") }));
   if (result.applied.length === 0) {
-    const status = $("busy");
-    status.textContent =
-      "Nothing to build: no filled-in target column in these files, " +
-      "or the translations match the game file already.";
-    status.classList.add("error");
+    showStatus(t("step3.nothing"), true);
     return;
   }
   download(result.data, gameFile.name);
+}
+
+// ---- Language ----
+
+function switchLanguage(language) {
+  setLanguage(language);
+  // Text built from data rather than markup is rendered again.
+  renderFileInfo();
+  if (gameFile) updateSelectedCount();
+  renderTranslations();
 }
 
 // Errors are already shown by busy(); this keeps them out of the console
@@ -180,16 +250,25 @@ $("sections").addEventListener("change", updateSelectedCount);
 $("select-all").addEventListener("click", () => setAllSections(true));
 $("select-none").addEventListener("click", () => setAllSections(false));
 $("extract").addEventListener("click", quietly(extractText));
-$("translations").addEventListener("change", (event) => listTranslations(event.target.files));
+$("translations").addEventListener("change", quietly(async (event) => {
+  if (event.target.files.length) await stageTranslations(event.target.files);
+}));
 $("build").addEventListener("click", quietly(buildGameFile));
+document.querySelectorAll("[data-language]").forEach((button) =>
+  button.addEventListener("click", () => switchLanguage(button.dataset.language)),
+);
 
-busy("Loading the Python engine", () => call("init"))
+setLanguage(currentLanguage());
+
+busy(t("busy.engine"), () => call("init"))
   .then(({ pyodide, tool }) => {
-    $("engine").textContent = "Ready.";
+    $("engine").dataset.i18n = "engine.ready";
+    $("engine").textContent = t("engine.ready");
     $("versions").textContent = `${tool} (Pyodide ${pyodide})`;
     $("game-file").disabled = false;
   })
   .catch((error) => {
-    $("engine").textContent = `The Python engine could not start: ${error.message}`;
+    delete $("engine").dataset.i18n;
+    $("engine").textContent = t("engine.failed", { error: error.message });
     $("engine").classList.add("error");
   });

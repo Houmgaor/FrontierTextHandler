@@ -179,9 +179,15 @@ Static GitHub Pages site that runs the tool in the browser via Pyodide
 - `bridge.py` - Python glue called by the page: decodes a game file once
   (decrypt/decompress are the slow steps), then extracts to a zip and
   builds by chaining `import_from_csv` on the decoded copy, compressing
-  and encrypting once at the end. Tested in `tests/test_web_bridge.py`.
+  and encrypting once at the end. Release JSONs (`{lang: {xpath: [...]}}`)
+  are detected by shape in `stage_translations` and applied through
+  `apply_translations_from_release_json`, filtered to the open file's
+  sections. Tested in `tests/test_web_bridge.py`.
 - `worker.js` - Web Worker hosting Pyodide (pinned CDN version) so the
   page stays responsive; `app.js` / `index.html` / `style.css` - the UI.
+- `i18n.js` - English and French strings (`data-i18n` / `data-i18n-html`
+  attributes, `t()` for dynamic text). French follows the wiki's
+  typography: non-breaking space before `:`, decimal comma, Mo/ko.
 - `build_site.py` - Writes `_site/`, bundling `bridge.py` and `src/`
   (with `headers.json`) into `app.zip` for the worker.
 

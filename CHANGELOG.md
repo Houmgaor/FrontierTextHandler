@@ -10,7 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Web interface** (`web/`, deployed to GitHub Pages): extract text and
   build game-ready files in the browser, with no installation. The tool
   runs locally through Pyodide in a Web Worker; game files never leave
-  the browser.
+  the browser. Available in English and French, and accepts
+  MHFrontier-Translation releases (`translations-<lang>.json.gz`) as
+  well as extracted CSV/JSON files.
 
 ### Fixed
 - **`--apply-translations` honours `--fold-unsupported-chars`.** It was

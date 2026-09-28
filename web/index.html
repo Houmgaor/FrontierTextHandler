@@ -12,6 +12,10 @@
   <div class="band" aria-hidden="true"></div>
 
   <header>
+    <div class="languages" role="group" data-i18n-attr="aria-label:language" aria-label="Language">
+      <button type="button" class="tab" data-language="fr" lang="fr">Français</button>
+      <button type="button" class="tab" data-language="en" lang="en">English</button>
+    </div>
     <p class="kicker">Monster Hunter Frontier</p>
     <h1>
       <span class="visually-hidden">FrontierTextHandler</span>
@@ -19,76 +23,78 @@
       <span class="tiles" aria-hidden="true"><span>H</span><span>A</span><span>N</span><span>D</span><span>L</span><span>E</span><span>R</span></span>
     </h1>
     <div class="dialog notice">
-      <p class="bullet info">Extract the game's text for translation, then put your
-        translations back into a game-ready file.</p>
-      <p class="bullet warn">Everything runs in this browser tab. Your game files
-        are never uploaded.</p>
-      <p id="engine" class="bullet status" role="status">Loading the Python engine…</p>
+      <p class="bullet info" data-i18n="notice.intro">Extract the game's text for translation,
+        then put your translations back into a game-ready file.</p>
+      <p class="bullet warn" data-i18n="notice.privacy">Everything runs in this browser tab.
+        Your game files are never uploaded.</p>
+      <p id="engine" class="bullet status" role="status" data-i18n="engine.loading">Loading the Python engine…</p>
     </div>
   </header>
 
   <main>
     <section id="step-load" class="panel">
-      <h2><kbd>1</kbd> Open a game file</h2>
-      <p>Pick <code>mhfdat.bin</code>, <code>mhfpac.bin</code>,
+      <h2><kbd>1</kbd> <span data-i18n="step1.title">Open a game file</span></h2>
+      <p data-i18n-html="step1.help">Pick <code>mhfdat.bin</code>, <code>mhfpac.bin</code>,
         <code>mhfinf.bin</code> or another text file from your game's
         <code>dat/</code> folder. Large files such as <code>mhfdat.bin</code>
         take about a minute to open.</p>
       <label class="file">
         <input id="game-file" type="file" accept=".bin" disabled>
-        <span class="button">Choose a game file</span>
+        <span class="button" data-i18n="step1.choose">Choose a game file</span>
       </label>
       <p id="file-info" class="info-line"></p>
     </section>
 
     <section id="step-extract" class="panel" hidden>
-      <h2><kbd>2</kbd> Extract text</h2>
-      <p>Download the sections you want to translate as CSV and JSON files.
+      <h2><kbd>2</kbd> <span data-i18n="step2.title">Extract text</span></h2>
+      <p data-i18n-html="step2.help">Download the sections you want to translate as CSV and JSON files.
         Fill in the <code>target</code> column and leave rows you are not
         translating empty.</p>
       <div class="toolbar">
-        <button type="button" id="select-all" class="link">Select all</button>
-        <button type="button" id="select-none" class="link">Select none</button>
+        <button type="button" id="select-all" class="link" data-i18n="step2.selectAll">Select all</button>
+        <button type="button" id="select-none" class="link" data-i18n="step2.selectNone">Select none</button>
         <span id="selected-count"></span>
       </div>
       <div id="sections" class="sections"></div>
-      <button type="button" id="extract" class="button">Download text (.zip)</button>
+      <button type="button" id="extract" class="button" data-i18n="step2.download">Download text (.zip)</button>
     </section>
 
     <section id="step-build" class="panel" hidden>
-      <h2><kbd>3</kbd> Build the translated file</h2>
-      <p>Add your translated CSV or JSON files. They must come from the same
-        game file you opened in step 1.</p>
+      <h2><kbd>3</kbd> <span data-i18n="step3.title">Build the translated file</span></h2>
+      <p data-i18n-html="step3.help">Add your translated CSV or JSON files, or a translation
+        release from <a href="https://github.com/Mogapedia/MHFrontier-Translation/releases">MHFrontier-Translation</a>
+        (<code>translations-fr.json.gz</code>, for instance). They must match the game file
+        you opened in step 1.</p>
       <label class="file">
-        <input id="translations" type="file" accept=".csv,.json" multiple>
-        <span class="button">Choose translation files</span>
+        <input id="translations" type="file" accept=".csv,.json,.gz" multiple>
+        <span class="button" data-i18n="step3.choose">Choose translation files</span>
       </label>
       <ul id="translation-list"></ul>
       <fieldset>
-        <legend>Options</legend>
+        <legend data-i18n="step3.options">Options</legend>
         <label class="option"><input id="opt-fold" type="checkbox" checked>
-          <span>Replace characters the game font cannot show (é → e, œ → oe, « → &quot;)</span></label>
+          <span data-i18n="step3.fold">Replace characters the game font cannot show (é → e, œ → oe, « → &quot;)</span></label>
         <label class="option"><input id="opt-compress" type="checkbox" checked>
-          <span>Compress (needed by the game)</span></label>
+          <span data-i18n="step3.compress">Compress (needed by the game)</span></label>
         <label class="option"><input id="opt-encrypt" type="checkbox" checked>
-          <span>Encrypt (needed by the game)</span></label>
+          <span data-i18n="step3.encrypt">Encrypt (needed by the game)</span></label>
       </fieldset>
-      <button type="button" id="build" class="button" disabled>Build and download</button>
-      <p class="hint">Replace the file in your game's <code>dat/</code> folder
+      <button type="button" id="build" class="button" disabled data-i18n="step3.build">Build and download</button>
+      <p class="hint" data-i18n-html="step3.hint">Replace the file in your game's <code>dat/</code> folder
         with the download. Keep a backup of the original.</p>
     </section>
 
     <section id="activity" class="dialog">
-      <h2>Activity</h2>
+      <h2 data-i18n="activity.title">Activity</h2>
       <p id="busy" class="bullet status" role="status" hidden></p>
-      <pre id="log" aria-live="polite"></pre>
+      <pre id="log" aria-live="polite" data-i18n-attr="data-empty:activity.empty" data-empty="Nothing yet."></pre>
     </section>
   </main>
 
   <footer>
     <p><a href="https://github.com/Houmgaor/FrontierTextHandler">FrontierTextHandler</a>
       <span id="versions"></span> · GPL-3.0</p>
-    <p>A community tool. Not affiliated with the game's publisher.</p>
+    <p data-i18n="footer.disclaimer">A community tool. Not affiliated with the game's publisher.</p>
   </footer>
 
   <div class="band" aria-hidden="true"></div>

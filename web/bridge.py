@@ -10,7 +10,9 @@ computed on decoded bytes, so files extracted here match CLI extractions.
 Nothing leaves the browser: there is no network access from this module.
 """
 
+import gzip
 import io
+import json
 import logging
 import os
 import re
@@ -21,7 +23,11 @@ import zipfile
 from src import common
 from src.crypto import DEFAULT_KEY_INDEX, decrypt, encrypt, is_encrypted_file
 from src.export import extract_from_file
-from src.import_data import import_from_csv
+from src.import_data import (
+    XPATH_PREFIX_TO_GAME_FILE,
+    apply_translations_from_release_json,
+    import_from_csv,
+)
 from src.jkr_compress import compress_jkr_hfi
 from src.jkr_decompress import decompress_jkr, is_jkr_file
 
@@ -38,6 +44,8 @@ _reporter = print
 # Per-file state from load_game_file: original header and layer flags,
 # needed to rebuild a file in the same shape it was loaded in.
 _loaded: dict[str, dict] = {}
+# Release JSONs parsed by stage_translations, by file name.
+_releases: dict[str, dict] = {}
 
 
 class _ReporterHandler(logging.Handler):
@@ -105,7 +113,12 @@ def load_game_file(name: str) -> dict:
         f.write(data)
     os.remove(f"{INPUT_DIR}/{name}")
 
-    _loaded[name] = {"header": header, "encrypted": encrypted, "compressed": compressed}
+    _loaded[name] = {
+        "file_type": file_type,
+        "header": header,
+        "encrypted": encrypted,
+        "compressed": compressed,
+    }
     return {
         "name": name,
         "file_type": file_type,
@@ -143,20 +156,119 @@ def extract(name: str, xpaths: list[str]) -> dict:
     return {"zip": buffer.getvalue(), "extracted": extracted, "failed": failed}
 
 
+def _read_release(path: str) -> dict | None:
+    """
+    Parse a MHFrontier-Translation release, ``{lang: {xpath: [entries]}}``.
+
+    :return: The parsed release, or None when *path* is another format
+        (CSV, or a JSON extracted by this tool, which has ``metadata``
+        and ``strings`` keys instead).
+    """
+    with open(path, "rb") as f:
+        raw = f.read()
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict) or not data:
+        return None
+    for sections in data.values():
+        if not isinstance(sections, dict):
+            return None
+        if not all(isinstance(entries, list) for entries in sections.values()):
+            return None
+    return data
+
+
+def stage_translations(name: str, translations: list[str]) -> list[dict]:
+    """
+    Describe the translation files the page wrote to ``/work/translations``.
+
+    Release files are parsed once here and kept for :func:`build`.
+
+    :return: One item per file: ``{"name", "kind": "section"}``, or
+        ``{"name", "kind": "release", "languages": {lang: n}}`` where
+        *n* counts the sections that apply to the loaded game file.
+    """
+    file_type = _loaded[name]["file_type"]
+    _releases.clear()
+    staged = []
+    for translation in translations:
+        release = _read_release(f"{TRANSLATION_DIR}/{translation}")
+        if release is None:
+            staged.append({"name": translation, "kind": "section"})
+            continue
+        _releases[translation] = release
+        languages = {
+            lang: sum(1 for xpath in sections if xpath.split("/")[0] == file_type)
+            for lang, sections in release.items()
+        }
+        staged.append({"name": translation, "kind": "release", "languages": languages})
+    return staged
+
+
+def _apply_release(
+    name: str, translation: str, lang: str, current: str, fold: bool
+) -> bool:
+    """
+    Apply one language of a staged release to the working copy *current*.
+
+    The release importer works on a game folder, so this lays one out
+    around the working copy, keeping only the sections for this file:
+    the others would be reported as missing game files.
+
+    :return: True if the working copy changed.
+    """
+    file_type = _loaded[name]["file_type"]
+    sections = {
+        xpath: entries
+        for xpath, entries in _releases[translation].get(lang, {}).items()
+        if xpath.split("/")[0] == file_type
+    }
+    rel_path = XPATH_PREFIX_TO_GAME_FILE.get(file_type)
+    if not sections or rel_path is None:
+        _reporter(f"{translation}: no '{lang}' sections for {name}.")
+        return False
+
+    game_dir = f"{WORK}/release-game"
+    _reset_dir(game_dir)
+    game_file = f"{game_dir}/{rel_path}"
+    os.makedirs(os.path.dirname(game_file))
+    shutil.copyfile(current, game_file)
+    filtered = f"{WORK}/release.json"
+    with open(filtered, "w", encoding="utf-8") as f:
+        json.dump({lang: sections}, f, ensure_ascii=False)
+
+    results = apply_translations_from_release_json(
+        filtered, lang, game_dir,
+        compress=False, encrypt=False,
+        fold_unsupported_chars=fold,
+    )
+    if not results:
+        return False
+    shutil.copyfile(game_file, current)
+    return True
+
+
 def build(
     name: str,
     translations: list[str],
+    release_languages: dict[str, str] | None = None,
     compress: bool = True,
     encrypt_output: bool = True,
     fold_unsupported_chars: bool = True,
 ) -> dict:
     """
-    Apply translation files from ``/work/translations`` to a loaded file.
+    Apply staged translation files to a loaded file.
 
     Each translation is imported on the decoded binary in turn;
     compression and encryption run once at the end, since they are the
     slow steps.
 
+    :param release_languages: Language to apply for each release file,
+        by file name. Other files are imported as extracted CSV/JSON.
     :return: ``{"data": bytes, "applied": [...], "unchanged": [...]}``
     """
     build_dir = f"{WORK}/build"
@@ -166,23 +278,30 @@ def build(
     current = f"{build_dir}/{name}"
     shutil.copyfile(f"{DECODED_DIR}/{name}", current)
 
+    release_languages = release_languages or {}
     applied, unchanged = [], []
     for index, translation in enumerate(translations):
-        step_output = f"{build_dir}/step-{index}.bin"
-        result = _timed(
-            f"Applying {translation}",
-            lambda: import_from_csv(
-                f"{TRANSLATION_DIR}/{translation}",
-                current,
-                output_path=step_output,
-                fold_unsupported_chars=fold_unsupported_chars,
-            ),
-        )
-        if result is None:
-            unchanged.append(translation)
-            continue
-        os.replace(step_output, current)
-        applied.append(translation)
+        if translation in release_languages:
+            lang = release_languages[translation]
+            changed = _timed(
+                f"Applying {translation} ({lang})", _apply_release,
+                name, translation, lang, current, fold_unsupported_chars,
+            )
+        else:
+            step_output = f"{build_dir}/step-{index}.bin"
+            result = _timed(
+                f"Applying {translation}",
+                lambda: import_from_csv(
+                    f"{TRANSLATION_DIR}/{translation}",
+                    current,
+                    output_path=step_output,
+                    fold_unsupported_chars=fold_unsupported_chars,
+                ),
+            )
+            changed = result is not None
+            if changed:
+                os.replace(step_output, current)
+        (applied if changed else unchanged).append(translation)
 
     if not applied:
         # Nothing to write: skip the slow compress and encrypt steps.

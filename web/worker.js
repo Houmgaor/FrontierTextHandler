@@ -47,13 +47,18 @@ const commands = {
     return toJs(bridge.extract(name, py.toPy(xpaths)));
   },
 
-  async build({ py, bridge }, { name, translations, options }) {
+  async stage({ py, bridge }, { name, translations }) {
     clearDir(py, TRANSLATION_DIR);
     for (const file of translations) {
       py.FS.writeFile(`${TRANSLATION_DIR}/${file.name}`, new Uint8Array(file.data));
     }
+    return toJs(bridge.stage_translations(name, py.toPy(translations.map((f) => f.name))));
+  },
+
+  async build({ py, bridge }, { name, translations, releaseLanguages, options }) {
     return toJs(
-      bridge.build.callKwargs(name, py.toPy(translations.map((f) => f.name)), {
+      bridge.build.callKwargs(name, py.toPy(translations), {
+        release_languages: py.toPy(releaseLanguages),
         compress: options.compress,
         encrypt_output: options.encrypt,
         fold_unsupported_chars: options.fold,
