@@ -90,6 +90,8 @@ Defines pointer offsets for each data section. Structure: `{file_type}/{category
 - `record_levels` (with `entry_count`/`entry_size`): records that point to lists (a tip and its pages). Each level is `{pointer_offset, count_offset, entry_size}`; strings sit at `field_offset` in the innermost records. Rows are one per innermost list, joined with `{j}`, or one per string with `"join": false`
 - `null_padding`: in a flat `entry_count` table, null pointers are padding (one row per non-null pointer). Without it, any null makes nulls act as group separators, which suits multi-line descriptions but merges a padded name list into one row
 
+`tools/map_pac_tables.py` generates the flat `pac/text_<offset>` sections from an unpatched JP `mhfpac.bin` (`--check` other clients, `--write` to update).
+
 Note: `begin_pointer` is a pointer-to-pointer. The file stores an address that points to the actual table start. Use `--game-version` to select entry counts for non-ZZ versions.
 
 ## CSV Format

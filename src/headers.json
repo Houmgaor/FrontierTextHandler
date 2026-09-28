@@ -724,6 +724,4993 @@
         "entry_count": 153,
         "_comment": "count at *0x10+0x1C"
       }
+    },
+    "text_98": {
+      "begin_pointer": "0x98",
+      "entry_count": 20,
+      "null_padding": true,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_f0": {
+      "begin_pointer": "0xF0",
+      "entry_count": 9,
+      "max_display_width": 52,
+      "max_sub_count": 1
+    },
+    "text_218": {
+      "begin_pointer": "0x218",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_220": {
+      "begin_pointer": "0x220",
+      "entry_count": 8,
+      "max_display_width": 39,
+      "max_sub_count": 1
+    },
+    "text_224": {
+      "begin_pointer": "0x224",
+      "entry_count": 7,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_228": {
+      "begin_pointer": "0x228",
+      "entry_count": 6,
+      "max_display_width": 62,
+      "max_sub_count": 1
+    },
+    "text_22c": {
+      "begin_pointer": "0x22C",
+      "entry_count": 2,
+      "max_display_width": 29,
+      "max_sub_count": 1
+    },
+    "text_230": {
+      "begin_pointer": "0x230",
+      "entry_count": 8,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_234": {
+      "begin_pointer": "0x234",
+      "entry_count": 4,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_238": {
+      "begin_pointer": "0x238",
+      "entry_count": 28,
+      "max_display_width": 110,
+      "max_sub_count": 1
+    },
+    "text_23c": {
+      "begin_pointer": "0x23C",
+      "entry_count": 11,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_240": {
+      "begin_pointer": "0x240",
+      "entry_count": 11,
+      "max_display_width": 121,
+      "max_sub_count": 1
+    },
+    "text_244": {
+      "begin_pointer": "0x244",
+      "entry_count": 584,
+      "max_display_width": 261,
+      "max_sub_count": 1
+    },
+    "text_248": {
+      "begin_pointer": "0x248",
+      "entry_count": 49,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_24c": {
+      "begin_pointer": "0x24C",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_250": {
+      "begin_pointer": "0x250",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_254": {
+      "begin_pointer": "0x254",
+      "entry_count": 13,
+      "max_display_width": 95,
+      "max_sub_count": 1
+    },
+    "text_258": {
+      "begin_pointer": "0x258",
+      "entry_count": 16,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_25c": {
+      "begin_pointer": "0x25C",
+      "entry_count": 9,
+      "max_display_width": 45,
+      "max_sub_count": 1
+    },
+    "text_260": {
+      "begin_pointer": "0x260",
+      "entry_count": 4,
+      "max_display_width": 55,
+      "max_sub_count": 1
+    },
+    "text_264": {
+      "begin_pointer": "0x264",
+      "entry_count": 10,
+      "max_display_width": 30,
+      "max_sub_count": 1
+    },
+    "text_268": {
+      "begin_pointer": "0x268",
+      "entry_count": 8,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_26c": {
+      "begin_pointer": "0x26C",
+      "entry_count": 5,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_270": {
+      "begin_pointer": "0x270",
+      "entry_count": 22,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_274": {
+      "begin_pointer": "0x274",
+      "entry_count": 24,
+      "max_display_width": 70,
+      "max_sub_count": 1
+    },
+    "text_27c": {
+      "begin_pointer": "0x27C",
+      "entry_count": 8,
+      "max_display_width": 27,
+      "max_sub_count": 1
+    },
+    "text_280": {
+      "begin_pointer": "0x280",
+      "entry_count": 12,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_284": {
+      "begin_pointer": "0x284",
+      "entry_count": 4,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_288": {
+      "begin_pointer": "0x288",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_28c": {
+      "begin_pointer": "0x28C",
+      "entry_count": 17,
+      "max_display_width": 71,
+      "max_sub_count": 1
+    },
+    "text_290": {
+      "begin_pointer": "0x290",
+      "entry_count": 36,
+      "max_display_width": 51,
+      "max_sub_count": 1
+    },
+    "text_294": {
+      "begin_pointer": "0x294",
+      "entry_count": 76,
+      "max_display_width": 94,
+      "max_sub_count": 1
+    },
+    "text_298": {
+      "begin_pointer": "0x298",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_29c": {
+      "begin_pointer": "0x29C",
+      "entry_count": 7,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_2a0": {
+      "begin_pointer": "0x2A0",
+      "entry_count": 6,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_2a4": {
+      "begin_pointer": "0x2A4",
+      "entry_count": 4,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_2a8": {
+      "begin_pointer": "0x2A8",
+      "entry_count": 4,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_2ac": {
+      "begin_pointer": "0x2AC",
+      "entry_count": 51,
+      "max_display_width": 117,
+      "max_sub_count": 1
+    },
+    "text_2b4": {
+      "begin_pointer": "0x2B4",
+      "entry_count": 4,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_2b8": {
+      "begin_pointer": "0x2B8",
+      "entry_count": 10,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_2bc": {
+      "begin_pointer": "0x2BC",
+      "entry_count": 2,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_2c0": {
+      "begin_pointer": "0x2C0",
+      "entry_count": 16,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_2c4": {
+      "begin_pointer": "0x2C4",
+      "entry_count": 8,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_2c8": {
+      "begin_pointer": "0x2C8",
+      "entry_count": 7,
+      "null_padding": true,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_2cc": {
+      "begin_pointer": "0x2CC",
+      "entry_count": 13,
+      "max_display_width": 71,
+      "max_sub_count": 1
+    },
+    "text_2d0": {
+      "begin_pointer": "0x2D0",
+      "entry_count": 7,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_2d4": {
+      "begin_pointer": "0x2D4",
+      "entry_count": 5,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_2dc": {
+      "begin_pointer": "0x2DC",
+      "entry_count": 13,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_2e0": {
+      "begin_pointer": "0x2E0",
+      "entry_count": 14,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_2e4": {
+      "begin_pointer": "0x2E4",
+      "entry_count": 346,
+      "max_display_width": 183,
+      "max_sub_count": 1
+    },
+    "text_2e8": {
+      "begin_pointer": "0x2E8",
+      "entry_count": 72,
+      "max_display_width": 78,
+      "max_sub_count": 1
+    },
+    "text_2ec": {
+      "begin_pointer": "0x2EC",
+      "entry_count": 16,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_2f0": {
+      "begin_pointer": "0x2F0",
+      "entry_count": 6,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_2f4": {
+      "begin_pointer": "0x2F4",
+      "entry_count": 7,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_2f8": {
+      "begin_pointer": "0x2F8",
+      "entry_count": 4,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_2fc": {
+      "begin_pointer": "0x2FC",
+      "entry_count": 3,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_300": {
+      "begin_pointer": "0x300",
+      "entry_count": 3,
+      "max_display_width": 15,
+      "max_sub_count": 1
+    },
+    "text_304": {
+      "begin_pointer": "0x304",
+      "entry_count": 3,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_308": {
+      "begin_pointer": "0x308",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_310": {
+      "begin_pointer": "0x310",
+      "entry_count": 9,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_314": {
+      "begin_pointer": "0x314",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_318": {
+      "begin_pointer": "0x318",
+      "entry_count": 24,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_31c": {
+      "begin_pointer": "0x31C",
+      "entry_count": 4,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_320": {
+      "begin_pointer": "0x320",
+      "entry_count": 5,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_324": {
+      "begin_pointer": "0x324",
+      "entry_count": 25,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_328": {
+      "begin_pointer": "0x328",
+      "entry_count": 12,
+      "max_display_width": 0,
+      "max_sub_count": 1
+    },
+    "text_32c": {
+      "begin_pointer": "0x32C",
+      "entry_count": 4,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_330": {
+      "begin_pointer": "0x330",
+      "entry_count": 6,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_334": {
+      "begin_pointer": "0x334",
+      "entry_count": 95,
+      "max_display_width": 105,
+      "max_sub_count": 1
+    },
+    "text_338": {
+      "begin_pointer": "0x338",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_33c": {
+      "begin_pointer": "0x33C",
+      "entry_count": 58,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_340": {
+      "begin_pointer": "0x340",
+      "entry_count": 34,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_344": {
+      "begin_pointer": "0x344",
+      "entry_count": 316,
+      "max_display_width": 88,
+      "max_sub_count": 1
+    },
+    "text_348": {
+      "begin_pointer": "0x348",
+      "entry_count": 10,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_34c": {
+      "begin_pointer": "0x34C",
+      "entry_count": 11,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_350": {
+      "begin_pointer": "0x350",
+      "entry_count": 11,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_354": {
+      "begin_pointer": "0x354",
+      "entry_count": 10,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_358": {
+      "begin_pointer": "0x358",
+      "entry_count": 10,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_360": {
+      "begin_pointer": "0x360",
+      "entry_count": 2,
+      "max_display_width": 7,
+      "max_sub_count": 1
+    },
+    "text_364": {
+      "begin_pointer": "0x364",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_368": {
+      "begin_pointer": "0x368",
+      "entry_count": 6,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_36c": {
+      "begin_pointer": "0x36C",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_370": {
+      "begin_pointer": "0x370",
+      "entry_count": 62,
+      "null_padding": true,
+      "max_display_width": 92,
+      "max_sub_count": 1
+    },
+    "text_374": {
+      "begin_pointer": "0x374",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_378": {
+      "begin_pointer": "0x378",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_37c": {
+      "begin_pointer": "0x37C",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_380": {
+      "begin_pointer": "0x380",
+      "entry_count": 2,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_384": {
+      "begin_pointer": "0x384",
+      "entry_count": 4,
+      "max_display_width": 101,
+      "max_sub_count": 1
+    },
+    "text_38c": {
+      "begin_pointer": "0x38C",
+      "entry_count": 14,
+      "max_display_width": 29,
+      "max_sub_count": 1
+    },
+    "text_390": {
+      "begin_pointer": "0x390",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_398": {
+      "begin_pointer": "0x398",
+      "entry_count": 196,
+      "max_display_width": 59,
+      "max_sub_count": 1
+    },
+    "text_39c": {
+      "begin_pointer": "0x39C",
+      "entry_count": 84,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_3a0": {
+      "begin_pointer": "0x3A0",
+      "entry_count": 19,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_3a4": {
+      "begin_pointer": "0x3A4",
+      "entry_count": 25,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_3a8": {
+      "begin_pointer": "0x3A8",
+      "entry_count": 32,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_3ac": {
+      "begin_pointer": "0x3AC",
+      "entry_count": 3,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_3b0": {
+      "begin_pointer": "0x3B0",
+      "entry_count": 4,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_3b4": {
+      "begin_pointer": "0x3B4",
+      "entry_count": 3,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_3b8": {
+      "begin_pointer": "0x3B8",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_3bc": {
+      "begin_pointer": "0x3BC",
+      "entry_count": 7,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_3c4": {
+      "begin_pointer": "0x3C4",
+      "entry_count": 208,
+      "null_padding": true,
+      "max_display_width": 102,
+      "max_sub_count": 1
+    },
+    "text_3c8": {
+      "begin_pointer": "0x3C8",
+      "entry_count": 115,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_3cc": {
+      "begin_pointer": "0x3CC",
+      "entry_count": 4,
+      "max_display_width": 74,
+      "max_sub_count": 1
+    },
+    "text_3d0": {
+      "begin_pointer": "0x3D0",
+      "entry_count": 8,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_3d4": {
+      "begin_pointer": "0x3D4",
+      "entry_count": 8,
+      "max_display_width": 59,
+      "max_sub_count": 1
+    },
+    "text_3dc": {
+      "begin_pointer": "0x3DC",
+      "entry_count": 10,
+      "max_display_width": 49,
+      "max_sub_count": 1
+    },
+    "text_3e0": {
+      "begin_pointer": "0x3E0",
+      "entry_count": 10,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_3e4": {
+      "begin_pointer": "0x3E4",
+      "entry_count": 16,
+      "null_padding": true,
+      "max_display_width": 527,
+      "max_sub_count": 1
+    },
+    "text_3e8": {
+      "begin_pointer": "0x3E8",
+      "entry_count": 2,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_3ec": {
+      "begin_pointer": "0x3EC",
+      "entry_count": 4,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_3f0": {
+      "begin_pointer": "0x3F0",
+      "entry_count": 2,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_3f4": {
+      "begin_pointer": "0x3F4",
+      "entry_count": 3,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_3f8": {
+      "begin_pointer": "0x3F8",
+      "entry_count": 4,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_3fc": {
+      "begin_pointer": "0x3FC",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_400": {
+      "begin_pointer": "0x400",
+      "entry_count": 3,
+      "max_display_width": 462,
+      "max_sub_count": 1
+    },
+    "text_404": {
+      "begin_pointer": "0x404",
+      "entry_count": 3,
+      "max_display_width": 456,
+      "max_sub_count": 1
+    },
+    "text_408": {
+      "begin_pointer": "0x408",
+      "entry_count": 4,
+      "max_display_width": 456,
+      "max_sub_count": 1
+    },
+    "text_40c": {
+      "begin_pointer": "0x40C",
+      "entry_count": 2,
+      "max_display_width": 412,
+      "max_sub_count": 1
+    },
+    "text_410": {
+      "begin_pointer": "0x410",
+      "entry_count": 4,
+      "max_display_width": 257,
+      "max_sub_count": 1
+    },
+    "text_414": {
+      "begin_pointer": "0x414",
+      "entry_count": 8,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_418": {
+      "begin_pointer": "0x418",
+      "entry_count": 16,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_41c": {
+      "begin_pointer": "0x41C",
+      "entry_count": 38,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_420": {
+      "begin_pointer": "0x420",
+      "entry_count": 28,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_424": {
+      "begin_pointer": "0x424",
+      "entry_count": 7,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_428": {
+      "begin_pointer": "0x428",
+      "entry_count": 5,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_430": {
+      "begin_pointer": "0x430",
+      "entry_count": 31,
+      "null_padding": true,
+      "max_display_width": 150,
+      "max_sub_count": 1
+    },
+    "text_434": {
+      "begin_pointer": "0x434",
+      "entry_count": 10,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_438": {
+      "begin_pointer": "0x438",
+      "entry_count": 6,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_43c": {
+      "begin_pointer": "0x43C",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_440": {
+      "begin_pointer": "0x440",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_444": {
+      "begin_pointer": "0x444",
+      "entry_count": 12,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_448": {
+      "begin_pointer": "0x448",
+      "entry_count": 3,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_44c": {
+      "begin_pointer": "0x44C",
+      "entry_count": 3,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_450": {
+      "begin_pointer": "0x450",
+      "entry_count": 3,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_454": {
+      "begin_pointer": "0x454",
+      "entry_count": 3,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_458": {
+      "begin_pointer": "0x458",
+      "entry_count": 2,
+      "max_display_width": 17,
+      "max_sub_count": 1
+    },
+    "text_45c": {
+      "begin_pointer": "0x45C",
+      "entry_count": 7,
+      "max_display_width": 25,
+      "max_sub_count": 1
+    },
+    "text_460": {
+      "begin_pointer": "0x460",
+      "entry_count": 8,
+      "max_display_width": 35,
+      "max_sub_count": 1
+    },
+    "text_464": {
+      "begin_pointer": "0x464",
+      "entry_count": 10,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_468": {
+      "begin_pointer": "0x468",
+      "entry_count": 10,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_46c": {
+      "begin_pointer": "0x46C",
+      "entry_count": 6,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_470": {
+      "begin_pointer": "0x470",
+      "entry_count": 6,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_474": {
+      "begin_pointer": "0x474",
+      "entry_count": 7,
+      "max_display_width": 72,
+      "max_sub_count": 1
+    },
+    "text_478": {
+      "begin_pointer": "0x478",
+      "entry_count": 12,
+      "max_display_width": 74,
+      "max_sub_count": 1
+    },
+    "text_47c": {
+      "begin_pointer": "0x47C",
+      "entry_count": 6,
+      "max_display_width": 293,
+      "max_sub_count": 1
+    },
+    "text_480": {
+      "begin_pointer": "0x480",
+      "entry_count": 6,
+      "max_display_width": 335,
+      "max_sub_count": 1
+    },
+    "text_488": {
+      "begin_pointer": "0x488",
+      "entry_count": 24,
+      "max_display_width": 45,
+      "max_sub_count": 1
+    },
+    "text_48c": {
+      "begin_pointer": "0x48C",
+      "entry_count": 24,
+      "max_display_width": 45,
+      "max_sub_count": 1
+    },
+    "text_490": {
+      "begin_pointer": "0x490",
+      "entry_count": 21,
+      "max_display_width": 25,
+      "max_sub_count": 1
+    },
+    "text_494": {
+      "begin_pointer": "0x494",
+      "entry_count": 22,
+      "max_display_width": 126,
+      "max_sub_count": 1
+    },
+    "text_498": {
+      "begin_pointer": "0x498",
+      "entry_count": 21,
+      "max_display_width": 76,
+      "max_sub_count": 1
+    },
+    "text_49c": {
+      "begin_pointer": "0x49C",
+      "entry_count": 5,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_4a0": {
+      "begin_pointer": "0x4A0",
+      "entry_count": 4,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_4a4": {
+      "begin_pointer": "0x4A4",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_4a8": {
+      "begin_pointer": "0x4A8",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_4ac": {
+      "begin_pointer": "0x4AC",
+      "entry_count": 9,
+      "max_display_width": 61,
+      "max_sub_count": 1
+    },
+    "text_4b0": {
+      "begin_pointer": "0x4B0",
+      "entry_count": 9,
+      "max_display_width": 90,
+      "max_sub_count": 1
+    },
+    "text_4b4": {
+      "begin_pointer": "0x4B4",
+      "entry_count": 25,
+      "max_display_width": 70,
+      "max_sub_count": 1
+    },
+    "text_4b8": {
+      "begin_pointer": "0x4B8",
+      "entry_count": 8,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_4bc": {
+      "begin_pointer": "0x4BC",
+      "entry_count": 17,
+      "max_display_width": 35,
+      "max_sub_count": 1
+    },
+    "text_4c0": {
+      "begin_pointer": "0x4C0",
+      "entry_count": 9,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_4c4": {
+      "begin_pointer": "0x4C4",
+      "entry_count": 10,
+      "max_display_width": 66,
+      "max_sub_count": 1
+    },
+    "text_4c8": {
+      "begin_pointer": "0x4C8",
+      "entry_count": 5,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_4d0": {
+      "begin_pointer": "0x4D0",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_4d4": {
+      "begin_pointer": "0x4D4",
+      "entry_count": 111,
+      "max_display_width": 41,
+      "max_sub_count": 1
+    },
+    "text_4d8": {
+      "begin_pointer": "0x4D8",
+      "entry_count": 12,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_4dc": {
+      "begin_pointer": "0x4DC",
+      "entry_count": 14,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_4e0": {
+      "begin_pointer": "0x4E0",
+      "entry_count": 9,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_4e4": {
+      "begin_pointer": "0x4E4",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_4e8": {
+      "begin_pointer": "0x4E8",
+      "entry_count": 14,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_4ec": {
+      "begin_pointer": "0x4EC",
+      "entry_count": 69,
+      "max_display_width": 117,
+      "max_sub_count": 1
+    },
+    "text_4f4": {
+      "begin_pointer": "0x4F4",
+      "entry_count": 33,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_4f8": {
+      "begin_pointer": "0x4F8",
+      "entry_count": 58,
+      "null_padding": true,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_4fc": {
+      "begin_pointer": "0x4FC",
+      "entry_count": 4,
+      "max_display_width": 45,
+      "max_sub_count": 1
+    },
+    "text_500": {
+      "begin_pointer": "0x500",
+      "entry_count": 4,
+      "max_display_width": 25,
+      "max_sub_count": 1
+    },
+    "text_504": {
+      "begin_pointer": "0x504",
+      "entry_count": 6,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_508": {
+      "begin_pointer": "0x508",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_50c": {
+      "begin_pointer": "0x50C",
+      "entry_count": 10,
+      "max_display_width": 106,
+      "max_sub_count": 1
+    },
+    "text_510": {
+      "begin_pointer": "0x510",
+      "entry_count": 14,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_514": {
+      "begin_pointer": "0x514",
+      "entry_count": 94,
+      "max_display_width": 7,
+      "max_sub_count": 1
+    },
+    "text_518": {
+      "begin_pointer": "0x518",
+      "entry_count": 16,
+      "max_display_width": 58,
+      "max_sub_count": 1
+    },
+    "text_51c": {
+      "begin_pointer": "0x51C",
+      "entry_count": 10,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_520": {
+      "begin_pointer": "0x520",
+      "entry_count": 8,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_524": {
+      "begin_pointer": "0x524",
+      "entry_count": 167,
+      "max_display_width": 125,
+      "max_sub_count": 1
+    },
+    "text_52c": {
+      "begin_pointer": "0x52C",
+      "entry_count": 92,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_530": {
+      "begin_pointer": "0x530",
+      "entry_count": 3,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_534": {
+      "begin_pointer": "0x534",
+      "entry_count": 35,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_538": {
+      "begin_pointer": "0x538",
+      "entry_count": 2,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_53c": {
+      "begin_pointer": "0x53C",
+      "entry_count": 4,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_540": {
+      "begin_pointer": "0x540",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_544": {
+      "begin_pointer": "0x544",
+      "entry_count": 5,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_548": {
+      "begin_pointer": "0x548",
+      "entry_count": 4,
+      "max_display_width": 25,
+      "max_sub_count": 1
+    },
+    "text_54c": {
+      "begin_pointer": "0x54C",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_550": {
+      "begin_pointer": "0x550",
+      "entry_count": 11,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_554": {
+      "begin_pointer": "0x554",
+      "entry_count": 10,
+      "max_display_width": 53,
+      "max_sub_count": 1
+    },
+    "text_558": {
+      "begin_pointer": "0x558",
+      "entry_count": 10,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_55c": {
+      "begin_pointer": "0x55C",
+      "entry_count": 44,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_560": {
+      "begin_pointer": "0x560",
+      "entry_count": 6,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_564": {
+      "begin_pointer": "0x564",
+      "entry_count": 6,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_568": {
+      "begin_pointer": "0x568",
+      "entry_count": 11,
+      "max_display_width": 196,
+      "max_sub_count": 1
+    },
+    "text_570": {
+      "begin_pointer": "0x570",
+      "entry_count": 5,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_574": {
+      "begin_pointer": "0x574",
+      "entry_count": 2,
+      "max_display_width": 60,
+      "max_sub_count": 1
+    },
+    "text_578": {
+      "begin_pointer": "0x578",
+      "entry_count": 4,
+      "max_display_width": 69,
+      "max_sub_count": 1
+    },
+    "text_57c": {
+      "begin_pointer": "0x57C",
+      "entry_count": 4,
+      "max_display_width": 69,
+      "max_sub_count": 1
+    },
+    "text_580": {
+      "begin_pointer": "0x580",
+      "entry_count": 10,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_594": {
+      "begin_pointer": "0x594",
+      "entry_count": 5,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_598": {
+      "begin_pointer": "0x598",
+      "entry_count": 4,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_59c": {
+      "begin_pointer": "0x59C",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_5a0": {
+      "begin_pointer": "0x5A0",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_5a4": {
+      "begin_pointer": "0x5A4",
+      "entry_count": 4,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_5a8": {
+      "begin_pointer": "0x5A8",
+      "entry_count": 25,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_5ac": {
+      "begin_pointer": "0x5AC",
+      "entry_count": 25,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_5b0": {
+      "begin_pointer": "0x5B0",
+      "entry_count": 25,
+      "max_display_width": 50,
+      "max_sub_count": 1
+    },
+    "text_5b4": {
+      "begin_pointer": "0x5B4",
+      "entry_count": 10,
+      "max_display_width": 82,
+      "max_sub_count": 1
+    },
+    "text_5b8": {
+      "begin_pointer": "0x5B8",
+      "entry_count": 10,
+      "max_display_width": 89,
+      "max_sub_count": 1
+    },
+    "text_5bc": {
+      "begin_pointer": "0x5BC",
+      "entry_count": 6,
+      "max_display_width": 13,
+      "max_sub_count": 1
+    },
+    "text_5c0": {
+      "begin_pointer": "0x5C0",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_5cc": {
+      "begin_pointer": "0x5CC",
+      "entry_count": 5,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_5d0": {
+      "begin_pointer": "0x5D0",
+      "entry_count": 60,
+      "max_display_width": 106,
+      "max_sub_count": 1
+    },
+    "text_5d4": {
+      "begin_pointer": "0x5D4",
+      "entry_count": 6,
+      "max_display_width": 127,
+      "max_sub_count": 1
+    },
+    "text_5d8": {
+      "begin_pointer": "0x5D8",
+      "entry_count": 3,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_5dc": {
+      "begin_pointer": "0x5DC",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_5e0": {
+      "begin_pointer": "0x5E0",
+      "entry_count": 5,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_5e4": {
+      "begin_pointer": "0x5E4",
+      "entry_count": 96,
+      "max_display_width": 174,
+      "max_sub_count": 1
+    },
+    "text_5e8": {
+      "begin_pointer": "0x5E8",
+      "entry_count": 82,
+      "null_padding": true,
+      "max_display_width": 31,
+      "max_sub_count": 1
+    },
+    "text_5ec": {
+      "begin_pointer": "0x5EC",
+      "entry_count": 33,
+      "null_padding": true,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_5f0": {
+      "begin_pointer": "0x5F0",
+      "entry_count": 27,
+      "max_display_width": 17,
+      "max_sub_count": 1
+    },
+    "text_5f4": {
+      "begin_pointer": "0x5F4",
+      "entry_count": 3,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_5f8": {
+      "begin_pointer": "0x5F8",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_5fc": {
+      "begin_pointer": "0x5FC",
+      "entry_count": 15,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_600": {
+      "begin_pointer": "0x600",
+      "entry_count": 21,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_604": {
+      "begin_pointer": "0x604",
+      "entry_count": 10,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_608": {
+      "begin_pointer": "0x608",
+      "entry_count": 8,
+      "max_display_width": 88,
+      "max_sub_count": 1
+    },
+    "text_610": {
+      "begin_pointer": "0x610",
+      "entry_count": 8,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_614": {
+      "begin_pointer": "0x614",
+      "entry_count": 7,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_618": {
+      "begin_pointer": "0x618",
+      "entry_count": 40,
+      "max_display_width": 80,
+      "max_sub_count": 1
+    },
+    "text_61c": {
+      "begin_pointer": "0x61C",
+      "entry_count": 37,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_620": {
+      "begin_pointer": "0x620",
+      "entry_count": 73,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_624": {
+      "begin_pointer": "0x624",
+      "entry_count": 72,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_62c": {
+      "begin_pointer": "0x62C",
+      "entry_count": 24,
+      "max_display_width": 64,
+      "max_sub_count": 1
+    },
+    "text_630": {
+      "begin_pointer": "0x630",
+      "entry_count": 10,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_634": {
+      "begin_pointer": "0x634",
+      "entry_count": 10,
+      "max_display_width": 69,
+      "max_sub_count": 1
+    },
+    "text_638": {
+      "begin_pointer": "0x638",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_63c": {
+      "begin_pointer": "0x63C",
+      "entry_count": 8,
+      "max_display_width": 61,
+      "max_sub_count": 1
+    },
+    "text_658": {
+      "begin_pointer": "0x658",
+      "entry_count": 6,
+      "max_display_width": 37,
+      "max_sub_count": 1
+    },
+    "text_660": {
+      "begin_pointer": "0x660",
+      "entry_count": 4,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_664": {
+      "begin_pointer": "0x664",
+      "entry_count": 3,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_668": {
+      "begin_pointer": "0x668",
+      "entry_count": 40,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_66c": {
+      "begin_pointer": "0x66C",
+      "entry_count": 12,
+      "max_display_width": 168,
+      "max_sub_count": 1
+    },
+    "text_670": {
+      "begin_pointer": "0x670",
+      "entry_count": 201,
+      "max_display_width": 202,
+      "max_sub_count": 1
+    },
+    "text_674": {
+      "begin_pointer": "0x674",
+      "entry_count": 4,
+      "max_display_width": 30,
+      "max_sub_count": 1
+    },
+    "text_678": {
+      "begin_pointer": "0x678",
+      "entry_count": 16,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_67c": {
+      "begin_pointer": "0x67C",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_680": {
+      "begin_pointer": "0x680",
+      "entry_count": 12,
+      "max_display_width": 33,
+      "max_sub_count": 1
+    },
+    "text_684": {
+      "begin_pointer": "0x684",
+      "entry_count": 6,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_688": {
+      "begin_pointer": "0x688",
+      "entry_count": 4,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_68c": {
+      "begin_pointer": "0x68C",
+      "entry_count": 2,
+      "max_display_width": 98,
+      "max_sub_count": 1
+    },
+    "text_690": {
+      "begin_pointer": "0x690",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_694": {
+      "begin_pointer": "0x694",
+      "entry_count": 9,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_698": {
+      "begin_pointer": "0x698",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_69c": {
+      "begin_pointer": "0x69C",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_6a0": {
+      "begin_pointer": "0x6A0",
+      "entry_count": 5,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_6a4": {
+      "begin_pointer": "0x6A4",
+      "entry_count": 21,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_6a8": {
+      "begin_pointer": "0x6A8",
+      "entry_count": 3,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_6ac": {
+      "begin_pointer": "0x6AC",
+      "entry_count": 9,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_6b0": {
+      "begin_pointer": "0x6B0",
+      "entry_count": 9,
+      "max_display_width": 72,
+      "max_sub_count": 1
+    },
+    "text_6b4": {
+      "begin_pointer": "0x6B4",
+      "entry_count": 9,
+      "max_display_width": 216,
+      "max_sub_count": 1
+    },
+    "text_6b8": {
+      "begin_pointer": "0x6B8",
+      "entry_count": 17,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_6bc": {
+      "begin_pointer": "0x6BC",
+      "entry_count": 8,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_6c0": {
+      "begin_pointer": "0x6C0",
+      "entry_count": 4,
+      "max_display_width": 2,
+      "max_sub_count": 1
+    },
+    "text_6c4": {
+      "begin_pointer": "0x6C4",
+      "entry_count": 2,
+      "max_display_width": 108,
+      "max_sub_count": 1
+    },
+    "text_6c8": {
+      "begin_pointer": "0x6C8",
+      "entry_count": 13,
+      "max_display_width": 255,
+      "max_sub_count": 1
+    },
+    "text_6cc": {
+      "begin_pointer": "0x6CC",
+      "entry_count": 13,
+      "max_display_width": 143,
+      "max_sub_count": 1
+    },
+    "text_6d0": {
+      "begin_pointer": "0x6D0",
+      "entry_count": 7,
+      "max_display_width": 81,
+      "max_sub_count": 1
+    },
+    "text_6d4": {
+      "begin_pointer": "0x6D4",
+      "entry_count": 4,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_6d8": {
+      "begin_pointer": "0x6D8",
+      "entry_count": 26,
+      "max_display_width": 245,
+      "max_sub_count": 1
+    },
+    "text_6dc": {
+      "begin_pointer": "0x6DC",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_6e0": {
+      "begin_pointer": "0x6E0",
+      "entry_count": 5,
+      "max_display_width": 5,
+      "max_sub_count": 1
+    },
+    "text_6e4": {
+      "begin_pointer": "0x6E4",
+      "entry_count": 20,
+      "max_display_width": 120,
+      "max_sub_count": 1
+    },
+    "text_6e8": {
+      "begin_pointer": "0x6E8",
+      "entry_count": 17,
+      "max_display_width": 52,
+      "max_sub_count": 1
+    },
+    "text_6ec": {
+      "begin_pointer": "0x6EC",
+      "entry_count": 24,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_6f0": {
+      "begin_pointer": "0x6F0",
+      "entry_count": 284,
+      "max_display_width": 66,
+      "max_sub_count": 1
+    },
+    "text_6f4": {
+      "begin_pointer": "0x6F4",
+      "entry_count": 15,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_6f8": {
+      "begin_pointer": "0x6F8",
+      "entry_count": 177,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_704": {
+      "begin_pointer": "0x704",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_708": {
+      "begin_pointer": "0x708",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_70c": {
+      "begin_pointer": "0x70C",
+      "entry_count": 6,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_710": {
+      "begin_pointer": "0x710",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_714": {
+      "begin_pointer": "0x714",
+      "entry_count": 78,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_718": {
+      "begin_pointer": "0x718",
+      "entry_count": 12,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_71c": {
+      "begin_pointer": "0x71C",
+      "entry_count": 9,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_720": {
+      "begin_pointer": "0x720",
+      "entry_count": 10,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_724": {
+      "begin_pointer": "0x724",
+      "entry_count": 8,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_728": {
+      "begin_pointer": "0x728",
+      "entry_count": 4,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_72c": {
+      "begin_pointer": "0x72C",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_730": {
+      "begin_pointer": "0x730",
+      "entry_count": 10,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_734": {
+      "begin_pointer": "0x734",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_738": {
+      "begin_pointer": "0x738",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_73c": {
+      "begin_pointer": "0x73C",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_740": {
+      "begin_pointer": "0x740",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_748": {
+      "begin_pointer": "0x748",
+      "entry_count": 24,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_74c": {
+      "begin_pointer": "0x74C",
+      "entry_count": 4,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_750": {
+      "begin_pointer": "0x750",
+      "entry_count": 15,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_754": {
+      "begin_pointer": "0x754",
+      "entry_count": 9,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_758": {
+      "begin_pointer": "0x758",
+      "entry_count": 9,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_75c": {
+      "begin_pointer": "0x75C",
+      "entry_count": 10,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_760": {
+      "begin_pointer": "0x760",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_764": {
+      "begin_pointer": "0x764",
+      "entry_count": 28,
+      "max_display_width": 25,
+      "max_sub_count": 1
+    },
+    "text_768": {
+      "begin_pointer": "0x768",
+      "entry_count": 6,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_76c": {
+      "begin_pointer": "0x76C",
+      "entry_count": 9,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_778": {
+      "begin_pointer": "0x778",
+      "entry_count": 16,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_77c": {
+      "begin_pointer": "0x77C",
+      "entry_count": 9,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_780": {
+      "begin_pointer": "0x780",
+      "entry_count": 12,
+      "max_display_width": 55,
+      "max_sub_count": 1
+    },
+    "text_784": {
+      "begin_pointer": "0x784",
+      "entry_count": 6,
+      "max_display_width": 54,
+      "max_sub_count": 1
+    },
+    "text_788": {
+      "begin_pointer": "0x788",
+      "entry_count": 4,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_78c": {
+      "begin_pointer": "0x78C",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_790": {
+      "begin_pointer": "0x790",
+      "entry_count": 7,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_794": {
+      "begin_pointer": "0x794",
+      "entry_count": 15,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_798": {
+      "begin_pointer": "0x798",
+      "entry_count": 31,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_79c": {
+      "begin_pointer": "0x79C",
+      "entry_count": 6,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_7a0": {
+      "begin_pointer": "0x7A0",
+      "entry_count": 3,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_7a4": {
+      "begin_pointer": "0x7A4",
+      "entry_count": 9,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_7a8": {
+      "begin_pointer": "0x7A8",
+      "entry_count": 2,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_7ac": {
+      "begin_pointer": "0x7AC",
+      "entry_count": 3,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_7b0": {
+      "begin_pointer": "0x7B0",
+      "entry_count": 4,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_7b4": {
+      "begin_pointer": "0x7B4",
+      "entry_count": 4,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_7b8": {
+      "begin_pointer": "0x7B8",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_7bc": {
+      "begin_pointer": "0x7BC",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_7c4": {
+      "begin_pointer": "0x7C4",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_7c8": {
+      "begin_pointer": "0x7C8",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_7cc": {
+      "begin_pointer": "0x7CC",
+      "entry_count": 8,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_7d0": {
+      "begin_pointer": "0x7D0",
+      "entry_count": 5,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_7d4": {
+      "begin_pointer": "0x7D4",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_7d8": {
+      "begin_pointer": "0x7D8",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_7dc": {
+      "begin_pointer": "0x7DC",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_7e0": {
+      "begin_pointer": "0x7E0",
+      "entry_count": 104,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_7e4": {
+      "begin_pointer": "0x7E4",
+      "entry_count": 189,
+      "max_display_width": 119,
+      "max_sub_count": 1
+    },
+    "text_7e8": {
+      "begin_pointer": "0x7E8",
+      "entry_count": 14,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_7ec": {
+      "begin_pointer": "0x7EC",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_7f0": {
+      "begin_pointer": "0x7F0",
+      "entry_count": 3,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_7f4": {
+      "begin_pointer": "0x7F4",
+      "entry_count": 8,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_7f8": {
+      "begin_pointer": "0x7F8",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_7fc": {
+      "begin_pointer": "0x7FC",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_800": {
+      "begin_pointer": "0x800",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_804": {
+      "begin_pointer": "0x804",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_808": {
+      "begin_pointer": "0x808",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_80c": {
+      "begin_pointer": "0x80C",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_814": {
+      "begin_pointer": "0x814",
+      "entry_count": 2,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_818": {
+      "begin_pointer": "0x818",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_820": {
+      "begin_pointer": "0x820",
+      "entry_count": 7,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_828": {
+      "begin_pointer": "0x828",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_82c": {
+      "begin_pointer": "0x82C",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_830": {
+      "begin_pointer": "0x830",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_834": {
+      "begin_pointer": "0x834",
+      "entry_count": 3,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_838": {
+      "begin_pointer": "0x838",
+      "entry_count": 6,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_840": {
+      "begin_pointer": "0x840",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_844": {
+      "begin_pointer": "0x844",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_848": {
+      "begin_pointer": "0x848",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_850": {
+      "begin_pointer": "0x850",
+      "entry_count": 14,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_854": {
+      "begin_pointer": "0x854",
+      "entry_count": 14,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_858": {
+      "begin_pointer": "0x858",
+      "entry_count": 3,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_85c": {
+      "begin_pointer": "0x85C",
+      "entry_count": 4,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_860": {
+      "begin_pointer": "0x860",
+      "entry_count": 14,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_864": {
+      "begin_pointer": "0x864",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_868": {
+      "begin_pointer": "0x868",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_86c": {
+      "begin_pointer": "0x86C",
+      "entry_count": 23,
+      "max_display_width": 39,
+      "max_sub_count": 1
+    },
+    "text_870": {
+      "begin_pointer": "0x870",
+      "entry_count": 8,
+      "max_display_width": 84,
+      "max_sub_count": 1
+    },
+    "text_874": {
+      "begin_pointer": "0x874",
+      "entry_count": 9,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_878": {
+      "begin_pointer": "0x878",
+      "entry_count": 4,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_87c": {
+      "begin_pointer": "0x87C",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_880": {
+      "begin_pointer": "0x880",
+      "entry_count": 3,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_884": {
+      "begin_pointer": "0x884",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_890": {
+      "begin_pointer": "0x890",
+      "entry_count": 14,
+      "max_display_width": 77,
+      "max_sub_count": 1
+    },
+    "text_894": {
+      "begin_pointer": "0x894",
+      "entry_count": 2,
+      "max_display_width": 27,
+      "max_sub_count": 1
+    },
+    "text_8a4": {
+      "begin_pointer": "0x8A4",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_8a8": {
+      "begin_pointer": "0x8A8",
+      "entry_count": 2,
+      "max_display_width": 13,
+      "max_sub_count": 1
+    },
+    "text_8ac": {
+      "begin_pointer": "0x8AC",
+      "entry_count": 6,
+      "max_display_width": 13,
+      "max_sub_count": 1
+    },
+    "text_8b0": {
+      "begin_pointer": "0x8B0",
+      "entry_count": 51,
+      "max_display_width": 91,
+      "max_sub_count": 1
+    },
+    "text_8b4": {
+      "begin_pointer": "0x8B4",
+      "entry_count": 52,
+      "max_display_width": 363,
+      "max_sub_count": 1
+    },
+    "text_8b8": {
+      "begin_pointer": "0x8B8",
+      "entry_count": 6,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_8bc": {
+      "begin_pointer": "0x8BC",
+      "entry_count": 9,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_8c0": {
+      "begin_pointer": "0x8C0",
+      "entry_count": 9,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_8c4": {
+      "begin_pointer": "0x8C4",
+      "entry_count": 13,
+      "max_display_width": 60,
+      "max_sub_count": 1
+    },
+    "text_8c8": {
+      "begin_pointer": "0x8C8",
+      "entry_count": 7,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_8cc": {
+      "begin_pointer": "0x8CC",
+      "entry_count": 27,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_8d0": {
+      "begin_pointer": "0x8D0",
+      "entry_count": 3,
+      "max_display_width": 185,
+      "max_sub_count": 1
+    },
+    "text_8d4": {
+      "begin_pointer": "0x8D4",
+      "entry_count": 8,
+      "max_display_width": 250,
+      "max_sub_count": 1
+    },
+    "text_8d8": {
+      "begin_pointer": "0x8D8",
+      "entry_count": 7,
+      "max_display_width": 199,
+      "max_sub_count": 1
+    },
+    "text_8dc": {
+      "begin_pointer": "0x8DC",
+      "entry_count": 6,
+      "max_display_width": 215,
+      "max_sub_count": 1
+    },
+    "text_8e0": {
+      "begin_pointer": "0x8E0",
+      "entry_count": 2,
+      "max_display_width": 530,
+      "max_sub_count": 1
+    },
+    "text_8e4": {
+      "begin_pointer": "0x8E4",
+      "entry_count": 12,
+      "max_display_width": 37,
+      "max_sub_count": 1
+    },
+    "text_8e8": {
+      "begin_pointer": "0x8E8",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_8ec": {
+      "begin_pointer": "0x8EC",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_8f0": {
+      "begin_pointer": "0x8F0",
+      "entry_count": 6,
+      "max_display_width": 5,
+      "max_sub_count": 1
+    },
+    "text_8f4": {
+      "begin_pointer": "0x8F4",
+      "entry_count": 9,
+      "max_display_width": 5,
+      "max_sub_count": 1
+    },
+    "text_8f8": {
+      "begin_pointer": "0x8F8",
+      "entry_count": 16,
+      "max_display_width": 60,
+      "max_sub_count": 1
+    },
+    "text_8fc": {
+      "begin_pointer": "0x8FC",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_900": {
+      "begin_pointer": "0x900",
+      "entry_count": 31,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_904": {
+      "begin_pointer": "0x904",
+      "entry_count": 5,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_90c": {
+      "begin_pointer": "0x90C",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_910": {
+      "begin_pointer": "0x910",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_914": {
+      "begin_pointer": "0x914",
+      "entry_count": 3,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_918": {
+      "begin_pointer": "0x918",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_91c": {
+      "begin_pointer": "0x91C",
+      "entry_count": 4,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_920": {
+      "begin_pointer": "0x920",
+      "entry_count": 26,
+      "max_display_width": 54,
+      "max_sub_count": 1
+    },
+    "text_924": {
+      "begin_pointer": "0x924",
+      "entry_count": 26,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_928": {
+      "begin_pointer": "0x928",
+      "entry_count": 6,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_92c": {
+      "begin_pointer": "0x92C",
+      "entry_count": 7,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_930": {
+      "begin_pointer": "0x930",
+      "entry_count": 5,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_934": {
+      "begin_pointer": "0x934",
+      "entry_count": 6,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_938": {
+      "begin_pointer": "0x938",
+      "entry_count": 11,
+      "max_display_width": 68,
+      "max_sub_count": 1
+    },
+    "text_93c": {
+      "begin_pointer": "0x93C",
+      "entry_count": 52,
+      "null_padding": true,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_940": {
+      "begin_pointer": "0x940",
+      "entry_count": 14,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_944": {
+      "begin_pointer": "0x944",
+      "entry_count": 9,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_948": {
+      "begin_pointer": "0x948",
+      "entry_count": 32,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_950": {
+      "begin_pointer": "0x950",
+      "entry_count": 2,
+      "max_display_width": 3,
+      "max_sub_count": 1
+    },
+    "text_954": {
+      "begin_pointer": "0x954",
+      "entry_count": 6,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_958": {
+      "begin_pointer": "0x958",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_95c": {
+      "begin_pointer": "0x95C",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_960": {
+      "begin_pointer": "0x960",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_964": {
+      "begin_pointer": "0x964",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_96c": {
+      "begin_pointer": "0x96C",
+      "entry_count": 4,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_970": {
+      "begin_pointer": "0x970",
+      "entry_count": 5,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_974": {
+      "begin_pointer": "0x974",
+      "entry_count": 7,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_978": {
+      "begin_pointer": "0x978",
+      "entry_count": 4,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_97c": {
+      "begin_pointer": "0x97C",
+      "entry_count": 66,
+      "max_display_width": 41,
+      "max_sub_count": 1
+    },
+    "text_980": {
+      "begin_pointer": "0x980",
+      "entry_count": 18,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_984": {
+      "begin_pointer": "0x984",
+      "entry_count": 22,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_988": {
+      "begin_pointer": "0x988",
+      "entry_count": 4,
+      "max_display_width": 30,
+      "max_sub_count": 1
+    },
+    "text_98c": {
+      "begin_pointer": "0x98C",
+      "entry_count": 3,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_990": {
+      "begin_pointer": "0x990",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_994": {
+      "begin_pointer": "0x994",
+      "entry_count": 5,
+      "max_display_width": 11,
+      "max_sub_count": 1
+    },
+    "text_998": {
+      "begin_pointer": "0x998",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_99c": {
+      "begin_pointer": "0x99C",
+      "entry_count": 18,
+      "max_display_width": 7,
+      "max_sub_count": 1
+    },
+    "text_9a0": {
+      "begin_pointer": "0x9A0",
+      "entry_count": 12,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_9b0": {
+      "begin_pointer": "0x9B0",
+      "entry_count": 4,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_9b4": {
+      "begin_pointer": "0x9B4",
+      "entry_count": 24,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_9b8": {
+      "begin_pointer": "0x9B8",
+      "entry_count": 24,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_9bc": {
+      "begin_pointer": "0x9BC",
+      "entry_count": 6,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_9c0": {
+      "begin_pointer": "0x9C0",
+      "entry_count": 43,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_9c4": {
+      "begin_pointer": "0x9C4",
+      "entry_count": 22,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_9c8": {
+      "begin_pointer": "0x9C8",
+      "entry_count": 9,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_9cc": {
+      "begin_pointer": "0x9CC",
+      "entry_count": 4,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_9d0": {
+      "begin_pointer": "0x9D0",
+      "entry_count": 2,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_9d4": {
+      "begin_pointer": "0x9D4",
+      "entry_count": 10,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_9d8": {
+      "begin_pointer": "0x9D8",
+      "entry_count": 16,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_9dc": {
+      "begin_pointer": "0x9DC",
+      "entry_count": 5,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_9e0": {
+      "begin_pointer": "0x9E0",
+      "entry_count": 2,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_9e4": {
+      "begin_pointer": "0x9E4",
+      "entry_count": 7,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_9e8": {
+      "begin_pointer": "0x9E8",
+      "entry_count": 6,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_9ec": {
+      "begin_pointer": "0x9EC",
+      "entry_count": 8,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_9f0": {
+      "begin_pointer": "0x9F0",
+      "entry_count": 2,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_9f4": {
+      "begin_pointer": "0x9F4",
+      "entry_count": 2,
+      "max_display_width": 13,
+      "max_sub_count": 1
+    },
+    "text_9f8": {
+      "begin_pointer": "0x9F8",
+      "entry_count": 2,
+      "max_display_width": 11,
+      "max_sub_count": 1
+    },
+    "text_9fc": {
+      "begin_pointer": "0x9FC",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_a00": {
+      "begin_pointer": "0xA00",
+      "entry_count": 98,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_a04": {
+      "begin_pointer": "0xA04",
+      "entry_count": 32,
+      "max_display_width": 82,
+      "max_sub_count": 1
+    },
+    "text_a0c": {
+      "begin_pointer": "0xA0C",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_a10": {
+      "begin_pointer": "0xA10",
+      "entry_count": 5,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_a14": {
+      "begin_pointer": "0xA14",
+      "entry_count": 5,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_a18": {
+      "begin_pointer": "0xA18",
+      "entry_count": 196,
+      "max_display_width": 120,
+      "max_sub_count": 1
+    },
+    "text_a28": {
+      "begin_pointer": "0xA28",
+      "entry_count": 2,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_a30": {
+      "begin_pointer": "0xA30",
+      "entry_count": 32,
+      "null_padding": true,
+      "max_display_width": 58,
+      "max_sub_count": 1
+    },
+    "text_a34": {
+      "begin_pointer": "0xA34",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_a38": {
+      "begin_pointer": "0xA38",
+      "entry_count": 4,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_a3c": {
+      "begin_pointer": "0xA3C",
+      "entry_count": 111,
+      "max_display_width": 13,
+      "max_sub_count": 1
+    },
+    "text_a40": {
+      "begin_pointer": "0xA40",
+      "entry_count": 5,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_a44": {
+      "begin_pointer": "0xA44",
+      "entry_count": 23,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_a48": {
+      "begin_pointer": "0xA48",
+      "entry_count": 3,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_a4c": {
+      "begin_pointer": "0xA4C",
+      "entry_count": 6,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_a50": {
+      "begin_pointer": "0xA50",
+      "entry_count": 6,
+      "max_display_width": 53,
+      "max_sub_count": 1
+    },
+    "text_a54": {
+      "begin_pointer": "0xA54",
+      "entry_count": 5,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_a58": {
+      "begin_pointer": "0xA58",
+      "entry_count": 5,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_a5c": {
+      "begin_pointer": "0xA5C",
+      "entry_count": 10,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_a60": {
+      "begin_pointer": "0xA60",
+      "entry_count": 77,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_a64": {
+      "begin_pointer": "0xA64",
+      "entry_count": 5,
+      "max_display_width": 5,
+      "max_sub_count": 1
+    },
+    "text_a68": {
+      "begin_pointer": "0xA68",
+      "entry_count": 4,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_a6c": {
+      "begin_pointer": "0xA6C",
+      "entry_count": 8,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_a70": {
+      "begin_pointer": "0xA70",
+      "entry_count": 8,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_a74": {
+      "begin_pointer": "0xA74",
+      "entry_count": 54,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_a78": {
+      "begin_pointer": "0xA78",
+      "entry_count": 3,
+      "max_display_width": 2,
+      "max_sub_count": 1
+    },
+    "text_a80": {
+      "begin_pointer": "0xA80",
+      "entry_count": 469,
+      "max_display_width": 352,
+      "max_sub_count": 1
+    },
+    "text_a84": {
+      "begin_pointer": "0xA84",
+      "entry_count": 58,
+      "max_display_width": 62,
+      "max_sub_count": 1
+    },
+    "text_a88": {
+      "begin_pointer": "0xA88",
+      "entry_count": 24,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_a8c": {
+      "begin_pointer": "0xA8C",
+      "entry_count": 22,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_a90": {
+      "begin_pointer": "0xA90",
+      "entry_count": 25,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_a94": {
+      "begin_pointer": "0xA94",
+      "entry_count": 5,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_a98": {
+      "begin_pointer": "0xA98",
+      "entry_count": 4,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_a9c": {
+      "begin_pointer": "0xA9C",
+      "entry_count": 6,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_aa0": {
+      "begin_pointer": "0xAA0",
+      "entry_count": 3,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_aa8": {
+      "begin_pointer": "0xAA8",
+      "entry_count": 28,
+      "max_display_width": 86,
+      "max_sub_count": 1
+    },
+    "text_aac": {
+      "begin_pointer": "0xAAC",
+      "entry_count": 1167,
+      "max_display_width": 526,
+      "max_sub_count": 1
+    },
+    "text_ab0": {
+      "begin_pointer": "0xAB0",
+      "entry_count": 33,
+      "max_display_width": 326,
+      "max_sub_count": 1
+    },
+    "text_ab4": {
+      "begin_pointer": "0xAB4",
+      "entry_count": 5,
+      "max_display_width": 194,
+      "max_sub_count": 1
+    },
+    "text_abc": {
+      "begin_pointer": "0xABC",
+      "entry_count": 80,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_ac0": {
+      "begin_pointer": "0xAC0",
+      "entry_count": 7,
+      "max_display_width": 102,
+      "max_sub_count": 1
+    },
+    "text_ac4": {
+      "begin_pointer": "0xAC4",
+      "entry_count": 256,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_ac8": {
+      "begin_pointer": "0xAC8",
+      "entry_count": 15,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_ad0": {
+      "begin_pointer": "0xAD0",
+      "entry_count": 16,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_ad4": {
+      "begin_pointer": "0xAD4",
+      "entry_count": 7,
+      "max_display_width": 44,
+      "max_sub_count": 1
+    },
+    "text_ad8": {
+      "begin_pointer": "0xAD8",
+      "entry_count": 98,
+      "max_display_width": 128,
+      "max_sub_count": 1
+    },
+    "text_adc": {
+      "begin_pointer": "0xADC",
+      "entry_count": 16,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_ae0": {
+      "begin_pointer": "0xAE0",
+      "entry_count": 16,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_ae4": {
+      "begin_pointer": "0xAE4",
+      "entry_count": 11,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_ae8": {
+      "begin_pointer": "0xAE8",
+      "entry_count": 11,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_aec": {
+      "begin_pointer": "0xAEC",
+      "entry_count": 10,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_af0": {
+      "begin_pointer": "0xAF0",
+      "entry_count": 4,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_af4": {
+      "begin_pointer": "0xAF4",
+      "entry_count": 5,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_af8": {
+      "begin_pointer": "0xAF8",
+      "entry_count": 71,
+      "max_display_width": 79,
+      "max_sub_count": 1
+    },
+    "text_afc": {
+      "begin_pointer": "0xAFC",
+      "entry_count": 3,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_b00": {
+      "begin_pointer": "0xB00",
+      "entry_count": 12,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_b04": {
+      "begin_pointer": "0xB04",
+      "entry_count": 79,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_b08": {
+      "begin_pointer": "0xB08",
+      "entry_count": 755,
+      "max_display_width": 64,
+      "max_sub_count": 1
+    },
+    "text_b0c": {
+      "begin_pointer": "0xB0C",
+      "entry_count": 9,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_b10": {
+      "begin_pointer": "0xB10",
+      "entry_count": 6,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_b14": {
+      "begin_pointer": "0xB14",
+      "entry_count": 6,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_b18": {
+      "begin_pointer": "0xB18",
+      "entry_count": 6,
+      "max_display_width": 61,
+      "max_sub_count": 1
+    },
+    "text_b1c": {
+      "begin_pointer": "0xB1C",
+      "entry_count": 6,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_b20": {
+      "begin_pointer": "0xB20",
+      "entry_count": 10,
+      "max_display_width": 407,
+      "max_sub_count": 1
+    },
+    "text_b24": {
+      "begin_pointer": "0xB24",
+      "entry_count": 29,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_b28": {
+      "begin_pointer": "0xB28",
+      "entry_count": 18,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_b2c": {
+      "begin_pointer": "0xB2C",
+      "entry_count": 17,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_b30": {
+      "begin_pointer": "0xB30",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_b34": {
+      "begin_pointer": "0xB34",
+      "entry_count": 101,
+      "max_display_width": 227,
+      "max_sub_count": 1
+    },
+    "text_b38": {
+      "begin_pointer": "0xB38",
+      "entry_count": 17,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_b3c": {
+      "begin_pointer": "0xB3C",
+      "entry_count": 21,
+      "max_display_width": 486,
+      "max_sub_count": 1
+    },
+    "text_b40": {
+      "begin_pointer": "0xB40",
+      "entry_count": 24,
+      "max_display_width": 255,
+      "max_sub_count": 1
+    },
+    "text_b44": {
+      "begin_pointer": "0xB44",
+      "entry_count": 46,
+      "max_display_width": 133,
+      "max_sub_count": 1
+    },
+    "text_b48": {
+      "begin_pointer": "0xB48",
+      "entry_count": 70,
+      "max_display_width": 82,
+      "max_sub_count": 1
+    },
+    "text_b4c": {
+      "begin_pointer": "0xB4C",
+      "entry_count": 3,
+      "max_display_width": 48,
+      "max_sub_count": 1
+    },
+    "text_b50": {
+      "begin_pointer": "0xB50",
+      "entry_count": 3,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_b54": {
+      "begin_pointer": "0xB54",
+      "entry_count": 4,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_b58": {
+      "begin_pointer": "0xB58",
+      "entry_count": 242,
+      "max_display_width": 476,
+      "max_sub_count": 1
+    },
+    "text_b5c": {
+      "begin_pointer": "0xB5C",
+      "entry_count": 4,
+      "max_display_width": 736,
+      "max_sub_count": 1
+    },
+    "text_b60": {
+      "begin_pointer": "0xB60",
+      "entry_count": 13,
+      "max_display_width": 508,
+      "max_sub_count": 1
+    },
+    "text_b64": {
+      "begin_pointer": "0xB64",
+      "entry_count": 23,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_b68": {
+      "begin_pointer": "0xB68",
+      "entry_count": 32,
+      "max_display_width": 168,
+      "max_sub_count": 1
+    },
+    "text_b6c": {
+      "begin_pointer": "0xB6C",
+      "entry_count": 32,
+      "max_display_width": 194,
+      "max_sub_count": 1
+    },
+    "text_b70": {
+      "begin_pointer": "0xB70",
+      "entry_count": 32,
+      "max_display_width": 176,
+      "max_sub_count": 1
+    },
+    "text_b74": {
+      "begin_pointer": "0xB74",
+      "entry_count": 32,
+      "max_display_width": 190,
+      "max_sub_count": 1
+    },
+    "text_b78": {
+      "begin_pointer": "0xB78",
+      "entry_count": 32,
+      "max_display_width": 210,
+      "max_sub_count": 1
+    },
+    "text_b7c": {
+      "begin_pointer": "0xB7C",
+      "entry_count": 32,
+      "max_display_width": 174,
+      "max_sub_count": 1
+    },
+    "text_b80": {
+      "begin_pointer": "0xB80",
+      "entry_count": 32,
+      "max_display_width": 198,
+      "max_sub_count": 1
+    },
+    "text_b84": {
+      "begin_pointer": "0xB84",
+      "entry_count": 32,
+      "max_display_width": 195,
+      "max_sub_count": 1
+    },
+    "text_b88": {
+      "begin_pointer": "0xB88",
+      "entry_count": 32,
+      "max_display_width": 160,
+      "max_sub_count": 1
+    },
+    "text_b8c": {
+      "begin_pointer": "0xB8C",
+      "entry_count": 32,
+      "max_display_width": 156,
+      "max_sub_count": 1
+    },
+    "text_b90": {
+      "begin_pointer": "0xB90",
+      "entry_count": 32,
+      "max_display_width": 163,
+      "max_sub_count": 1
+    },
+    "text_b94": {
+      "begin_pointer": "0xB94",
+      "entry_count": 22,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_b98": {
+      "begin_pointer": "0xB98",
+      "entry_count": 58,
+      "max_display_width": 73,
+      "max_sub_count": 1
+    },
+    "text_b9c": {
+      "begin_pointer": "0xB9C",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_ba0": {
+      "begin_pointer": "0xBA0",
+      "entry_count": 9,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_ba4": {
+      "begin_pointer": "0xBA4",
+      "entry_count": 11,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_ba8": {
+      "begin_pointer": "0xBA8",
+      "entry_count": 26,
+      "max_display_width": 556,
+      "max_sub_count": 1
+    },
+    "text_bb4": {
+      "begin_pointer": "0xBB4",
+      "entry_count": 11,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_bb8": {
+      "begin_pointer": "0xBB8",
+      "entry_count": 18,
+      "max_display_width": 497,
+      "max_sub_count": 1
+    },
+    "text_bbc": {
+      "begin_pointer": "0xBBC",
+      "entry_count": 17,
+      "max_display_width": 84,
+      "max_sub_count": 1
+    },
+    "text_bc0": {
+      "begin_pointer": "0xBC0",
+      "entry_count": 10,
+      "max_display_width": 57,
+      "max_sub_count": 1
+    },
+    "text_bc4": {
+      "begin_pointer": "0xBC4",
+      "entry_count": 2,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_bc8": {
+      "begin_pointer": "0xBC8",
+      "entry_count": 4,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_bcc": {
+      "begin_pointer": "0xBCC",
+      "entry_count": 7,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_bd0": {
+      "begin_pointer": "0xBD0",
+      "entry_count": 37,
+      "max_display_width": 144,
+      "max_sub_count": 1
+    },
+    "text_bd4": {
+      "begin_pointer": "0xBD4",
+      "entry_count": 4,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_bd8": {
+      "begin_pointer": "0xBD8",
+      "entry_count": 15,
+      "max_display_width": 81,
+      "max_sub_count": 1
+    },
+    "text_bdc": {
+      "begin_pointer": "0xBDC",
+      "entry_count": 82,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_be0": {
+      "begin_pointer": "0xBE0",
+      "entry_count": 82,
+      "max_display_width": 90,
+      "max_sub_count": 1
+    },
+    "text_be4": {
+      "begin_pointer": "0xBE4",
+      "entry_count": 33,
+      "max_display_width": 28,
+      "max_sub_count": 1
+    },
+    "text_be8": {
+      "begin_pointer": "0xBE8",
+      "entry_count": 33,
+      "max_display_width": 68,
+      "max_sub_count": 1
+    },
+    "text_bec": {
+      "begin_pointer": "0xBEC",
+      "entry_count": 12,
+      "max_display_width": 17,
+      "max_sub_count": 1
+    },
+    "text_bf0": {
+      "begin_pointer": "0xBF0",
+      "entry_count": 5,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_bf4": {
+      "begin_pointer": "0xBF4",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_bf8": {
+      "begin_pointer": "0xBF8",
+      "entry_count": 50,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_bfc": {
+      "begin_pointer": "0xBFC",
+      "entry_count": 50,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_c04": {
+      "begin_pointer": "0xC04",
+      "entry_count": 1520,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_c08": {
+      "begin_pointer": "0xC08",
+      "entry_count": 1482,
+      "max_display_width": 36,
+      "max_sub_count": 1
+    },
+    "text_c0c": {
+      "begin_pointer": "0xC0C",
+      "entry_count": 50,
+      "max_display_width": 129,
+      "max_sub_count": 1
+    },
+    "text_c10": {
+      "begin_pointer": "0xC10",
+      "entry_count": 50,
+      "max_display_width": 145,
+      "max_sub_count": 1
+    },
+    "text_c18": {
+      "begin_pointer": "0xC18",
+      "entry_count": 24,
+      "max_display_width": 40,
+      "max_sub_count": 1
+    },
+    "text_c1c": {
+      "begin_pointer": "0xC1C",
+      "entry_count": 24,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_c20": {
+      "begin_pointer": "0xC20",
+      "entry_count": 16,
+      "max_display_width": 30,
+      "max_sub_count": 1
+    },
+    "text_c24": {
+      "begin_pointer": "0xC24",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_c28": {
+      "begin_pointer": "0xC28",
+      "entry_count": 6,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_c2c": {
+      "begin_pointer": "0xC2C",
+      "entry_count": 982,
+      "max_display_width": 63,
+      "max_sub_count": 1
+    },
+    "text_c30": {
+      "begin_pointer": "0xC30",
+      "entry_count": 35,
+      "max_display_width": 201,
+      "max_sub_count": 1
+    },
+    "text_c34": {
+      "begin_pointer": "0xC34",
+      "entry_count": 7,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_c38": {
+      "begin_pointer": "0xC38",
+      "entry_count": 14,
+      "max_display_width": 439,
+      "max_sub_count": 1
+    },
+    "text_c3c": {
+      "begin_pointer": "0xC3C",
+      "entry_count": 6,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_c40": {
+      "begin_pointer": "0xC40",
+      "entry_count": 18,
+      "max_display_width": 189,
+      "max_sub_count": 1
+    },
+    "text_c44": {
+      "begin_pointer": "0xC44",
+      "entry_count": 287,
+      "max_display_width": 31,
+      "max_sub_count": 1
+    },
+    "text_c48": {
+      "begin_pointer": "0xC48",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_c4c": {
+      "begin_pointer": "0xC4C",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_c50": {
+      "begin_pointer": "0xC50",
+      "entry_count": 17,
+      "max_display_width": 60,
+      "max_sub_count": 1
+    },
+    "text_c58": {
+      "begin_pointer": "0xC58",
+      "entry_count": 38,
+      "max_display_width": 83,
+      "max_sub_count": 1
+    },
+    "text_c5c": {
+      "begin_pointer": "0xC5C",
+      "entry_count": 184,
+      "max_display_width": 390,
+      "max_sub_count": 1
+    },
+    "text_c60": {
+      "begin_pointer": "0xC60",
+      "entry_count": 4,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_c6c": {
+      "begin_pointer": "0xC6C",
+      "entry_count": 6,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_c70": {
+      "begin_pointer": "0xC70",
+      "entry_count": 6,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_c74": {
+      "begin_pointer": "0xC74",
+      "entry_count": 5,
+      "max_display_width": 149,
+      "max_sub_count": 1
+    },
+    "text_c78": {
+      "begin_pointer": "0xC78",
+      "entry_count": 14,
+      "max_display_width": 82,
+      "max_sub_count": 1
+    },
+    "text_c7c": {
+      "begin_pointer": "0xC7C",
+      "entry_count": 10,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_c80": {
+      "begin_pointer": "0xC80",
+      "entry_count": 24,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_c84": {
+      "begin_pointer": "0xC84",
+      "entry_count": 70,
+      "max_display_width": 106,
+      "max_sub_count": 1
+    },
+    "text_c88": {
+      "begin_pointer": "0xC88",
+      "entry_count": 9,
+      "max_display_width": 438,
+      "max_sub_count": 1
+    },
+    "text_c8c": {
+      "begin_pointer": "0xC8C",
+      "entry_count": 26,
+      "max_display_width": 59,
+      "max_sub_count": 1
+    },
+    "text_c90": {
+      "begin_pointer": "0xC90",
+      "entry_count": 40,
+      "max_display_width": 98,
+      "max_sub_count": 1
+    },
+    "text_c94": {
+      "begin_pointer": "0xC94",
+      "entry_count": 40,
+      "max_display_width": 114,
+      "max_sub_count": 1
+    },
+    "text_c98": {
+      "begin_pointer": "0xC98",
+      "entry_count": 40,
+      "max_display_width": 128,
+      "max_sub_count": 1
+    },
+    "text_c9c": {
+      "begin_pointer": "0xC9C",
+      "entry_count": 40,
+      "max_display_width": 120,
+      "max_sub_count": 1
+    },
+    "text_ca0": {
+      "begin_pointer": "0xCA0",
+      "entry_count": 40,
+      "max_display_width": 132,
+      "max_sub_count": 1
+    },
+    "text_ca4": {
+      "begin_pointer": "0xCA4",
+      "entry_count": 40,
+      "max_display_width": 110,
+      "max_sub_count": 1
+    },
+    "text_ca8": {
+      "begin_pointer": "0xCA8",
+      "entry_count": 40,
+      "max_display_width": 109,
+      "max_sub_count": 1
+    },
+    "text_cac": {
+      "begin_pointer": "0xCAC",
+      "entry_count": 40,
+      "max_display_width": 151,
+      "max_sub_count": 1
+    },
+    "text_cb0": {
+      "begin_pointer": "0xCB0",
+      "entry_count": 40,
+      "max_display_width": 107,
+      "max_sub_count": 1
+    },
+    "text_cb4": {
+      "begin_pointer": "0xCB4",
+      "entry_count": 40,
+      "max_display_width": 125,
+      "max_sub_count": 1
+    },
+    "text_cb8": {
+      "begin_pointer": "0xCB8",
+      "entry_count": 40,
+      "max_display_width": 122,
+      "max_sub_count": 1
+    },
+    "text_cbc": {
+      "begin_pointer": "0xCBC",
+      "entry_count": 40,
+      "max_display_width": 168,
+      "max_sub_count": 1
+    },
+    "text_cc0": {
+      "begin_pointer": "0xCC0",
+      "entry_count": 40,
+      "max_display_width": 98,
+      "max_sub_count": 1
+    },
+    "text_cc4": {
+      "begin_pointer": "0xCC4",
+      "entry_count": 40,
+      "max_display_width": 125,
+      "max_sub_count": 1
+    },
+    "text_cc8": {
+      "begin_pointer": "0xCC8",
+      "entry_count": 535,
+      "max_display_width": 113,
+      "max_sub_count": 1
+    },
+    "text_ccc": {
+      "begin_pointer": "0xCCC",
+      "entry_count": 17,
+      "max_display_width": 157,
+      "max_sub_count": 1
+    },
+    "text_cd0": {
+      "begin_pointer": "0xCD0",
+      "entry_count": 7,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_cd4": {
+      "begin_pointer": "0xCD4",
+      "entry_count": 15,
+      "max_display_width": 446,
+      "max_sub_count": 1
+    },
+    "text_cd8": {
+      "begin_pointer": "0xCD8",
+      "entry_count": 11,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_cdc": {
+      "begin_pointer": "0xCDC",
+      "entry_count": 64,
+      "max_display_width": 411,
+      "max_sub_count": 1
+    },
+    "text_ce0": {
+      "begin_pointer": "0xCE0",
+      "entry_count": 6,
+      "max_display_width": 88,
+      "max_sub_count": 1
+    },
+    "text_ce4": {
+      "begin_pointer": "0xCE4",
+      "entry_count": 4,
+      "max_display_width": 51,
+      "max_sub_count": 1
+    },
+    "text_ce8": {
+      "begin_pointer": "0xCE8",
+      "entry_count": 11,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_cf0": {
+      "begin_pointer": "0xCF0",
+      "entry_count": 11,
+      "max_display_width": 104,
+      "max_sub_count": 1
+    },
+    "text_cf4": {
+      "begin_pointer": "0xCF4",
+      "entry_count": 36,
+      "max_display_width": 112,
+      "max_sub_count": 1
+    },
+    "text_cf8": {
+      "begin_pointer": "0xCF8",
+      "entry_count": 4,
+      "max_display_width": 104,
+      "max_sub_count": 1
+    },
+    "text_cfc": {
+      "begin_pointer": "0xCFC",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_d00": {
+      "begin_pointer": "0xD00",
+      "entry_count": 3,
+      "max_display_width": 51,
+      "max_sub_count": 1
+    },
+    "text_d04": {
+      "begin_pointer": "0xD04",
+      "entry_count": 5,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_d08": {
+      "begin_pointer": "0xD08",
+      "entry_count": 17,
+      "max_display_width": 39,
+      "max_sub_count": 1
+    },
+    "text_d0c": {
+      "begin_pointer": "0xD0C",
+      "entry_count": 16,
+      "max_display_width": 31,
+      "max_sub_count": 1
+    },
+    "text_d10": {
+      "begin_pointer": "0xD10",
+      "entry_count": 28,
+      "max_display_width": 115,
+      "max_sub_count": 1
+    },
+    "text_d14": {
+      "begin_pointer": "0xD14",
+      "entry_count": 20,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_d18": {
+      "begin_pointer": "0xD18",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_d1c": {
+      "begin_pointer": "0xD1C",
+      "entry_count": 6,
+      "max_display_width": 218,
+      "max_sub_count": 1
+    },
+    "text_d20": {
+      "begin_pointer": "0xD20",
+      "entry_count": 32,
+      "max_display_width": 178,
+      "max_sub_count": 1
+    },
+    "text_d24": {
+      "begin_pointer": "0xD24",
+      "entry_count": 3,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_d28": {
+      "begin_pointer": "0xD28",
+      "entry_count": 3,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_d2c": {
+      "begin_pointer": "0xD2C",
+      "entry_count": 4,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_d30": {
+      "begin_pointer": "0xD30",
+      "entry_count": 29,
+      "max_display_width": 88,
+      "max_sub_count": 1
+    },
+    "text_d34": {
+      "begin_pointer": "0xD34",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_d38": {
+      "begin_pointer": "0xD38",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_d3c": {
+      "begin_pointer": "0xD3C",
+      "entry_count": 56,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_d40": {
+      "begin_pointer": "0xD40",
+      "entry_count": 2,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_d44": {
+      "begin_pointer": "0xD44",
+      "entry_count": 17,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_d4c": {
+      "begin_pointer": "0xD4C",
+      "entry_count": 27,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_d50": {
+      "begin_pointer": "0xD50",
+      "entry_count": 40,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_d54": {
+      "begin_pointer": "0xD54",
+      "entry_count": 14,
+      "max_display_width": 132,
+      "max_sub_count": 1
+    },
+    "text_d58": {
+      "begin_pointer": "0xD58",
+      "entry_count": 36,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_d5c": {
+      "begin_pointer": "0xD5C",
+      "entry_count": 8,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_d60": {
+      "begin_pointer": "0xD60",
+      "entry_count": 47,
+      "max_display_width": 59,
+      "max_sub_count": 1
+    },
+    "text_d64": {
+      "begin_pointer": "0xD64",
+      "entry_count": 6,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_d68": {
+      "begin_pointer": "0xD68",
+      "entry_count": 4,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_d6c": {
+      "begin_pointer": "0xD6C",
+      "entry_count": 9,
+      "max_display_width": 53,
+      "max_sub_count": 1
+    },
+    "text_d70": {
+      "begin_pointer": "0xD70",
+      "entry_count": 67,
+      "max_display_width": 90,
+      "max_sub_count": 1
+    },
+    "text_d74": {
+      "begin_pointer": "0xD74",
+      "entry_count": 16,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_d78": {
+      "begin_pointer": "0xD78",
+      "entry_count": 15,
+      "max_display_width": 64,
+      "max_sub_count": 1
+    },
+    "text_d7c": {
+      "begin_pointer": "0xD7C",
+      "entry_count": 14,
+      "max_display_width": 34,
+      "max_sub_count": 1
+    },
+    "text_d80": {
+      "begin_pointer": "0xD80",
+      "entry_count": 7,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_d84": {
+      "begin_pointer": "0xD84",
+      "entry_count": 7,
+      "max_display_width": 116,
+      "max_sub_count": 1
+    },
+    "text_d88": {
+      "begin_pointer": "0xD88",
+      "entry_count": 23,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_d8c": {
+      "begin_pointer": "0xD8C",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_d90": {
+      "begin_pointer": "0xD90",
+      "entry_count": 13,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_d94": {
+      "begin_pointer": "0xD94",
+      "entry_count": 11,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_d98": {
+      "begin_pointer": "0xD98",
+      "entry_count": 3,
+      "max_display_width": 122,
+      "max_sub_count": 1
+    },
+    "text_d9c": {
+      "begin_pointer": "0xD9C",
+      "entry_count": 6,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_da0": {
+      "begin_pointer": "0xDA0",
+      "entry_count": 25,
+      "max_display_width": 382,
+      "max_sub_count": 1
+    },
+    "text_da4": {
+      "begin_pointer": "0xDA4",
+      "entry_count": 32,
+      "max_display_width": 82,
+      "max_sub_count": 1
+    },
+    "text_da8": {
+      "begin_pointer": "0xDA8",
+      "entry_count": 3,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_dac": {
+      "begin_pointer": "0xDAC",
+      "entry_count": 20,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_db0": {
+      "begin_pointer": "0xDB0",
+      "entry_count": 3,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_db4": {
+      "begin_pointer": "0xDB4",
+      "entry_count": 11,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_db8": {
+      "begin_pointer": "0xDB8",
+      "entry_count": 7,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_dbc": {
+      "begin_pointer": "0xDBC",
+      "entry_count": 9,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_dc0": {
+      "begin_pointer": "0xDC0",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_dc4": {
+      "begin_pointer": "0xDC4",
+      "entry_count": 11,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_dc8": {
+      "begin_pointer": "0xDC8",
+      "entry_count": 3,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_dcc": {
+      "begin_pointer": "0xDCC",
+      "entry_count": 2,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_dd0": {
+      "begin_pointer": "0xDD0",
+      "entry_count": 6,
+      "null_padding": true,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_dd4": {
+      "begin_pointer": "0xDD4",
+      "entry_count": 8,
+      "max_display_width": 367,
+      "max_sub_count": 1
+    },
+    "text_dd8": {
+      "begin_pointer": "0xDD8",
+      "entry_count": 127,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_ddc": {
+      "begin_pointer": "0xDDC",
+      "entry_count": 127,
+      "max_display_width": 99,
+      "max_sub_count": 1
+    },
+    "text_de0": {
+      "begin_pointer": "0xDE0",
+      "entry_count": 10,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_de8": {
+      "begin_pointer": "0xDE8",
+      "entry_count": 2,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_dec": {
+      "begin_pointer": "0xDEC",
+      "entry_count": 6,
+      "max_display_width": 53,
+      "max_sub_count": 1
+    },
+    "text_df0": {
+      "begin_pointer": "0xDF0",
+      "entry_count": 24,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_df4": {
+      "begin_pointer": "0xDF4",
+      "entry_count": 2,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_df8": {
+      "begin_pointer": "0xDF8",
+      "entry_count": 13,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_dfc": {
+      "begin_pointer": "0xDFC",
+      "entry_count": 11,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_e00": {
+      "begin_pointer": "0xE00",
+      "entry_count": 18,
+      "max_display_width": 63,
+      "max_sub_count": 1
+    },
+    "text_e04": {
+      "begin_pointer": "0xE04",
+      "entry_count": 4,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_e08": {
+      "begin_pointer": "0xE08",
+      "entry_count": 6,
+      "max_display_width": 199,
+      "max_sub_count": 1
+    },
+    "text_e0c": {
+      "begin_pointer": "0xE0C",
+      "entry_count": 4,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_e10": {
+      "begin_pointer": "0xE10",
+      "entry_count": 10,
+      "max_display_width": 407,
+      "max_sub_count": 1
+    },
+    "text_e14": {
+      "begin_pointer": "0xE14",
+      "entry_count": 35,
+      "max_display_width": 94,
+      "max_sub_count": 1
+    },
+    "text_e18": {
+      "begin_pointer": "0xE18",
+      "entry_count": 80,
+      "max_display_width": 62,
+      "max_sub_count": 1
+    },
+    "text_e1c": {
+      "begin_pointer": "0xE1C",
+      "entry_count": 2,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_e24": {
+      "begin_pointer": "0xE24",
+      "entry_count": 12,
+      "max_display_width": 71,
+      "max_sub_count": 1
+    },
+    "text_e28": {
+      "begin_pointer": "0xE28",
+      "entry_count": 11,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_e2c": {
+      "begin_pointer": "0xE2C",
+      "entry_count": 13,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_e30": {
+      "begin_pointer": "0xE30",
+      "entry_count": 24,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_e34": {
+      "begin_pointer": "0xE34",
+      "entry_count": 3,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_e38": {
+      "begin_pointer": "0xE38",
+      "entry_count": 4,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_e3c": {
+      "begin_pointer": "0xE3C",
+      "entry_count": 4,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_e40": {
+      "begin_pointer": "0xE40",
+      "entry_count": 29,
+      "max_display_width": 46,
+      "max_sub_count": 1
+    },
+    "text_e44": {
+      "begin_pointer": "0xE44",
+      "entry_count": 3,
+      "max_display_width": 56,
+      "max_sub_count": 1
+    },
+    "text_e48": {
+      "begin_pointer": "0xE48",
+      "entry_count": 8,
+      "max_display_width": 25,
+      "max_sub_count": 1
+    },
+    "text_e4c": {
+      "begin_pointer": "0xE4C",
+      "entry_count": 10,
+      "max_display_width": 379,
+      "max_sub_count": 1
+    },
+    "text_e50": {
+      "begin_pointer": "0xE50",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_e54": {
+      "begin_pointer": "0xE54",
+      "entry_count": 3,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_e58": {
+      "begin_pointer": "0xE58",
+      "entry_count": 3,
+      "max_display_width": 76,
+      "max_sub_count": 1
+    },
+    "text_e5c": {
+      "begin_pointer": "0xE5C",
+      "entry_count": 32,
+      "max_display_width": 224,
+      "max_sub_count": 1
+    },
+    "text_e60": {
+      "begin_pointer": "0xE60",
+      "entry_count": 32,
+      "max_display_width": 130,
+      "max_sub_count": 1
+    },
+    "text_e64": {
+      "begin_pointer": "0xE64",
+      "entry_count": 32,
+      "max_display_width": 77,
+      "max_sub_count": 1
+    },
+    "text_e68": {
+      "begin_pointer": "0xE68",
+      "entry_count": 32,
+      "max_display_width": 78,
+      "max_sub_count": 1
+    },
+    "text_e6c": {
+      "begin_pointer": "0xE6C",
+      "entry_count": 32,
+      "max_display_width": 66,
+      "max_sub_count": 1
+    },
+    "text_e70": {
+      "begin_pointer": "0xE70",
+      "entry_count": 32,
+      "max_display_width": 101,
+      "max_sub_count": 1
+    },
+    "text_e74": {
+      "begin_pointer": "0xE74",
+      "entry_count": 32,
+      "max_display_width": 180,
+      "max_sub_count": 1
+    },
+    "text_e78": {
+      "begin_pointer": "0xE78",
+      "entry_count": 4,
+      "max_display_width": 15,
+      "max_sub_count": 1
+    },
+    "text_e7c": {
+      "begin_pointer": "0xE7C",
+      "entry_count": 9,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_e80": {
+      "begin_pointer": "0xE80",
+      "entry_count": 8,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_e84": {
+      "begin_pointer": "0xE84",
+      "entry_count": 13,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_e88": {
+      "begin_pointer": "0xE88",
+      "entry_count": 35,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_e8c": {
+      "begin_pointer": "0xE8C",
+      "entry_count": 10,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_e90": {
+      "begin_pointer": "0xE90",
+      "entry_count": 8,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_e94": {
+      "begin_pointer": "0xE94",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_e98": {
+      "begin_pointer": "0xE98",
+      "entry_count": 8,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_e9c": {
+      "begin_pointer": "0xE9C",
+      "entry_count": 9,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_ea0": {
+      "begin_pointer": "0xEA0",
+      "entry_count": 8,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_ea4": {
+      "begin_pointer": "0xEA4",
+      "entry_count": 27,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_ea8": {
+      "begin_pointer": "0xEA8",
+      "entry_count": 7,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_eac": {
+      "begin_pointer": "0xEAC",
+      "entry_count": 19,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_eb0": {
+      "begin_pointer": "0xEB0",
+      "entry_count": 9,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_eb4": {
+      "begin_pointer": "0xEB4",
+      "entry_count": 7,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_eb8": {
+      "begin_pointer": "0xEB8",
+      "entry_count": 9,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_ebc": {
+      "begin_pointer": "0xEBC",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_ec0": {
+      "begin_pointer": "0xEC0",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_ec4": {
+      "begin_pointer": "0xEC4",
+      "entry_count": 9,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_ec8": {
+      "begin_pointer": "0xEC8",
+      "entry_count": 8,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_ecc": {
+      "begin_pointer": "0xECC",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_ed0": {
+      "begin_pointer": "0xED0",
+      "entry_count": 8,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_ed4": {
+      "begin_pointer": "0xED4",
+      "entry_count": 9,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_ed8": {
+      "begin_pointer": "0xED8",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_edc": {
+      "begin_pointer": "0xEDC",
+      "entry_count": 26,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_ee0": {
+      "begin_pointer": "0xEE0",
+      "entry_count": 7,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_ee4": {
+      "begin_pointer": "0xEE4",
+      "entry_count": 19,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_ee8": {
+      "begin_pointer": "0xEE8",
+      "entry_count": 9,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_eec": {
+      "begin_pointer": "0xEEC",
+      "entry_count": 7,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_ef0": {
+      "begin_pointer": "0xEF0",
+      "entry_count": 10,
+      "max_display_width": 17,
+      "max_sub_count": 1
+    },
+    "text_ef4": {
+      "begin_pointer": "0xEF4",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_ef8": {
+      "begin_pointer": "0xEF8",
+      "entry_count": 9,
+      "max_display_width": 17,
+      "max_sub_count": 1
+    },
+    "text_efc": {
+      "begin_pointer": "0xEFC",
+      "entry_count": 8,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_f00": {
+      "begin_pointer": "0xF00",
+      "entry_count": 9,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_f04": {
+      "begin_pointer": "0xF04",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_f08": {
+      "begin_pointer": "0xF08",
+      "entry_count": 8,
+      "max_display_width": 14,
+      "max_sub_count": 1
+    },
+    "text_f0c": {
+      "begin_pointer": "0xF0C",
+      "entry_count": 9,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_f10": {
+      "begin_pointer": "0xF10",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_f14": {
+      "begin_pointer": "0xF14",
+      "entry_count": 26,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_f18": {
+      "begin_pointer": "0xF18",
+      "entry_count": 7,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_f1c": {
+      "begin_pointer": "0xF1C",
+      "entry_count": 19,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_f20": {
+      "begin_pointer": "0xF20",
+      "entry_count": 9,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_f24": {
+      "begin_pointer": "0xF24",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_f28": {
+      "begin_pointer": "0xF28",
+      "entry_count": 10,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f2c": {
+      "begin_pointer": "0xF2C",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_f30": {
+      "begin_pointer": "0xF30",
+      "entry_count": 9,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_f34": {
+      "begin_pointer": "0xF34",
+      "entry_count": 11,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_f38": {
+      "begin_pointer": "0xF38",
+      "entry_count": 11,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_f3c": {
+      "begin_pointer": "0xF3C",
+      "entry_count": 7,
+      "max_display_width": 17,
+      "max_sub_count": 1
+    },
+    "text_f40": {
+      "begin_pointer": "0xF40",
+      "entry_count": 11,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_f44": {
+      "begin_pointer": "0xF44",
+      "entry_count": 12,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f48": {
+      "begin_pointer": "0xF48",
+      "entry_count": 9,
+      "max_display_width": 19,
+      "max_sub_count": 1
+    },
+    "text_f4c": {
+      "begin_pointer": "0xF4C",
+      "entry_count": 46,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_f50": {
+      "begin_pointer": "0xF50",
+      "entry_count": 10,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_f54": {
+      "begin_pointer": "0xF54",
+      "entry_count": 24,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f58": {
+      "begin_pointer": "0xF58",
+      "entry_count": 12,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_f5c": {
+      "begin_pointer": "0xF5C",
+      "entry_count": 20,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_f60": {
+      "begin_pointer": "0xF60",
+      "entry_count": 12,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f64": {
+      "begin_pointer": "0xF64",
+      "entry_count": 5,
+      "max_display_width": 10,
+      "max_sub_count": 1
+    },
+    "text_f68": {
+      "begin_pointer": "0xF68",
+      "entry_count": 12,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f6c": {
+      "begin_pointer": "0xF6C",
+      "entry_count": 8,
+      "max_display_width": 20,
+      "max_sub_count": 1
+    },
+    "text_f70": {
+      "begin_pointer": "0xF70",
+      "entry_count": 13,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f74": {
+      "begin_pointer": "0xF74",
+      "entry_count": 13,
+      "max_display_width": 23,
+      "max_sub_count": 1
+    },
+    "text_f78": {
+      "begin_pointer": "0xF78",
+      "entry_count": 4,
+      "max_display_width": 27,
+      "max_sub_count": 1
+    },
+    "text_f7c": {
+      "begin_pointer": "0xF7C",
+      "entry_count": 3,
+      "max_display_width": 511,
+      "max_sub_count": 1
+    },
+    "text_f80": {
+      "begin_pointer": "0xF80",
+      "entry_count": 6,
+      "max_display_width": 72,
+      "max_sub_count": 1
+    },
+    "text_f84": {
+      "begin_pointer": "0xF84",
+      "entry_count": 6,
+      "max_display_width": 8,
+      "max_sub_count": 1
+    },
+    "text_f88": {
+      "begin_pointer": "0xF88",
+      "entry_count": 17,
+      "max_display_width": 177,
+      "max_sub_count": 1
+    },
+    "text_f8c": {
+      "begin_pointer": "0xF8C",
+      "entry_count": 9,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_f90": {
+      "begin_pointer": "0xF90",
+      "entry_count": 9,
+      "max_display_width": 119,
+      "max_sub_count": 1
+    },
+    "text_f94": {
+      "begin_pointer": "0xF94",
+      "entry_count": 15,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_f98": {
+      "begin_pointer": "0xF98",
+      "entry_count": 15,
+      "max_display_width": 115,
+      "max_sub_count": 1
+    },
+    "text_f9c": {
+      "begin_pointer": "0xF9C",
+      "entry_count": 5,
+      "max_display_width": 16,
+      "max_sub_count": 1
+    },
+    "text_fa0": {
+      "begin_pointer": "0xFA0",
+      "entry_count": 31,
+      "max_display_width": 509,
+      "max_sub_count": 1
+    },
+    "text_fa4": {
+      "begin_pointer": "0xFA4",
+      "entry_count": 5,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_fa8": {
+      "begin_pointer": "0xFA8",
+      "entry_count": 14,
+      "max_display_width": 121,
+      "max_sub_count": 1
+    },
+    "text_fac": {
+      "begin_pointer": "0xFAC",
+      "entry_count": 152,
+      "max_display_width": 214,
+      "max_sub_count": 1
+    },
+    "text_fb0": {
+      "begin_pointer": "0xFB0",
+      "entry_count": 58,
+      "max_display_width": 67,
+      "max_sub_count": 1
+    },
+    "text_fc0": {
+      "begin_pointer": "0xFC0",
+      "entry_count": 6,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_fc4": {
+      "begin_pointer": "0xFC4",
+      "entry_count": 15,
+      "null_padding": true,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_fc8": {
+      "begin_pointer": "0xFC8",
+      "entry_count": 5,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_fcc": {
+      "begin_pointer": "0xFCC",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_fd0": {
+      "begin_pointer": "0xFD0",
+      "entry_count": 3,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_fd4": {
+      "begin_pointer": "0xFD4",
+      "entry_count": 3,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_fd8": {
+      "begin_pointer": "0xFD8",
+      "entry_count": 14,
+      "max_display_width": 62,
+      "max_sub_count": 1
+    },
+    "text_fdc": {
+      "begin_pointer": "0xFDC",
+      "entry_count": 3,
+      "max_display_width": 4,
+      "max_sub_count": 1
+    },
+    "text_fe4": {
+      "begin_pointer": "0xFE4",
+      "entry_count": 14,
+      "max_display_width": 53,
+      "max_sub_count": 1
+    },
+    "text_fec": {
+      "begin_pointer": "0xFEC",
+      "entry_count": 2,
+      "max_display_width": 26,
+      "max_sub_count": 1
+    },
+    "text_ff0": {
+      "begin_pointer": "0xFF0",
+      "entry_count": 18,
+      "max_display_width": 419,
+      "max_sub_count": 1
+    },
+    "text_ff8": {
+      "begin_pointer": "0xFF8",
+      "entry_count": 6,
+      "max_display_width": 24,
+      "max_sub_count": 1
+    },
+    "text_ffc": {
+      "begin_pointer": "0xFFC",
+      "entry_count": 6,
+      "max_display_width": 108,
+      "max_sub_count": 1
+    },
+    "text_1000": {
+      "begin_pointer": "0x1000",
+      "entry_count": 58,
+      "max_display_width": 68,
+      "max_sub_count": 1
+    },
+    "text_1004": {
+      "begin_pointer": "0x1004",
+      "entry_count": 2,
+      "max_display_width": 22,
+      "max_sub_count": 1
+    },
+    "text_1008": {
+      "begin_pointer": "0x1008",
+      "entry_count": 16,
+      "max_display_width": 38,
+      "max_sub_count": 1
+    },
+    "text_100c": {
+      "begin_pointer": "0x100C",
+      "entry_count": 2,
+      "max_display_width": 18,
+      "max_sub_count": 1
+    },
+    "text_1010": {
+      "begin_pointer": "0x1010",
+      "entry_count": 2,
+      "max_display_width": 90,
+      "max_sub_count": 1
+    },
+    "text_1014": {
+      "begin_pointer": "0x1014",
+      "entry_count": 26,
+      "max_display_width": 32,
+      "max_sub_count": 1
+    },
+    "text_1018": {
+      "begin_pointer": "0x1018",
+      "entry_count": 12,
+      "max_display_width": 0,
+      "max_sub_count": 1
+    },
+    "text_101c": {
+      "begin_pointer": "0x101C",
+      "entry_count": 42,
+      "max_display_width": 11,
+      "max_sub_count": 1
+    },
+    "text_1020": {
+      "begin_pointer": "0x1020",
+      "entry_count": 2,
+      "max_display_width": 11,
+      "max_sub_count": 1
+    },
+    "text_1024": {
+      "begin_pointer": "0x1024",
+      "entry_count": 4,
+      "max_display_width": 12,
+      "max_sub_count": 1
+    },
+    "text_1028": {
+      "begin_pointer": "0x1028",
+      "entry_count": 5,
+      "max_display_width": 6,
+      "max_sub_count": 1
+    },
+    "text_102c": {
+      "begin_pointer": "0x102C",
+      "entry_count": 7,
+      "max_display_width": 1,
+      "max_sub_count": 1
+    },
+    "text_1030": {
+      "begin_pointer": "0x1030",
+      "entry_count": 39,
+      "max_display_width": 63,
+      "max_sub_count": 1
+    },
+    "text_1034": {
+      "begin_pointer": "0x1034",
+      "entry_count": 4,
+      "max_display_width": 42,
+      "max_sub_count": 1
+    },
+    "text_1038": {
+      "begin_pointer": "0x1038",
+      "entry_count": 29,
+      "max_display_width": 77,
+      "max_sub_count": 1
+    },
+    "text_103c": {
+      "begin_pointer": "0x103C",
+      "entry_count": 3,
+      "max_display_width": 26,
+      "max_sub_count": 1
     }
   },
   "inf": {
