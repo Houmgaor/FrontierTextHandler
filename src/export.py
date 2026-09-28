@@ -105,6 +105,42 @@ def export_for_refrontier(
     return lines
 
 
+def _json_value(value) -> str:
+    """Encode a scalar as ``json.dumps(value, ensure_ascii=False)`` does."""
+    if isinstance(value, str):
+        return _encode_json_string(value)
+    return json.dumps(value, ensure_ascii=False)
+
+
+_encode_json_string = json.encoder.encode_basestring  # C-accelerated
+
+
+def _dumps_translation_json(output: dict) -> str:
+    """
+    Same text as ``json.dumps(output, ensure_ascii=False, indent=2)``.
+
+    With ``indent`` set, the json module falls back to its pure-Python
+    encoder, which dominated extraction time on large sections. The
+    ``strings`` rows are flat objects of scalars, so they are written
+    directly here with the C string encoder; the rest goes through json.
+    """
+    strings = output["strings"]
+    head = json.dumps({**output, "strings": []}, ensure_ascii=False, indent=2)
+    if not strings:
+        return head
+    rows = ",\n".join(
+        "    {\n"
+        + ",\n".join(
+            f"      {_encode_json_string(key)}: {_json_value(value)}"
+            for key, value in row.items()
+        )
+        + "\n    }"
+        for row in strings
+    )
+    assert head.endswith('"strings": []\n}')
+    return head[:-4] + "[\n" + rows + "\n  ]\n}"
+
+
 def export_as_json(
     data: Iterable[dict[str, int | str]],
     output_file: str,
@@ -171,7 +207,7 @@ def export_as_json(
     }
 
     with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+        f.write(_dumps_translation_json(output))
 
     count = len(strings)
     logger.info("Wrote %d entries of JSON as %s", count, output_file)
@@ -587,6 +623,7 @@ def extract_from_file(
     with_index: bool = True,
     game_version: str = "zz",
     refrontier_tsv: bool = False,
+    file_data: bytes | None = None,
 ) -> tuple[str, str, str]:
     """
     Extract data from a single file.
@@ -603,6 +640,8 @@ def extract_from_file(
     :param refrontier_tsv: If True, also write the legacy ReFrontier
         Shift-JIS TSV (``output_dir/refrontier.csv``). Off by default
         since 1.7.0.
+    :param file_data: *input_file*'s content, already decrypted and
+        decompressed, to skip reading it again (see :func:`extract_all`).
     :return: Tuple of (csv_path, refrontier_path, json_path) for the
         exported files. ``refrontier_path`` is an empty string when
         ``refrontier_tsv`` is False.
@@ -611,7 +650,8 @@ def extract_from_file(
     # Load the file once so we can reuse the bytes for fingerprinting
     # rather than reading the file twice.
     config = common.read_extraction_config(xpath, headers_path)
-    file_data = common.load_file_data(input_file)
+    if file_data is None:
+        file_data = common.load_file_data(input_file)
     file_section = common.extract_text_data_from_bytes(file_data, config, game_version)
     fingerprint = common.compute_binary_fingerprint(file_data) if with_index else ""
 
@@ -679,6 +719,7 @@ def extract_all(
     xpaths = common.get_all_xpaths(headers_path)
     generated_files = []
     skipped_count = 0
+    decoded: dict[str, bytes] = {}  # input file -> decrypted, decompressed data
 
     for xpath in xpaths:
         # Determine which input file to use based on xpath prefix
@@ -702,10 +743,15 @@ def extract_all(
             continue
 
         try:
+            # Decrypting and decompressing is the slow part: do it once
+            # per game file, not once per section.
+            if input_file not in decoded:
+                decoded[input_file] = common.load_file_data(input_file)
             csv_path, _, _ = extract_from_file(
                 input_file, xpath, "", output_dir, headers_path,
                 with_index=with_index, game_version=game_version,
                 refrontier_tsv=refrontier_tsv,
+                file_data=decoded[input_file],
             )
             generated_files.append(csv_path)
             logger.info("Extracted '%s' to '%s'", xpath, csv_path)

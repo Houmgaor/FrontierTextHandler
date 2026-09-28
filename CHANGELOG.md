@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Performance
+Output is byte-identical to 1.8.0 throughout (checked against frozen copies
+of the old codecs, and on real game files). Timings on `mhfdat.bin`
+(7 MB encrypted, 31 MB decoded), CPython / browser:
+
+| Step | Before | After |
+|---|---|---|
+| Decrypt (ECD) | 7.1 s / 15 s | 0.3 s / 0.5 s |
+| Decompress (HFI) | 15.6 s / 34 s | 1.8 s / 3.3 s |
+| Compress (HFI) | 27.8 s / 53 s | 17 s / 38 s |
+| Encrypt (ECD) | 7.5 s / 15 s | 0.3 s / 0.4 s |
+| `--extract-all` (dat, pac, inf) | 470 s | 4.5 s |
+
+- **ECD** is computed on whole buffers: its 8 nibble rounds are linear, so
+  each byte is a table lookup XOR a keystream byte (22-34x faster).
+- **JKR decompression** decodes Huffman a byte at a time from cached tree
+  transitions instead of seeking and reading per bit, and LZ copies use
+  slices (9x on HFI files).
+- **JKR compression** keeps the same match search with cheaper bookkeeping
+  (1.6x). Huffman-only compression is 13x faster.
+- **`--extract-all`** decrypts and decompresses each game file once instead
+  of once per section, and strings are read with one scan instead of byte
+  by byte. JSON exports are written without the json module's slow indented
+  encoder (same text).
+
 ### Added
 - **Web interface** (`web/`, deployed to GitHub Pages): extract text and
   build game-ready files in the browser, with no installation. The tool
@@ -15,6 +40,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   well as extracted CSV/JSON files.
 
 ### Fixed
+- Truncated JKR files now raise `JKRError`. Type 2 (HFIRW) crashed with a
+  bare `IndexError`, and type 4 (HFI) with a cut-off Huffman table silently
+  decompressed to zeros.
 - **`--apply-translations` honours `--fold-unsupported-chars`.** It was
   the one importer 1.8.0 missed, so any release with accented text (the
   French one, for instance) failed with an `EncodingError`.

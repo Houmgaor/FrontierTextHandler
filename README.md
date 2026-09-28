@@ -13,8 +13,8 @@ files, or a [MHFrontier-Translation](https://github.com/Mogapedia/MHFrontier-Tra
 release such as `translations-fr.json.gz`, to get a game-ready (compressed
 and encrypted) file back. Everything runs locally
 in the browser tab through [Pyodide](https://pyodide.org/); game files
-are never uploaded. Opening and rebuilding `mhfdat.bin` takes about a
-minute each; smaller files take seconds.
+are never uploaded. `mhfdat.bin` opens in a few seconds and rebuilds in
+about 40; smaller files take seconds.
 
 To run it locally:
 

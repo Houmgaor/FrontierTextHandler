@@ -67,6 +67,39 @@ class TestBinaryFileFromBytes(unittest.TestCase):
         self.assertEqual(bfile.read(1), b"")
 
 
+class TestReadUntilNull(unittest.TestCase):
+    """read_until_null: in-memory scan and file-backed chunked reads."""
+
+    DATA = b"first\x00" + b"x" * 700 + b"\x00tail"
+
+    def _check(self, bfile):
+        self.assertEqual(bfile.read_until_null(), b"first")
+        self.assertEqual(bfile.tell(), 6)
+        self.assertEqual(bfile.read_until_null(), b"x" * 700)  # Spans chunks.
+        self.assertEqual(bfile.tell(), 707)
+        self.assertEqual(bfile.read_until_null(), b"tail")  # No terminator.
+        self.assertEqual(bfile.tell(), len(self.DATA))
+        self.assertEqual(bfile.read_until_null(), b"")
+
+    def test_in_memory(self):
+        self._check(BinaryFile.from_bytes(self.DATA))
+
+    def test_file_backed(self):
+        fd, path = tempfile.mkstemp()
+        with os.fdopen(fd, "wb") as f:
+            f.write(self.DATA)
+        self.addCleanup(os.unlink, path)
+        with BinaryFile(path) as bfile:
+            self._check(bfile)
+
+    def test_in_memory_sees_writes(self):
+        bfile = BinaryFile.from_bytes(b"abc\x00def\x00")
+        bfile.seek(1)
+        bfile.write(b"\x00")
+        bfile.seek(0)
+        self.assertEqual(bfile.read_until_null(), b"a")
+
+
 class TestBinaryFileContextManager(unittest.TestCase):
     """Test BinaryFile as a context manager with real files."""
 

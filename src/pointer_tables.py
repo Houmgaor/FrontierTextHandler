@@ -70,12 +70,7 @@ def read_until_null(bfile: BinaryFile) -> bytes:
     :param bfile: File to read from
     :return: Data read as a binary stream
     """
-    buffer = bytearray()
-    byte = bfile.read(1)
-    while byte != b"\x00" and byte != b"":
-        buffer.extend(byte)
-        byte = bfile.read(1)
-    return bytes(buffer)
+    return bfile.read_until_null()
 
 
 def read_next_string(bfile: BinaryFile) -> str:

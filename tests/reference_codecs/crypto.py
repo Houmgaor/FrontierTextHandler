@@ -67,127 +67,18 @@ def _load_uint32_be(buffer: bytes, offset: int) -> int:
     return (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]
 
 
-# ----------------------------------------------------------------------------
-# ECD cipher, computed on whole buffers
-#
-# Per byte, ECD runs an LCG step and an 8-round nibble "Feistel" keyed by the
-# LCG state (see tests/reference_codecs/crypto.py for the byte-at-a-time
-# port of ReFrontier). Every round only XORs nibbles, so the cipher is linear
-# over GF(2) and collapses to:
-#
-#     decrypt: out[i] = E[enc[i] ^ out[i-1]] ^ K[i]
-#     encrypt: enc[i] = E[out[i] ^ K[i]] ^ out[i-1]
-#
-# where E maps a byte (hi, lo) to (hi ^ lo, lo) and is its own inverse, and
-# K[i] depends only on the i-th LCG state. out[-1] is the low byte of the
-# first LCG state. Encryption is then plain byte-wise XORs; decryption's
-# feedback unrolls into a prefix XOR (see _prefix_xor). Both run as
-# bytes.translate and big-integer operations instead of a Python loop per
-# byte, which is what made large files slow (and slower still in Pyodide).
-# ----------------------------------------------------------------------------
-
-_MASK32 = 0xFFFFFFFF
-
-# E: (hi, lo) -> (hi ^ lo, lo), as a bytes.translate table.
-_ECD_E = bytes(((p ^ (p << 4)) & 0xF0) | (p & 0x0F) for p in range(256))
-
-# The key byte is (Pb, Pa) as (low, high) nibbles, where Pa and Pb are XORs
-# of these nibbles of the LCG state (found by running the 8 rounds on zero
-# input; the rounds' nibble recurrence has period 3).
-_ECD_PA_NIBBLES = (0, 2, 3, 5, 6)
-_ECD_PB_NIBBLES = (0, 1, 3, 4, 6, 7)
-
-# LCG states generated per big-integer step; each state gets a 64-bit lane.
-_ECD_LANES = 4096
-
-
-def _ecd_lcg(ecd_key: int) -> Tuple[int, int]:
-    """Return the (multiplier, increment) of the LCG for an ECD key index."""
-    return (
-        _load_uint32_be(_RND_BUF_ECD, 8 * ecd_key),
-        _load_uint32_be(_RND_BUF_ECD, 8 * ecd_key + 4),
-    )
-
-
-def _ecd_keystream(ecd_key: int, state: int, length: int) -> bytes:
+def _get_rnd_ecd(ecd_key: int, rnd: int) -> Tuple[int, int]:
     """
-    Key bytes K[0..length) for the LCG states following *state*.
+    Generate next LCG value for ECD encryption.
 
-    States are computed ``_ECD_LANES`` at a time: each lives in a 64-bit
-    lane of one big integer, and a single multiply-add jumps every lane
-    ahead by ``_ECD_LANES`` steps. A lane holds a 32-bit state, so the
-    product with a 32-bit multiplier plus a 32-bit increment stays under
-    2**64 and never carries into the next lane.
+    :param ecd_key: Key index (0-5)
+    :param rnd: Current LCG state
+    :return: Tuple of (new_rnd, xorpad_value)
     """
-    if length <= 0:
-        return b""
-    multiplier, increment = _ecd_lcg(ecd_key)
-    lanes = min(length, _ECD_LANES)
-
-    states = []
-    for _ in range(lanes):
-        state = (state * multiplier + increment) & _MASK32
-        states.append(state)
-    # Jump-ahead constants: lanes steps of x -> a*x + c.
-    jump_mul, jump_add = 1, 0
-    for _ in range(lanes):
-        jump_mul = (jump_mul * multiplier) & _MASK32
-        jump_add = (jump_add * multiplier + increment) & _MASK32
-
-    def packed(value: int) -> int:
-        return int.from_bytes(struct.pack(f"<{lanes}Q", *([value] * lanes)), "little")
-
-    add_packed, mask_packed, nibble_packed = packed(jump_add), packed(_MASK32), packed(0xF)
-    current = int.from_bytes(struct.pack(f"<{lanes}Q", *states), "little")
-    size = lanes * 8
-
-    chunks = []
-    for _ in range((length + lanes - 1) // lanes):
-        pa = pb = 0
-        for nibble in _ECD_PA_NIBBLES:
-            pa ^= current >> (4 * nibble)
-        for nibble in _ECD_PB_NIBBLES:
-            pb ^= current >> (4 * nibble)
-        key = (pb & nibble_packed) | ((pa & nibble_packed) << 4)
-        chunks.append(key.to_bytes(size, "little")[::8])
-        current = (current * jump_mul + add_packed) & mask_packed
-    return b"".join(chunks)[:length]
-
-
-def _xor_bytes(a: bytes, b: bytes) -> bytes:
-    """XOR two equal-length byte strings."""
-    return (int.from_bytes(a, "little") ^ int.from_bytes(b, "little")).to_bytes(len(a), "little")
-
-
-# Prefix XOR runs on blocks this size so the big integers stay small.
-_PREFIX_BLOCK = 1 << 16
-
-
-def _prefix_xor(data: bytes, seed: int) -> bytes:
-    """
-    Return ``out`` with ``out[i] = seed ^ data[0] ^ ... ^ data[i]``.
-
-    Within a block, log2(block) shift-and-XOR passes on one big integer
-    accumulate every earlier byte into each byte; the running value is then
-    carried into the next block.
-    """
-    out = []
-    carry = seed
-    for start in range(0, len(data), _PREFIX_BLOCK):
-        block = data[start:start + _PREFIX_BLOCK]
-        size = len(block)
-        value = int.from_bytes(block, "little")
-        mask = (1 << (8 * size)) - 1
-        shift = 8
-        while shift < 8 * size:
-            value = (value ^ (value << shift)) & mask
-            shift <<= 1
-        block = value.to_bytes(size, "little")
-        if carry:
-            block = _xor_bytes(block, bytes([carry]) * size)
-        out.append(block)
-        carry = block[-1]
-    return b"".join(out)
+    multiplier = _load_uint32_be(_RND_BUF_ECD, 8 * ecd_key)
+    increment = _load_uint32_be(_RND_BUF_ECD, 8 * ecd_key + 4)
+    rnd = (rnd * multiplier + increment) & 0xFFFFFFFF
+    return rnd, rnd
 
 
 # ============================================================================
@@ -270,22 +161,32 @@ def decode_ecd(data: bytes) -> bytes:
             f"got {len(data)}"
         )
 
-    # LCG seed: CRC32 rotated by 16 bits, forced odd. Its first step
-    # yields the byte that precedes the payload in the feedback chain.
-    multiplier, increment = _ecd_lcg(ecd_key)
-    state = (((crc32 << 16) | (crc32 >> 16) | 1) * multiplier + increment) & _MASK32
-    previous = state & 0xFF
+    # Initialize LCG state: rotate CRC32 and set LSB to ensure odd value
+    rnd = ((crc32 << 16) | (crc32 >> 16) | 1) & 0xFFFFFFFF
+    rnd, xorpad = _get_rnd_ecd(ecd_key, rnd)
 
-    encrypted = data[HEADER_SIZE:HEADER_SIZE + payload_size]
-    keystream = _ecd_keystream(ecd_key, state, payload_size)
-    # out[i] = y[i] ^ E[out[i-1]] with y[i] = E[enc[i]] ^ K[i]. As E is an
-    # involution, applying E to odd positions turns this into a prefix XOR
-    # of w[i] = E^i[y[i]], seeded with E[out[-1]]; the result's odd
-    # positions get E again.
-    mixed = bytearray(_xor_bytes(encrypted.translate(_ECD_E), keystream))
-    mixed[1::2] = mixed[1::2].translate(_ECD_E)
-    output = bytearray(_prefix_xor(mixed, _ECD_E[previous]))
-    output[1::2] = output[1::2].translate(_ECD_E)
+    r8 = xorpad & 0xFF  # Previous decrypted byte for feedback chain
+
+    output = bytearray(payload_size)
+
+    for i in range(payload_size):
+        rnd, xorpad = _get_rnd_ecd(ecd_key, rnd)
+
+        encrypted_byte = data[HEADER_SIZE + i]
+        r11 = encrypted_byte ^ r8  # XOR with previous output (cipher feedback)
+        r12 = (r11 >> 4) & 0xFF  # Extract high nibble
+
+        # 8-round Feistel-like nibble transformation
+        for _ in range(8):
+            r10 = xorpad ^ r11
+            r11 = r12
+            r12 = (r12 ^ r10) & 0xFF
+            xorpad >>= 4
+
+        # Recombine nibbles: low nibble from r12, high nibble from r11
+        r8 = (r12 & 0xF) | ((r11 & 0xF) << 4)
+        output[i] = r8
+
     return bytes(output)
 
 
@@ -314,15 +215,41 @@ def encode_ecd(data: bytes, key_index: int = DEFAULT_KEY_INDEX) -> bytes:
     struct.pack_into("<I", header, 8, payload_size)
     struct.pack_into("<I", header, 12, crc32)
 
-    # LCG seed and feedback start, as in decode_ecd.
-    multiplier, increment = _ecd_lcg(key_index)
-    state = (((crc32 << 16) | (crc32 >> 16) | 1) * multiplier + increment) & _MASK32
-    previous = (bytes([state & 0xFF]) + bytes(data))[:payload_size]
+    # Initialize LCG state
+    rnd = ((crc32 << 16) | (crc32 >> 16) | 1) & 0xFFFFFFFF
+    rnd, xorpad = _get_rnd_ecd(key_index, rnd)
 
-    # enc[i] = E[out[i] ^ K[i]] ^ out[i-1]: no feedback on the ciphertext.
-    keystream = _ecd_keystream(key_index, state, payload_size)
-    encrypted = _xor_bytes(_xor_bytes(bytes(data), keystream).translate(_ECD_E), previous)
-    return bytes(header) + encrypted
+    r8 = xorpad & 0xFF
+
+    output = bytearray(HEADER_SIZE + payload_size)
+    output[:HEADER_SIZE] = header
+
+    for i in range(payload_size):
+        rnd, xorpad = _get_rnd_ecd(key_index, rnd)
+
+        plaintext_byte = data[i]
+        r11 = 0
+        r12 = 0
+
+        # Same 8-round transformation but for encryption
+        for _ in range(8):
+            r10 = xorpad ^ r11
+            r11 = r12
+            r12 = (r12 ^ r10) & 0xFF
+            xorpad >>= 4
+
+        dig2 = plaintext_byte
+        dig1 = (dig2 >> 4) & 0xFF
+        dig1 ^= r11
+        dig2 ^= r12
+        dig1 ^= dig2
+
+        rr = (dig2 & 0xF) | ((dig1 & 0xF) << 4)
+        rr = rr ^ r8
+        output[HEADER_SIZE + i] = rr
+        r8 = plaintext_byte
+
+    return bytes(output)
 
 
 def encode_ecd_with_meta(data: bytes, meta: bytes) -> bytes:
