@@ -51,6 +51,9 @@ const messages = {
     "editor.emptySource": "(empty)",
     "editor.targetLabel": "Translation of #{index}",
     "editor.noMatch": "No text matches.",
+    "editor.searching": "Searching all sections…",
+    "editor.elsewhere": "Also found in:",
+    "editor.elsewhereMore": "and {count} more",
     "editor.emptySection": "This section has no text.",
     "editor.issue.placeholder": ({ marker, source, target }) =>
       `Marker ${marker}: ${source} in the original, ${target} here.`,
@@ -156,6 +159,9 @@ const messages = {
     "editor.emptySource": "(vide)",
     "editor.targetLabel": "Traduction de #{index}",
     "editor.noMatch": "Aucun texte ne correspond.",
+    "editor.searching": "Recherche dans toutes les sections…",
+    "editor.elsewhere": `Aussi dans${NBSP}:`,
+    "editor.elsewhereMore": ({ count }) => `et ${count} autre${count > 1 ? "s" : ""}`,
     "editor.emptySection": "Cette section ne contient aucun texte.",
     "editor.issue.placeholder": ({ marker, source, target }) =>
       `Balise ${marker}${NBSP}: ${source} dans l'original, ${target} ici.`,

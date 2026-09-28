@@ -121,6 +121,7 @@ def load_game_file(name: str) -> dict:
         f.write(data)
     os.remove(f"{INPUT_DIR}/{name}")
 
+    _sources.pop(name, None)
     _loaded[name] = {
         "file_type": file_type,
         "header": header,
@@ -296,6 +297,40 @@ def section_rows(name: str, xpath: str) -> dict:
         "max_width": config.get("max_display_width", 0),
         "max_subs": config.get("max_sub_count", 0),
     }
+
+
+# Source texts of every section, per loaded file, for search_sections.
+_sources: dict[str, dict[str, list[str]]] = {}
+
+
+def search_sections(name: str, query: str) -> list[list]:
+    """
+    Sections of the loaded file *name* whose source text contains *query*.
+
+    Case-insensitive. The first search extracts every section once; later
+    ones reuse it until another file is loaded under the same name.
+
+    :return: ``[[xpath, matching rows], ...]`` in section order
+    """
+    if name not in _sources:
+        file_type = _loaded[name]["file_type"]
+        data = _decoded(name)
+        _sources[name] = {}
+        for xpath in common.get_all_xpaths():
+            if xpath.split("/")[0] != file_type:
+                continue
+            try:
+                rows = translation_document(_entries(name, xpath, data), name, xpath=xpath)
+            except Exception:  # a section this file version cannot read
+                continue
+            _sources[name][xpath] = [row["source"].casefold() for row in rows["strings"]]
+    needle = query.casefold()
+    found = []
+    for xpath, sources in _sources[name].items():
+        count = sum(1 for source in sources if needle in source)
+        if count:
+            found.append([xpath, count])
+    return found
 
 
 _encodable: dict[str, bool] = {}

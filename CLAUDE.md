@@ -197,6 +197,10 @@ Static GitHub Pages site that runs the tool in the browser via Pyodide
   storage is blocked); the recorded source flags rows whose original text
   changed. `build` receives the edits and applies them after any files;
   importing files into the editor never overwrites existing targets.
+- `sections.js` - Groups sections by folder and sorts `text_<hex>` by offset,
+  for the editor menu and the file list (mhfpac.bin has ~900 sections).
+  `bridge.search_sections` finds which sections contain a text; the editor
+  shows them under its search box.
 - `i18n.js` - English and French strings (`data-i18n` / `data-i18n-html`
   attributes, `t()` for dynamic text). French follows the wiki's
   typography: non-breaking space before `:`, decimal comma, Mo/ko.
