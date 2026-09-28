@@ -86,6 +86,7 @@ Defines pointer offsets for each data section. Structure: `{file_type}/{category
 - `begin_pointer`: Hex offset to a pointer that points to the start of the pointer table
 - `entry_count`: Number of entries — plain integer or versioned map (`{"zz": 14594, "ko": 1290}`)
 - Optional: `pointers_per_entry`, `null_terminated`, `entry_size`/`field_offset` for struct-strided sections
+- `grouped_entries` (with `pointers_per_entry` > 1): each fixed-size group of pointers is one row, sub-strings joined with `{j}`; `entry_count` then counts groups, not pointers
 
 Note: `begin_pointer` is a pointer-to-pointer. The file stores an address that points to the actual table start. Use `--game-version` to select entry counts for non-ZZ versions.
 

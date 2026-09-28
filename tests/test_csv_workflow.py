@@ -29,6 +29,7 @@ from src.common import (
     read_quest_table,
     read_extraction_config,
     extract_text_data,
+    extract_text_data_from_bytes,
     load_file_data,
     get_all_xpaths,
     _is_extraction_leaf,
@@ -2431,6 +2432,36 @@ class TestGroupedEntriesExtraction(unittest.TestCase):
             self.assertEqual(len(result), 0)
         finally:
             os.unlink(temp_path)
+
+    def test_grouped_entries_with_entry_count(self):
+        """entry_count reads fixed-size groups, even without null separators.
+
+        Regression: from 1.6.0 the entry_count branch ignored
+        grouped_entries, so pac tables of name/description pairs came out
+        as one row per pointer and grouped translations no longer applied.
+        """
+        entries = [["Walk", "Hold to walk"], ["Run", None], ["Extra", "Past the count"]]
+        binary = self._build_grouped_null_terminated_binary(entries, 2)
+        config = {
+            "begin_pointer": "0x00",
+            "null_terminated": True,
+            "grouped_entries": True,
+            "pointers_per_entry": 2,
+            "entry_count": 2,
+        }
+        result = extract_text_data_from_bytes(binary, config)
+        self.assertEqual(
+            [row["text"] for row in result], ["Walk{j}Hold to walk", "Run"]
+        )
+        self.assertEqual(result[0]["sub_offsets"], [0x04, 0x08])
+        self.assertEqual(result[1]["sub_offsets"], [0x0C])
+
+    def test_entry_count_without_grouping_stays_flat(self):
+        """Without grouped_entries, entry_count keeps one row per pointer."""
+        binary = self._build_grouped_null_terminated_binary([["A", "B"], ["C", "D"]], 2)
+        config = {"begin_pointer": "0x00", "pointers_per_entry": 2, "entry_count": 2}
+        result = extract_text_data_from_bytes(binary, config)
+        self.assertEqual([row["text"] for row in result], ["A", "B", "C", "D"])
 
     def test_legacy_null_terminated_unchanged(self):
         """Test that existing null-terminated behavior (no grouped_entries) is unchanged."""
