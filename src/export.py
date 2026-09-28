@@ -141,6 +141,64 @@ def _dumps_translation_json(output: dict) -> str:
     return head[:-4] + "[\n" + rows + "\n  ]\n}"
 
 
+def translation_document(
+    data: Iterable[dict[str, int | str]],
+    location_name: str = "",
+    with_index: bool = True,
+    xpath: str = "",
+    fingerprint: str = "",
+    targets: dict[int, str] | None = None,
+) -> dict:
+    """
+    Build the JSON translation document for extracted strings.
+
+    See :func:`export_as_json` for the parameters. *targets* fills the
+    ``target`` of index-keyed rows by index (rows not in it stay empty);
+    the web editor uses it to save its work in the standard format.
+
+    :return: ``{"metadata": {...}, "strings": [...]}``
+    """
+    from . import __version__, FORMAT_VERSION
+
+    strings = []
+    if with_index:
+        targets = targets or {}
+        for index, datum in enumerate(data):
+            display = _to_csv_form(str(datum["text"]))
+            strings.append({
+                "index": index,
+                "source": display,
+                "target": targets.get(index, ""),
+            })
+    else:
+        for datum in data:
+            display = _to_csv_form(str(datum["text"]))
+            strings.append({
+                "location": f"0x{datum['offset']:x}@{location_name}",
+                "source": display,
+                "target": display,
+            })
+
+    # ``version`` is the tool version (bumped on any release); readers
+    # that care about the on-disk shape should look at ``format_version``
+    # instead so a patch-release of the tool doesn't read as a format
+    # change. See ``docs/translation-format.md`` for the shape spec.
+    metadata = {
+        "source_file": location_name,
+        "version": __version__,
+        "format_version": FORMAT_VERSION,
+    }
+    if with_index and xpath:
+        metadata["xpath"] = xpath
+    if with_index and fingerprint:
+        metadata["fingerprint"] = fingerprint
+
+    return {
+        "metadata": metadata,
+        "strings": strings,
+    }
+
+
 def export_as_json(
     data: Iterable[dict[str, int | str]],
     output_file: str,
@@ -167,45 +225,11 @@ def export_as_json(
         translation file is being applied to a different binary version.
     :return: Number of entries written
     """
-    from . import __version__, FORMAT_VERSION
-
-    strings = []
-    if with_index:
-        for index, datum in enumerate(data):
-            display = _to_csv_form(str(datum["text"]))
-            strings.append({
-                "index": index,
-                "source": display,
-                "target": "",
-            })
-    else:
-        for datum in data:
-            display = _to_csv_form(str(datum["text"]))
-            strings.append({
-                "location": f"0x{datum['offset']:x}@{location_name}",
-                "source": display,
-                "target": display,
-            })
-
-    # ``version`` is the tool version (bumped on any release); readers
-    # that care about the on-disk shape should look at ``format_version``
-    # instead so a patch-release of the tool doesn't read as a format
-    # change. See ``docs/translation-format.md`` for the shape spec.
-    metadata = {
-        "source_file": location_name,
-        "version": __version__,
-        "format_version": FORMAT_VERSION,
-    }
-    if with_index and xpath:
-        metadata["xpath"] = xpath
-    if with_index and fingerprint:
-        metadata["fingerprint"] = fingerprint
-
-    output = {
-        "metadata": metadata,
-        "strings": strings,
-    }
-
+    output = translation_document(
+        data, location_name, with_index=with_index, xpath=xpath,
+        fingerprint=fingerprint,
+    )
+    strings = output["strings"]
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(_dumps_translation_json(output))
 

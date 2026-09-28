@@ -185,6 +185,13 @@ Static GitHub Pages site that runs the tool in the browser via Pyodide
   sections. Tested in `tests/test_web_bridge.py`.
 - `worker.js` - Web Worker hosting Pyodide (pinned CDN version) so the
   page stays responsive; `app.js` / `index.html` / `style.css` - the UI.
+- `editor.js` - In-page editor: one section at a time, paginated, rows
+  checked by `bridge.check_rows` as the translator types (placeholders,
+  line length after folding, unencodable characters). `store.js` keeps the
+  work in IndexedDB as `xpath -> {index: {target, source}}` (memory only if
+  storage is blocked); the recorded source flags rows whose original text
+  changed. `build` receives the edits and applies them after any files;
+  importing files into the editor never overwrites existing targets.
 - `i18n.js` - English and French strings (`data-i18n` / `data-i18n-html`
   attributes, `t()` for dynamic text). French follows the wiki's
   typography: non-breaking space before `:`, decimal comma, Mo/ko.

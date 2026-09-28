@@ -213,5 +213,105 @@ class TestWebBridge(unittest.TestCase):
         self.assertEqual(result["unchanged"], ["translations-en.json"])
 
 
+
+# A flat pointer table at 8 (see _pointer_table_binary), with limits.
+SECTION = {"begin_pointer": "0x0", "next_field_pointer": "0x4",
+           "max_display_width": 12, "max_sub_count": 1}
+
+
+class TestWebEditor(unittest.TestCase):
+    """The in-page editor's bridge functions."""
+
+    setUp = TestWebBridge.setUp
+    _put_game_file = TestWebBridge._put_game_file
+    _put_release = TestWebBridge._put_release
+
+    def _load(self, strings):
+        self._put_game_file("mhfdat.bin", _pointer_table_binary(strings))
+        bridge.load_game_file("mhfdat.bin")
+        patcher = mock.patch.object(bridge.common, "read_extraction_config", return_value=SECTION)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_section_rows(self):
+        self._load(["Helmet", "Sword"])
+        self.assertEqual(
+            bridge.section_rows("mhfdat.bin", "dat/armors/head"),
+            {"sources": ["Helmet", "Sword"], "max_width": 12, "max_subs": 1},
+        )
+
+    def test_check_rows(self):
+        self._load(["Helmet"])
+        results = bridge.check_rows("dat/armors/head", [
+            ["Helmet", "Casque"],
+            ["{c05}Fire{/c}", "Feu{/c}"],
+            ["Helmet", "Casque d'élite"],
+            ["Helmet", "Casque 🙂"],
+            ["Helmet", "A{j}B"],
+        ])
+        self.assertEqual(results[0], [])
+        self.assertEqual(results[1], [
+            {"kind": "placeholder", "marker": "{c05}", "source": 1, "target": 0}])
+        self.assertEqual(results[2], [
+            {"kind": "folded", "text": "Casque d'elite"},
+            {"kind": "width", "sub": 0, "width": 14, "max": 12}])
+        self.assertEqual([i["kind"] for i in results[3]], ["unencodable"])
+        self.assertEqual(results[3][0]["chars"], "🙂")
+        self.assertIn({"kind": "subs", "count": 2, "max": 1}, results[4])
+
+    def test_export_edits_writes_standard_json(self):
+        self._load(["Helmet", "Sword"])
+        archive = zipfile.ZipFile(io.BytesIO(
+            bridge.export_edits("mhfdat.bin", {"dat/armors/head": {"1": "Epee", "0": ""}})
+        ))
+        self.assertEqual(archive.namelist(), ["dat-armors-head.json"])
+        document = json.loads(archive.read("dat-armors-head.json"))
+        self.assertEqual(document["metadata"]["xpath"], "dat/armors/head")
+        self.assertEqual(document["metadata"]["source_file"], "mhfdat.bin")
+        self.assertEqual([row["target"] for row in document["strings"]], ["", "Epee"])
+
+    def test_build_applies_editor_edits_after_files(self):
+        self._load(["Helmet", "Sword"])
+        with open(f"{bridge.TRANSLATION_DIR}/dat-armors-head.csv", "w") as f:
+            f.write("index,source,target\n0,Helmet,Heaume\n1,Sword,Lame\n")
+        bridge.stage_translations("mhfdat.bin", ["dat-armors-head.csv"])
+
+        result = bridge.build(
+            "mhfdat.bin", ["dat-armors-head.csv"],
+            edits={"dat/armors/head": {"0": "Casque élite"}},
+            compress=False, encrypt_output=False,
+        )
+
+        self.assertEqual(result["applied"], ["dat-armors-head.csv", "editor-dat-armors-head.json"])
+        self.assertEqual(_string_at_pointer(result["data"], 8), "Casque elite")
+        self.assertEqual(_string_at_pointer(result["data"], 12), "Lame")
+
+    def test_read_edits(self):
+        self._load(["Helmet", "Sword"])
+        with open(f"{bridge.TRANSLATION_DIR}/dat-armors-head.csv", "w") as f:
+            f.write("index,source,target\n0,Helmet,Casque\n1,Sword,\n")
+        with open(f"{bridge.TRANSLATION_DIR}/pac-skills-name.csv", "w") as f:
+            f.write("index,source,target\n0,Guard,Garde\n")
+        with open(f"{bridge.TRANSLATION_DIR}/old.csv", "w") as f:
+            f.write("location,source,target\n0x8@mhfdat.bin,Helmet,Casque\n")
+        self._put_release("translations-fr.json.gz", {"fr": {
+            "dat/items/name": [{"index": "3", "target": "Potion"}, {"index": 4, "target": ""}],
+            "pac/skills/name": [{"index": 0, "target": "Garde"}],
+        }})
+        names = ["dat-armors-head.csv", "pac-skills-name.csv", "old.csv", "translations-fr.json.gz"]
+        bridge.stage_translations("mhfdat.bin", names)
+
+        result = bridge.read_edits("mhfdat.bin", names, {"translations-fr.json.gz": "fr"})
+
+        self.assertEqual(result["edits"], {
+            "dat/armors/head": {0: "Casque"},
+            "dat/items/name": {3: "Potion"},
+        })
+        self.assertEqual(result["skipped"], [
+            {"name": "pac-skills-name.csv", "reason": "other_file"},
+            {"name": "old.csv", "reason": "legacy"},
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()

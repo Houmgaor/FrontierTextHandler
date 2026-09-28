@@ -32,6 +32,14 @@ of the old codecs, and on real game files). Timings on `mhfdat.bin`
   encoder (same text).
 
 ### Added
+- **Translate in the page.** Step 2 of the web interface has an editor:
+  pick a section, type translations beside the originals, with search,
+  filters and live checks (lost or extra `{cNN}`/`{j}` markers, lines
+  longer than the game's text box, characters that will be replaced or
+  cannot be shown). Work is saved in the browser, can be downloaded as the
+  standard JSON files, and is included when building. Translation files
+  and releases can be opened in the editor to continue from them; this
+  never overwrites rows already translated there.
 - **Web interface** (`web/`, deployed to GitHub Pages): extract text and
   build game-ready files in the browser, with no installation. The tool
   runs locally through Pyodide in a Web Worker; game files never leave
