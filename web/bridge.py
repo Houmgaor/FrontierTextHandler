@@ -36,6 +36,9 @@ from src.text_folding import fold_unsupported_chars as fold_text
 from src.jkr_compress import compress_jkr_hfi
 from src.jkr_decompress import decompress_jkr, is_jkr_file
 
+# Build id, set by build_site.py; the page checks it matches its own.
+BUILD = "__BUILD__"
+
 WORK = "/work"
 INPUT_DIR = f"{WORK}/in"
 DECODED_DIR = f"{WORK}/decoded"

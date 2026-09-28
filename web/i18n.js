@@ -12,6 +12,7 @@ const messages = {
     "notice.privacy": "Everything runs in this browser tab. Your game files are never uploaded.",
     "engine.loading": "Loading the Python engine…",
     "engine.ready": "Ready.",
+    "engine.stale": "This page was updated while your browser still had parts of the old version. Reload it (Ctrl+Shift+R, or Cmd+Shift+R on a Mac).",
     "engine.failed": "The Python engine could not start: {error}",
 
     "step1.title": "Open a game file",
@@ -115,6 +116,7 @@ const messages = {
     "notice.privacy": `Tout se passe dans cet onglet${NBSP}: vos fichiers de jeu ne sont jamais envoyés en ligne.`,
     "engine.loading": "Chargement du moteur Python…",
     "engine.ready": "Prêt.",
+    "engine.stale": "Cette page a été mise à jour alors que votre navigateur gardait des morceaux de l'ancienne version. Rechargez-la (Ctrl+Maj+R, ou Cmd+Maj+R sur Mac).",
     "engine.failed": `Le moteur Python n'a pas pu démarrer${NBSP}: {error}`,
 
     "step1.title": "Ouvrir un fichier du jeu",
