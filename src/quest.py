@@ -45,7 +45,7 @@ def split_join_text(text: str) -> list[str]:
 def extract_quest_file(
     file_path: str,
     quest_type_flags_offset: int = 0x00,
-    quest_strings_offset: int = 0xE8,
+    quest_strings_offset: int = 0x28,
     text_pointers_count: int = 8
 ) -> list[dict[str, int | str]]:
     """
@@ -54,7 +54,7 @@ def extract_quest_file(
     Quest file layout:
     - Header at 0x00 contains questTypeFlagsPtr (u32 at quest_type_flags_offset)
     - Main quest properties at questTypeFlagsPtr contain QuestStringsPtr
-      (u32 at quest_strings_offset within the main quest props block)
+      (u32 at quest_strings_offset, 0x28, within the main quest props block)
     - QuestText block: 8 consecutive u32 pointers to null-terminated Shift-JIS strings
       (title, textMain, textSubA, textSubB, successCond, failCond, contractor, description)
 
@@ -74,7 +74,7 @@ def extract_quest_file(
 def extract_quest_file_data(
     data: bytes,
     quest_type_flags_offset: int = 0x00,
-    quest_strings_offset: int = 0xE8,
+    quest_strings_offset: int = 0x28,
     text_pointers_count: int = 8
 ) -> list[dict[str, int | str]]:
     """
@@ -154,7 +154,14 @@ def extract_quest_file_data(
     for i, sp in enumerate(str_ptrs):
         if sp == 0:
             continue
-        bfile.validate_offset(sp, context=f"quest string ptr {i} at 0x{sp:x}")
+        try:
+            bfile.validate_offset(sp, context=f"quest string ptr {i} at 0x{sp:x}")
+        except InvalidPointerError:
+            raise ValueError(
+                f"No quest text: QuestStringsPtr (0x{quest_strings_ptr:x}) "
+                f"does not point to a text block (string pointer {i} is "
+                f"0x{sp:x}, outside the file)."
+            )
         bfile.seek(sp)
         data_stream = read_until_null(bfile)
         text = decode_game_string(data_stream, context=f"quest string 0x{sp:x}")
