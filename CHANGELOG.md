@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-28
+
 ### Performance
 Output is byte-identical to 1.8.0 throughout (checked against frozen copies
 of the old codecs, and on real game files). Timings on `mhfdat.bin`
