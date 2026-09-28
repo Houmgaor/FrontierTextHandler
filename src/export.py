@@ -371,7 +371,7 @@ def extract_quest_files(
     quest_dir: str,
     output_dir: str = "output",
     quest_type_flags_offset: int = 0x00,
-    quest_strings_offset: int = 0xE8,
+    quest_strings_offset: int = 0x28,
     text_pointers_count: int = 8,
     with_index: bool = True,
 ) -> list[str]:
@@ -405,7 +405,7 @@ def extract_single_quest_file(
     output_file: str = "",
     output_dir: str = "output",
     quest_type_flags_offset: int = 0x00,
-    quest_strings_offset: int = 0xE8,
+    quest_strings_offset: int = 0x28,
     text_pointers_count: int = 8,
     with_index: bool = True,
     refrontier_tsv: bool = False,

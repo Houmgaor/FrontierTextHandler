@@ -70,6 +70,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in the English client), from header `0xA24` and `0xACC`.
 
 ### Fixed
+- **Standalone quest files had no text** (`--quest`, `--quest-dir`, quest
+  import and diff). The quest text pointer (`QuestStringsPtr`) was read at
+  `+0xE8` in the main quest properties instead of `+0x28`, so every real
+  quest file failed with "No text found in quest file". All 54,977 quest
+  files of Erupe's `bin/quests` now extract except six that have no text
+  block (quests 64551 and 64552), which now say so.
 - **Skill lists have one skill per row.** `pac/skills/name`, `pac/skills/effect`
   and `pac/skills/effect_z` each came out as a single row joining every name
   with `{j}` (225, 535 and 53 parts): a null pointer anywhere in a flat table

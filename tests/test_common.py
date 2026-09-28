@@ -500,7 +500,7 @@ class TestExtractQuestFileData(unittest.TestCase):
         """Build a minimal quest binary with text pointers."""
         # Layout:
         # @0x00: questTypeFlagsPtr → points to quest props block
-        # Quest props block at some offset, QuestStringsPtr at +0xE8
+        # Quest props block at some offset, QuestStringsPtr at +0x28
         # QuestText block: 8 string pointers (padded) followed by strings
         quest_props_offset = 0x100
         strings_block_offset = quest_props_offset + 0xEC
@@ -520,8 +520,8 @@ class TestExtractQuestFileData(unittest.TestCase):
         data = bytearray(current)
         # Header: questTypeFlagsPtr
         struct.pack_into("<I", data, 0, quest_props_offset)
-        # Quest props: QuestStringsPtr at +0xE8
-        struct.pack_into("<I", data, quest_props_offset + 0xE8, strings_block_offset)
+        # Quest props: QuestStringsPtr at +0x28
+        struct.pack_into("<I", data, quest_props_offset + 0x28, strings_block_offset)
         # String pointers (fill used slots, rest are 0)
         for i, off in enumerate(str_offsets):
             struct.pack_into("<I", data, strings_block_offset + i * 4, off)

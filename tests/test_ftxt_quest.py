@@ -63,7 +63,7 @@ def build_ftxt(strings: list[str]) -> bytes:
 def build_quest_file(
     strings: list[str | None],
     quest_type_flags_offset: int = 0x00,
-    quest_strings_offset: int = 0xE8
+    quest_strings_offset: int = 0x28
 ) -> bytes:
     """
     Build a synthetic quest .bin file for testing.
@@ -441,6 +441,25 @@ class TestFtxtImport(unittest.TestCase):
 
 class TestExtractQuestFileData(unittest.TestCase):
     """Tests for quest file text extraction."""
+
+    def test_strings_pointer_at_0x28(self):
+        """QuestStringsPtr is at mainQuestProperties + 0x28, as in Erupe."""
+        data = bytearray(0x110)                            # text block ends at 0x110
+        struct.pack_into("<I", data, 0x00, 0xC0)           # questTypeFlagsPtr
+        struct.pack_into("<I", data, 0xC0 + 0x28, 0xF0)    # QuestStringsPtr
+        struct.pack_into("<I", data, 0xF0, len(data))      # title pointer
+        data += encode_game_string("Title") + b"\x00"
+        result = extract_quest_file_data(bytes(data))
+        self.assertEqual([r["text"] for r in result], ["Title"])
+
+    def test_strings_pointer_to_non_text(self):
+        """A QuestStringsPtr to numbers, not string pointers, says so."""
+        data = bytearray(0x110)
+        struct.pack_into("<I", data, 0x00, 0xC0)
+        struct.pack_into("<I", data, 0xC0 + 0x28, 0xF0)
+        struct.pack_into("<I", data, 0xF4, 0x8000000)      # not a pointer
+        with self.assertRaisesRegex(ValueError, "No quest text"):
+            extract_quest_file_data(bytes(data))
 
     def test_all_eight_strings(self):
         """Test extracting all 8 text strings from a quest file."""
