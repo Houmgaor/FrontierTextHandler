@@ -91,7 +91,8 @@ def read_next_string(bfile: BinaryFile) -> str:
 def read_file_section(
     bfile: BinaryFile,
     start_position: int,
-    length: int
+    length: int,
+    null_padding: bool = False,
 ) -> list[dict[str, int | str | list[int]]]:
     """
     Read a part of a file and return strings found.
@@ -106,6 +107,8 @@ def read_file_section(
     :param bfile: Binary file to read from
     :param start_position: Initial position to read from
     :param length: Number of bytes to read.
+    :param null_padding: Null pointers are padding between lists, not
+        group separators: every non-null pointer is its own entry.
     :return: List of dicts with ``"offset"``, ``"text"``, and
         ``"sub_offsets"`` keys. ``"offset"`` is the first slot of the
         entry; ``"sub_offsets"`` is the full list.
@@ -122,8 +125,9 @@ def read_file_section(
     # Frontier separates some multiline strings (e.g. weapon descriptions)
     # with null pointers acting as group boundaries. When any pointer in
     # the read window is null we switch to grouped mode; otherwise every
-    # non-null pointer is its own entry.
-    join_lines = 0 in pointers
+    # non-null pointer is its own entry. Name lists padded with nulls opt
+    # out with null_padding.
+    join_lines = not null_padding and 0 in pointers
 
     # Walk the pointer window once. For each non-null pointer read the
     # target string and remember the (real) slot offset, keeping groups
@@ -700,7 +704,10 @@ def extract_text_data_from_bytes(
                 bfile, start_position, pointers_per_entry, entry_count
             )
         read_length = entry_count * pointers_per_entry * 4
-        return read_file_section(bfile, start_position, read_length)
+        return read_file_section(
+            bfile, start_position, read_length,
+            null_padding=bool(config.get("null_padding")),
+        )
 
     elif config.get("quest_table"):
         # Quest table: multi-level category table (mhfinf.bin)

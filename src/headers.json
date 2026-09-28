@@ -158,23 +158,26 @@
       "name": {
         "begin_pointer": "0xA20",
         "max_display_width": 16,
-        "max_sub_count": 225,
+        "max_sub_count": 1,
         "entry_count": 232,
-        "_comment": "end_pointer 0xA1C → next section start"
+        "null_padding": true,
+        "_comment": "Skill point names, one per row; slots 225-231 are null padding. end_pointer 0xA1C → next section start"
       },
       "effect": {
         "begin_pointer": "0xA1C",
         "max_display_width": 29,
-        "max_sub_count": 535,
+        "max_sub_count": 1,
         "entry_count": 536,
-        "_comment": "end_pointer 0xBC0 → next section start"
+        "null_padding": true,
+        "_comment": "Activated skill names, one per row; slot 535 is null padding. end_pointer 0xBC0 → next section start"
       },
       "effect_z": {
         "begin_pointer": "0xFBC",
         "max_display_width": 18,
-        "max_sub_count": 53,
+        "max_sub_count": 1,
         "entry_count": 120,
-        "_comment": "end_pointer 0xFB0 → next section start"
+        "null_padding": true,
+        "_comment": "Zenith skill names: three lists (27, 27 and 53 names) padded with nulls to 32, 32 and 56 slots, one name per row. end_pointer 0xFB0 → next section start"
       },
       "caravan": {
         "name": {
